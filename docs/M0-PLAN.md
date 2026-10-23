@@ -105,11 +105,13 @@ LoreWeave/
   - 유형: 이미 만난 인물의 첫 만남 / 나이 / 직업 / 이름 / 사망 인물 등장 / 관계 / 날짜·시간 순서 / 숫자·지분·금액 / 장소 설정 / 성격·습관
   - 축: 거리(근접 1~2화 / 원거리 5화 이상), 명시도(L1 직접 / L2 표현 변형 / L3 추론 필요)
   - 모든 유형에 원거리 1개, 암시적(L2/L3) 1개 이상
-- 함정(정당한 변화) 약 8개: 생일로 인한 나이 증가, 별명·호칭 변형, 승진, 회상 장면, 인물의 거짓말 등
+- 함정(정당한 변화) 10개: 생일로 인한 나이 증가, 별명·호칭 변형, 승진, 회상 장면, 인물의 거짓말 등
 - `ground-truth.json` 항목: `id`, `category`, `type`(error/trap), `target_chapter`, `target_span`, `source_chapter`, `source_span`, `distance`, `explicitness`, `split`
 - 작성: Claude가 설정집 → 화별 플롯 → 본문 → 오류 삽입. **사용자가 15화를 읽고 ground truth 검수.** 설정집은 평가 입력에 넣지 않는다.
-- 분할: 오류를 유형별로 균형 있게 dev 약 40% / test 약 60%. test 실행 전에 프롬프트 동결.
+- 분할: 유형마다 dev 1 / test 2 (dev 10 / test 20), 함정 dev 3 / test 7. test 실행 전에 프롬프트 동결.
 - 미라벨 발견물: LLM이 찾은 라벨 밖 불일치는 자동 FP 처리하지 않고 검수 큐 → ground truth 편입 또는 FP 확정.
+- Echo 규칙: 오류는 해당 화에서만 canon을 어기므로, 이후 화 검사에서 "삽입된 오류 구간"만을 근거로 한 지적은 echo로 분류해 TP/FP에서 제외하고 따로 집계한다.
+- 상세 배치: `spikes/m0a-ai-feasibility/benchmark/error-plan.md`
 
 ## 5. 측정 지표
 
