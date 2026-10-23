@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+out/
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# M0-A: 원시 API 응답과 호출 캐시는 커밋하지 않음 (요약 metrics만 커밋)
+spikes/m0a-ai-feasibility/results/**/raw/
+spikes/m0a-ai-feasibility/.cache/
+
+# test / tooling
+coverage/
+playwright-report/
+test-results/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
