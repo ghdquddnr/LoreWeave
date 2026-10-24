@@ -1,0 +1,1249 @@
+{
+  "run_id": "c-summary__gpt-6.1-sol__low__r1",
+  "strategy": "c-summary",
+  "model": "gpt-6.1-sol",
+  "n_chapters": 14,
+  "by_threshold": [
+    {
+      "threshold": 0,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.1,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.2,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.3,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.4,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.5,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.6,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.7,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.8,
+      "all": {
+        "total": 30,
+        "tp": 29,
+        "fp": 1,
+        "recall": 0.9666666666666667,
+        "precision": 0.9666666666666667,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 10,
+        "fp": 1,
+        "recall": 1,
+        "precision": 0.9090909090909091,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    },
+    {
+      "threshold": 0.9,
+      "all": {
+        "total": 30,
+        "tp": 28,
+        "fp": 1,
+        "recall": 0.9333333333333333,
+        "precision": 0.9655172413793104,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "dev": {
+        "total": 10,
+        "tp": 9,
+        "fp": 1,
+        "recall": 0.9,
+        "precision": 0.9,
+        "fp_per_chapter": 0.07142857142857142
+      },
+      "test": {
+        "total": 20,
+        "tp": 19,
+        "fp": 1,
+        "recall": 0.95,
+        "precision": 0.95,
+        "fp_per_chapter": 0.07142857142857142
+      }
+    }
+  ],
+  "findings": [
+    {
+      "target_chapter": 3,
+      "finding": {
+        "category": "age",
+        "target_quote": "\"스물두 살입니다.\"",
+        "claim": "민수는 2007년 입학 당시 스무 살이었고 4월에도 스무 살로 언급되었는데, 같은 해 5월에 스물두 살이라고 답한다.",
+        "evidence": [
+          {
+            "chapter": 1,
+            "quote": "둘 다 스무 살이었다."
+          },
+          {
+            "chapter": 2,
+            "quote": "\"그럼 스무 살? 나보다 한 살 어리네. 난 스물한 살.\""
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E04"
+    },
+    {
+      "target_chapter": 4,
+      "finding": {
+        "category": "occupation",
+        "target_quote": "\"그리고 홈페이지는 내가 전산학과 동기들한테 부탁해 놨어.",
+        "claim": "지현은 앞서 경영학과 06학번으로 소개되었으나, 여기서는 전산학과 동기들이 있다고 말해 소속 학과가 달라진 것으로 서술된다.",
+        "evidence": [
+          {
+            "chapter": 2,
+            "quote": "\"저는 경영학과 06학번 이지현입니다. 작년 한 해 동안 이 동아리에서 아이템 열두 개가 나왔고, 그중 실제로 법인을 만든 건 하나도 없습니다. 이유는 간단해요. 다들 아이디어만 있고 숫자가 없었거든요.\""
+          }
+        ],
+        "confidence": 0.8
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E09"
+    },
+    {
+      "target_chapter": 5,
+      "finding": {
+        "category": "name",
+        "target_quote": "\"그 부분은 재무 담당인 이지연 씨가 설명드리겠습니다.\"",
+        "claim": "재무 담당인 이지현의 이름을 이지연으로 잘못 표기했다.",
+        "evidence": [
+          {
+            "chapter": 2,
+            "quote": "\"저는 경영학과 06학번 이지현입니다. 작년 한 해 동안 이 동아리에서 아이템 열두 개가 나왔고, 그중 실제로 법인을 만든 건 하나도 없습니다. 이유는 간단해요. 다들 아이디어만 있고 숫자가 없었거든요.\""
+          },
+          {
+            "chapter": 4,
+            "quote": "아이디어와 설계를 낸 민수가 절반, 펌웨어를 맡은 성진이 30, 재무와 영업을 맡은 지현이 20."
+          }
+        ],
+        "confidence": 0.99
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E10"
+    },
+    {
+      "target_chapter": 6,
+      "finding": {
+        "category": "occupation",
+        "target_quote": "평생 공무원으로 일해 온 아버지는 이런 자리에서 해야 할 일을 잘 알았다.",
+        "claim": "민수의 아버지 김정호는 수원에서 자동차 부품 공장 대성정밀을 25년째 운영해 온 인물인데, 검사 대상에서는 평생 공무원으로 일했다고 서술한다.",
+        "evidence": [
+          {
+            "chapter": 1,
+            "quote": "김정호는 수원에서 '대성정밀'이라는 자동차 부품 공장을 25년째 운영하고 있었다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E07"
+    },
+    {
+      "target_chapter": 7,
+      "finding": {
+        "category": "first_meeting",
+        "target_quote": "\"처음 뵙겠습니다. 한빛벤처스 이사 오태식입니다. 이번 투자를 담당하게 됐습니다.\"",
+        "claim": "민수와 오태식은 이미 2007년 9월 첫 투자 미팅에서 만나 제품 발표와 투자 조건을 논의했다. 그런데 이번 만남을 첫 대면으로 묘사한다.",
+        "evidence": [
+          {
+            "chapter": 5,
+            "quote": "회의실에서 그들을 맞은 사람은 한빛벤처스의 오태식 이사였다."
+          },
+          {
+            "chapter": 5,
+            "quote": "민수가 MP-1 시제품을 테이블에 올려놓고 발표를 시작했다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E02"
+    },
+    {
+      "target_chapter": 7,
+      "finding": {
+        "category": "name",
+        "target_quote": "'한도현 교수님. 저희 투자 받았습니다.'",
+        "claim": "민수가 추모하는 지도교수의 이름은 한도윤인데 한도현으로 바뀌었다.",
+        "evidence": [
+          {
+            "chapter": 6,
+            "quote": "한도윤 교수는 그날 새벽 연구실에서 쓰러졌다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E12"
+    },
+    {
+      "target_chapter": 8,
+      "finding": {
+        "category": "dead_character",
+        "target_quote": "한 교수는 책상에 앉아 논문을 읽고 있다가 민수를 보고 안경을 벗었다.",
+        "claim": "한 교수는 2007년 10월 사망했으나, 2008년 3월 현재 시점에 연구실에서 민수를 만나 투자와 양산에 관해 대화한다.",
+        "evidence": [
+          {
+            "chapter": 6,
+            "quote": "전화는 2007년 10월 9일 새벽 다섯 시에 왔다."
+          },
+          {
+            "chapter": 6,
+            "quote": "한도윤 교수는 그날 새벽 연구실에서 쓰러졌다. 경비원이 발견했을 때는 이미 늦었다. 심근경색이었다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E13"
+    },
+    {
+      "target_chapter": 8,
+      "finding": {
+        "category": "dead_character",
+        "target_quote": "전화를 끊고 민수는 혼자 웃었다.",
+        "claim": "민수를 키우며 늘 밥을 먹었는지 묻던 할머니는 입학 시점에 이미 3년 전 사망한 인물인데, 현재 시점에 민수와 전화 통화를 한다.",
+        "evidence": [
+          {
+            "chapter": 1,
+            "quote": "3년 전 돌아가신 할머니는 맞벌이하던 부모님 대신 민수를 키우다시피 하셨다."
+          },
+          {
+            "chapter": 1,
+            "quote": "공부하라는 말 대신 늘 \"밥은 먹었니?\"라고 물으시던 분이었다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E15"
+    },
+    {
+      "target_chapter": 8,
+      "finding": {
+        "category": "age",
+        "target_quote": "스물한 살이 된 민수는 2학년 시간표를 받아 들고 한숨을 쉬었다.",
+        "claim": "3화의 2007년 5월 MT에서 민수는 스물두 살이라고 밝혔는데, 그보다 뒤인 2008년 3월에 스물한 살이 되었다고 서술되어 나이가 줄어든다.",
+        "evidence": [
+          {
+            "chapter": 3,
+            "quote": "2007년 5월 25일. 스타트라인 동아리 MT는 가평의 한 펜션에서 열렸다."
+          },
+          {
+            "chapter": 3,
+            "quote": "\"스물두 살입니다.\""
+          }
+        ],
+        "confidence": 0.96
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "trap",
+      "trap_id": "T01"
+    },
+    {
+      "target_chapter": 8,
+      "finding": {
+        "category": "location",
+        "target_quote": "장소는 역삼동 사무실.",
+        "claim": "기존 회사 사무실은 신림동으로 설정되어 있는데, 이전했다는 설명 없이 역삼동 사무실로 서술된다.",
+        "evidence": [
+          {
+            "chapter": 4,
+            "quote": "사무실은 신림동 골목 안쪽의 반지하였다."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E25"
+    },
+    {
+      "target_chapter": 9,
+      "finding": {
+        "category": "date_order",
+        "target_quote": "교수님 장례를 치른 건 투자 계약을 맺기 꼭 일주일 전이었다.",
+        "claim": "한 교수의 장례는 2007년 10월에 치렀고 투자 계약은 2008년 2월 11일에 맺었다. 이전 화에서도 두 사건 사이를 넉 달로 명시했으므로 일주일 전이라는 서술과 모순된다.",
+        "evidence": [
+          {
+            "chapter": 6,
+            "quote": "10월 11일, 발인 날 아침에는 비가 내렸다."
+          },
+          {
+            "chapter": 7,
+            "quote": "2008년 2월 11일. 계약은 한빛벤처스 회의실에서 진행되었다."
+          },
+          {
+            "chapter": 7,
+            "quote": "교수님이 돌아가신 지 넉 달. 장례식장에서 셋이 그만두지 말자고 약속한 지도 넉 달이었다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E20"
+    },
+    {
+      "target_chapter": 9,
+      "finding": {
+        "category": "first_meeting",
+        "target_quote": "민수가 지현을 처음 본 건 작년 여름, 법인 설립 서류 때문에 찾아간 세무사 사무실에서였다.",
+        "claim": "민수와 지현의 첫 만남은 2007년 4월 17일 창업동아리 신입 회원 설명회였다. 이를 작년 여름 세무사 사무실에서의 첫 만남으로 바꾸어 서술했다.",
+        "evidence": [
+          {
+            "chapter": 2,
+            "quote": "2007년 4월 17일 저녁, 김민수는 학생회관 3층 세미나실에서 열린 창업동아리 '스타트라인' 신입 회원 설명회에 참석하고 경영학과 선배 이지현을 처음 본다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        false
+      ],
+      "label": "tp",
+      "error_id": "E01"
+    },
+    {
+      "target_chapter": 9,
+      "finding": {
+        "category": "habit",
+        "target_quote": "민수는 습관처럼 에스프레소 두 잔을 연달아 비웠다.",
+        "claim": "민수는 커피를 마시면 심장이 뛰는 카페인에 예민한 체질이라고 밝혔다. 체질이나 습관이 바뀌었다는 설명 없이 에스프레소 두 잔을 연달아 마시는 것을 습관으로 서술했다.",
+        "evidence": [
+          {
+            "chapter": 2,
+            "quote": "\"커피 마시면 심장이 뛰어서요. 카페인에 좀 예민해요.\""
+          }
+        ],
+        "confidence": 0.94
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E28"
+    },
+    {
+      "target_chapter": 10,
+      "finding": {
+        "category": "age",
+        "target_quote": "민수보다 두 살 어린 지현이었지만, 협상 테이블에서는 누구보다 노련했다.",
+        "claim": "지현은 민수보다 한 살 많다고 밝혔는데, 이번 화에서는 두 살 어린 것으로 서술된다.",
+        "evidence": [
+          {
+            "chapter": 2,
+            "quote": "\"그럼 스무 살? 나보다 한 살 어리네. 난 스물한 살.\""
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E06"
+    },
+    {
+      "target_chapter": 10,
+      "finding": {
+        "category": "first_meeting",
+        "target_quote": "군대에서 처음 알게 된 이후로 성진은 단 한 번도 변한 적이 없었다.",
+        "claim": "민수와 성진은 고등학교에서 3년 내내 같은 반이었던 동창인데, 군대에서 처음 알게 된 사이로 바뀌었다.",
+        "evidence": [
+          {
+            "chapter": 1,
+            "quote": "수원 한결고에서 3년 내내 같은 반이었던 녀석이다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E16"
+    },
+    {
+      "target_chapter": 10,
+      "finding": {
+        "category": "number",
+        "target_quote": "투자사에서 받은 5억 원의 투자금은 이미 바닥을 보이고 있었다.",
+        "claim": "앞서 받은 투자금은 3억 원으로 확립되어 있으나, 추가 투자 설명 없이 5억 원으로 바뀌었다.",
+        "evidence": [
+          {
+            "chapter": 7,
+            "quote": "3억 원으로 버틸 수 있는 시간은 길어야 1년이었다."
+          }
+        ],
+        "confidence": 0.98
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E23"
+    },
+    {
+      "target_chapter": 11,
+      "finding": {
+        "category": "relationship",
+        "target_quote": "지현의 남동생 준호는 회사 설립 때부터 이것저것 챙겨 주는 고마운 존재였다.",
+        "claim": "회사 설립을 도운 이준호는 지현의 오빠였는데, 이번 화에서는 남동생으로 바뀌었다.",
+        "evidence": [
+          {
+            "chapter": 4,
+            "quote": "법인 설립 서류는 지현의 오빠 이준호가 도와주었다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E17"
+    },
+    {
+      "target_chapter": 11,
+      "finding": {
+        "category": "occupation",
+        "target_quote": "은행 지점장인 오태식의 동생답게 숫자 하나 허투루 넘기는 법이 없었다.",
+        "claim": "오태식은 한빛벤처스 이사로 확립되어 있는데, 이직 설명 없이 은행 지점장으로 서술된다.",
+        "evidence": [
+          {
+            "chapter": 7,
+            "quote": "\"처음 뵙겠습니다. 한빛벤처스 이사 오태식입니다. 이번 투자를 담당하게 됐습니다.\""
+          }
+        ],
+        "confidence": 0.99
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E08"
+    },
+    {
+      "target_chapter": 11,
+      "finding": {
+        "category": "number",
+        "target_quote": "\"주주 구성부터 확인하겠습니다. 김민수 대표님, 이지현 이사님, 그리고 지분 10퍼센트를 가진 박성진 이사님. 맞습니까?\"",
+        "claim": "기존 투자 후 박성진의 지분은 25.5퍼센트였다. 후속 투자는 아직 협의 중이고 별도 지분 변동 설명도 없는데 10퍼센트로 제시된다.",
+        "evidence": [
+          {
+            "chapter": 8,
+            "quote": "\"투자 받으면서 지분이 희석됐어요. 민수 42.5퍼센트, 성진이 25.5퍼센트, 저 17퍼센트, 투자사 15퍼센트. 다들 숫자 줄었다고 서운해하지 마요. 회사 가치가 커졌으니까 실제 가치는 오히려 늘어난 거예요.\""
+          }
+        ],
+        "confidence": 0.96
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E22"
+    },
+    {
+      "target_chapter": 12,
+      "finding": {
+        "category": "dead_character",
+        "target_quote": "지난달 한 교수님이 직접 써 주신 추천서가 결정적이었다는 것을 민수는 심사위원에게서 전해 들었다.",
+        "claim": "2008년 9월에 한 교수가 직접 추천서를 썼다고 하지만, 한도윤 교수는 2007년 10월 9일 사망했다.",
+        "evidence": [
+          {
+            "chapter": 6,
+            "quote": "전화는 2007년 10월 9일 새벽 다섯 시에 왔다."
+          },
+          {
+            "chapter": 6,
+            "quote": "한도윤 교수는 그날 새벽 연구실에서 쓰러졌다. 경비원이 발견했을 때는 이미 늦었다. 심근경색이었다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E14"
+    },
+    {
+      "target_chapter": 12,
+      "finding": {
+        "category": "date_order",
+        "target_quote": "2007년 12월, 신림동 반지하에서 회사를 세웠을 때만 해도 이런 날이 올 줄은 몰랐다.",
+        "claim": "회사 설립 시점을 2007년 12월로 서술했으나, 앞서 확립된 미래전자의 설립일은 2007년 8월 21일이다.",
+        "evidence": [
+          {
+            "chapter": 4,
+            "quote": "2007년 8월 21일. 주식회사 미래전자가 세워졌다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E19"
+    },
+    {
+      "target_chapter": 12,
+      "finding": {
+        "category": "first_meeting",
+        "target_quote": "성진이 지현을 처음 만난 건 회사를 세우던 날이었다.",
+        "claim": "성진과 지현의 첫 만남을 회사 설립일로 서술했으나, 두 사람은 그보다 앞선 2007년 5월 25일 동아리 MT에서 이미 처음 인사했다.",
+        "evidence": [
+          {
+            "chapter": 3,
+            "quote": "\"처음 뵙겠습니다! 컴퓨터공학과 07학번 박성진입니다. 민수가 말한 그 숫자 좋아하는 선배님 맞으시죠?\""
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E03"
+    },
+    {
+      "target_chapter": 13,
+      "finding": {
+        "category": "age",
+        "target_quote": "한 시간 뒤 판교 사무실에 도착한 오태식은 쉰을 훌쩍 넘긴 나이답지 않게 빠른 걸음으로 회의실에 들어섰다.",
+        "claim": "오태식은 2007년에 마흔다섯으로 설정되었다. 약 1년 뒤인 2008년 11월에 쉰을 훌쩍 넘겼다는 서술은 맞지 않는다.",
+        "evidence": [
+          {
+            "chapter": 5,
+            "quote": "올해 마흔다섯이라는 그는 반백의 머리를 짧게 깎았고, 말보다 듣는 쪽이 길었다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E05"
+    },
+    {
+      "target_chapter": 13,
+      "finding": {
+        "category": "name",
+        "target_quote": "\"한별벤처스 입장에서 말씀드리겠습니다.",
+        "claim": "미래전자에 투자한 오태식의 소속은 한빛벤처스였으나, 이번 화에서는 한별벤처스로 이름이 바뀐다.",
+        "evidence": [
+          {
+            "chapter": 7,
+            "quote": "\"처음 뵙겠습니다. 한빛벤처스 이사 오태식입니다. 이번 투자를 담당하게 됐습니다.\""
+          }
+        ],
+        "confidence": 0.99
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E11"
+    },
+    {
+      "target_chapter": 13,
+      "finding": {
+        "category": "number",
+        "target_quote": "\"기업가치 10억 원을 인정받아 3억 원을 투자받았던 게 불과 아홉 달 전입니다.",
+        "claim": "기존 투자 조건은 3억 원에 지분 15퍼센트였으므로 투자 후 기업가치는 20억 원, 투자 전 기업가치는 17억 원이다. 같은 투자의 기업가치를 10억 원이라고 설명하는 것은 기존 조건과 맞지 않는다.",
+        "evidence": [
+          {
+            "chapter": 7,
+            "quote": "지현이 계약서를 한 장씩 넘기며 마지막으로 숫자를 확인했다. 투자금 3억 원. 지분 15퍼센트. 그녀가 고개를 끄덕이자 민수가 펜을 들었다."
+          }
+        ],
+        "confidence": 0.98
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E24"
+    },
+    {
+      "target_chapter": 13,
+      "finding": {
+        "category": "number",
+        "target_quote": "그의 이름으로 된 미래전자 지분 25.5퍼센트는 여전히 그대로였다.",
+        "claim": "11화에서는 성진의 지분을 10퍼센트로 확인했는데, 이번 화에서는 25.5퍼센트가 그대로 유지되었다고 서술한다.",
+        "evidence": [
+          {
+            "chapter": 11,
+            "quote": "\"주주 구성부터 확인하겠습니다. 김민수 대표님, 이지현 이사님, 그리고 지분 10퍼센트를 가진 박성진 이사님. 맞습니까?\""
+          }
+        ],
+        "confidence": 0.96
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "echo"
+    },
+    {
+      "target_chapter": 14,
+      "finding": {
+        "category": "relationship",
+        "target_quote": "아직 지현에게 마음을 전하지 못한 민수에게, 지현의 목소리는 언제나 짧고 따뜻했다.",
+        "claim": "민수는 이미 2008년 9월 20일 지현에게 고백해 연인이 되었다. 12월에도 아직 마음을 전하지 못했다고 서술한 것은 기존 관계와 모순된다.",
+        "evidence": [
+          {
+            "chapter": 11,
+            "quote": "청계천 다리 위에서 민수가 걸음을 멈췄다.\n\n\"선배.\"\n\n\"응?\"\n\n\"저, 선배 좋아해요.\""
+          },
+          {
+            "chapter": 11,
+            "quote": "그날 밤, 두 사람은 연인이 되었다."
+          }
+        ],
+        "confidence": 1
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E18"
+    },
+    {
+      "target_chapter": 14,
+      "finding": {
+        "category": "habit",
+        "target_quote": "높은 곳에 서 있으니 마음이 조금 가라앉았다.",
+        "claim": "민수는 고소공포증 때문에 옥상에도 가지 못하던 인물인데, 이를 극복했다는 설명 없이 옥상 난간에서 아래를 내려다보며 안정감을 느낀다.",
+        "evidence": [
+          {
+            "chapter": 5,
+            "quote": "\"옥상도 못 가. 학교 다닐 때 옥상 청소 당번 걸리면 맨날 나랑 바꿨다니까.\""
+          }
+        ],
+        "confidence": 0.99
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E30"
+    },
+    {
+      "target_chapter": 14,
+      "finding": {
+        "category": "location",
+        "target_quote": "인천에 있는 아버지의 공장은 토요일에도 기계 소리가 멈추지 않았다.",
+        "claim": "아버지가 운영하는 공장은 수원에 있다고 설정되어 있었으나, 이전했다는 설명 없이 인천에 있는 것으로 서술된다.",
+        "evidence": [
+          {
+            "chapter": 1,
+            "quote": "김정호는 수원에서 '대성정밀'이라는 자동차 부품 공장을 25년째 운영하고 있었다."
+          }
+        ],
+        "confidence": 0.96
+      },
+      "target_found": true,
+      "evidence_found": [
+        true
+      ],
+      "label": "tp",
+      "error_id": "E27"
+    },
+    {
+      "target_chapter": 15,
+      "finding": {
+        "category": "date_order",
+        "target_quote": "성진이 회사를 떠난 건 10월 중순이었다.",
+        "claim": "성진이 회사를 떠난 시점은 이전 화에서 2008년 11월 17일로 제시되었으나, 검사 대상에서는 10월 중순으로 바뀌었다.",
+        "evidence": [
+          {
+            "chapter": 13,
+            "quote": "2008년 11월 17일 월요일 아침. 성진의 자리가 비어 있었다."
+          },
+          {
+            "chapter": 14,
+            "quote": "2008년 12월. 성진이 떠난 뒤의 한 달은 길었다."
+          }
+        ],
+        "confidence": 0.99
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E21"
+    },
+    {
+      "target_chapter": 15,
+      "finding": {
+        "category": "habit",
+        "target_quote": "주로 쓰는 오른손으로 서명란에 이름을 적은 지현이 펜을 민수에게 건넸다.",
+        "claim": "지현은 이전에 왼손잡이로 설정되었고 왼손으로 메모하는 모습도 나왔으나, 여기서는 오른손이 주로 쓰는 손이라고 서술된다.",
+        "evidence": [
+          {
+            "chapter": 3,
+            "quote": "저녁 회의 시간. 지현은 왼손으로 빠르게 메모를 했다."
+          },
+          {
+            "chapter": 3,
+            "quote": "“응. 그래서 밥 먹을 때 꼭 왼쪽 끝자리에 앉아. 오른손잡이랑 팔 부딪히면 짜증 나거든.”"
+          }
+        ],
+        "confidence": 0.99
+      },
+      "target_found": true,
+      "evidence_found": [
+        true,
+        true
+      ],
+      "label": "tp",
+      "error_id": "E29"
+    }
+  ],
+  "missed": {
+    "all": [
+      "E26"
+    ],
+    "dev": [],
+    "test": [
+      "E26"
+    ]
+  },
+  "breakdown": {
+    "all": {
+      "category": {
+        "first_meeting": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        },
+        "age": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        },
+        "occupation": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        },
+        "name": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        },
+        "dead_character": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        },
+        "relationship": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        },
+        "date_order": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        },
+        "number": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        },
+        "location": {
+          "total": 3,
+          "tp": 2,
+          "recall": 0.6666666666666666
+        },
+        "habit": {
+          "total": 3,
+          "tp": 3,
+          "recall": 1
+        }
+      },
+      "distance": {
+        "far": {
+          "total": 17,
+          "tp": 16,
+          "recall": 0.9411764705882353
+        },
+        "near": {
+          "total": 7,
+          "tp": 7,
+          "recall": 1
+        },
+        "mid": {
+          "total": 6,
+          "tp": 6,
+          "recall": 1
+        }
+      },
+      "explicitness": {
+        "L1": {
+          "total": 16,
+          "tp": 15,
+          "recall": 0.9375
+        },
+        "L2": {
+          "total": 10,
+          "tp": 10,
+          "recall": 1
+        },
+        "L3": {
+          "total": 4,
+          "tp": 4,
+          "recall": 1
+        }
+      }
+    },
+    "test": {
+      "category": {
+        "first_meeting": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "age": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "occupation": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "name": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "dead_character": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "relationship": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "date_order": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "number": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "location": {
+          "total": 2,
+          "tp": 1,
+          "recall": 0.5
+        },
+        "habit": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        }
+      },
+      "distance": {
+        "near": {
+          "total": 4,
+          "tp": 4,
+          "recall": 1
+        },
+        "far": {
+          "total": 12,
+          "tp": 11,
+          "recall": 0.9166666666666666
+        },
+        "mid": {
+          "total": 4,
+          "tp": 4,
+          "recall": 1
+        }
+      },
+      "explicitness": {
+        "L2": {
+          "total": 8,
+          "tp": 8,
+          "recall": 1
+        },
+        "L3": {
+          "total": 2,
+          "tp": 2,
+          "recall": 1
+        },
+        "L1": {
+          "total": 10,
+          "tp": 9,
+          "recall": 0.9
+        }
+      }
+    }
+  },
+  "quotes": {
+    "total": 74,
+    "found": 73,
+    "existence_rate": 0.9864864864864865
+  },
+  "evidence": {
+    "tp": 29,
+    "chapter_accuracy": 1,
+    "quote_accuracy": 0.8275862068965517
+  },
+  "category_agreement": 0.9655172413793104,
+  "traps": {
+    "all": {
+      "total": 10,
+      "hit": 1,
+      "rate": 0.1
+    },
+    "dev": {
+      "total": 3,
+      "hit": 1,
+      "rate": 0.3333333333333333
+    },
+    "test": {
+      "total": 7,
+      "hit": 0,
+      "rate": 0
+    },
+    "hit_ids": [
+      "T01"
+    ]
+  },
+  "echo_count": 1,
+  "duplicate_count": 0,
+  "retrieval": {
+    "per_error": {
+      "E01": true,
+      "E02": true,
+      "E03": true,
+      "E04": true,
+      "E05": true,
+      "E06": true,
+      "E07": true,
+      "E08": true,
+      "E09": true,
+      "E10": true,
+      "E11": true,
+      "E12": true,
+      "E13": true,
+      "E14": true,
+      "E15": true,
+      "E16": true,
+      "E17": true,
+      "E18": true,
+      "E19": true,
+      "E20": true,
+      "E21": true,
+      "E22": true,
+      "E23": false,
+      "E24": false,
+      "E25": true,
+      "E26": true,
+      "E27": true,
+      "E28": true,
+      "E29": true,
+      "E30": true
+    },
+    "known": 30,
+    "retrieved": 28,
+    "retrieval_recall": 0.9333333333333333,
+    "judge_recall": 0.9642857142857143
+  },
+  "review_queue": []
+}

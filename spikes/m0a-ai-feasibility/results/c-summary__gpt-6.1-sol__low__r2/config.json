@@ -1,0 +1,17 @@
+{
+  "run_id": "c-summary__gpt-6.1-sol__low__r2",
+  "strategy": "c-summary",
+  "model": "gpt-6.1-sol",
+  "model_versions": [
+    "gpt-6.1-sol"
+  ],
+  "reasoning": "low",
+  "repeat": 2,
+  "retrieval_only": false,
+  "prompt_hashes": {
+    "detect": "53207cd406ae",
+    "extract": "fa2971c6f7e8"
+  },
+  "git_commit": "ca276a8",
+  "created_at": "2026-10-24T03:31:49.457Z"
+}

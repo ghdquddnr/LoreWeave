@@ -1,0 +1,17 @@
+{
+  "run_id": "b-facts__gpt-6-luna__low__r1",
+  "strategy": "b-facts",
+  "model": "gpt-6-luna",
+  "model_versions": [
+    "gpt-6-luna"
+  ],
+  "reasoning": "low",
+  "repeat": 1,
+  "retrieval_only": false,
+  "prompt_hashes": {
+    "detect": "53207cd406ae",
+    "extract": "fa2971c6f7e8"
+  },
+  "git_commit": "ca276a8",
+  "created_at": "2026-10-24T03:18:56.236Z"
+}

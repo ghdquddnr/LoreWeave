@@ -7,6 +7,7 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "evaluate": "tsx src/evaluate.ts",
+    "aggregate": "tsx src/aggregate.ts",
     "probe": "node --env-file=.env --import tsx src/probe.ts",
     "run:strategy": "node --env-file=.env --no-warnings=ExperimentalWarning --import tsx src/run.ts"
   },

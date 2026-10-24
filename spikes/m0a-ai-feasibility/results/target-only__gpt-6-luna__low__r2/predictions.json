@@ -1,0 +1,77 @@
+{
+  "run_id": "target-only__gpt-6-luna__low__r2",
+  "strategy": "target-only",
+  "model": "gpt-6-luna",
+  "chapters": [
+    {
+      "target_chapter": 2,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 3,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 4,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 5,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 6,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 7,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 8,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 9,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 10,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 11,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 12,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 13,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 14,
+      "context": [],
+      "findings": []
+    },
+    {
+      "target_chapter": 15,
+      "context": [],
+      "findings": []
+    }
+  ]
+}

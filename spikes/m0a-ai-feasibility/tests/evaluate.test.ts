@@ -157,3 +157,12 @@ test('retrieval counts short fact quotes that overlap a source span', () => {
   const r = evaluate(run([{ target_chapter: 15, context: [piece], findings: [] }]), gt, chapters);
   assert.equal(r.retrieval.per_error[e.id], true);
 });
+
+test('trap flagged only on the basis of an inserted error is an echo', () => {
+  const t01 = gt.traps.find((x) => x.id === 'T01')!; // ch8 "스물한 살이 된 민수는"
+  const e04 = gt.errors.find((x) => x.id === 'E04')!; // ch3 "스물두 살입니다."
+  const f = finding({ target_quote: t01.quotes[0], evidence: [{ chapter: 3, quote: e04.target.quotes[0] }] });
+  const r = evaluate(run([{ target_chapter: 8, findings: [f] }]), gt, chapters);
+  assert.equal(r.findings[0].label, 'echo');
+  assert.equal(r.traps.all.hit, 0);
+});

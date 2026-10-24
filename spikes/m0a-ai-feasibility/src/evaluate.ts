@@ -148,18 +148,19 @@ export function evaluate(preds: Predictions, gt: GroundTruth, chapters: Map<numb
           matched.add(err.id);
           continue;
         }
-        const trap = gt.traps.find((t) => t.chapter === ch && trapSpans.get(t.id)!.some((s) => overlaps(s, span)));
-        if (trap) {
-          out.push({ ...base, label: 'trap', trap_id: trap.id });
-          continue;
-        }
+        // Echo before trap: a trap flagged only because of an inserted error is that error's echo.
         const isEcho =
           f.evidence.length > 0 &&
           f.evidence.every((ev, i) => {
             const s = evSpans[i];
             return s !== null && gt.errors.some((e) => e.target.chapter === ev.chapter && errorTargets.get(e.id)!.some((t) => overlaps(t, s)));
           });
-        out.push({ ...base, label: isEcho ? 'echo' : 'unlabeled' });
+        if (isEcho) {
+          out.push({ ...base, label: 'echo' });
+          continue;
+        }
+        const trap = gt.traps.find((t) => t.chapter === ch && trapSpans.get(t.id)!.some((s) => overlaps(s, span)));
+        out.push(trap ? { ...base, label: 'trap', trap_id: trap.id } : { ...base, label: 'unlabeled' });
       }
     }
     return out;
