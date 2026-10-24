@@ -14,7 +14,7 @@ AI가 글을 대신 쓰는 것이 아니라, 작가가 자신이 만든 설정�
 
 **M0: 기술 검증 spike** (제품 코드 없음)
 
-- M0-A: AI 연속성 오류 탐지 전략 비교 → `spikes/m0a-ai-feasibility/`
+- M0-A: AI 연속성 오류 탐지 전략 비교 → **완료** (`docs/spikes/M0A-REPORT.md`, ADR 0001, 코드는 태그 `spike-m0a-2026-10-24`)
 - M0-B: TipTap 에디터 / Markdown round-trip 검증 → `spikes/m0b-editor-feasibility/`
 
 이후: M1 (Electron shell + 에디터 + Markdown 저장) → M2 (SQLite 인덱스/검색) → M3 (OpenAI 연결) → M4 (연속성 탐지 E2E) = v0.1
