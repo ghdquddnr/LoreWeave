@@ -52,4 +52,4 @@
 - 연속성 탐지는 Fact + 원문 인용(B) 방식에서 시작한다. 인용문 존재 검사는 필수 단계로 둔다: [ADR 0001](decisions/0001-continuity-detection-strategy.md)
 - 한국어 검색은 FTS5 trigram만으로는 부족하다 (2글자 이름 검색 불가). M2에서 재검토한다.
 - 실제 비용: 대시보드 $2.97 (569회 호출). 장부는 상한으로 $4.32.
-- 유지 자산(benchmark, evaluator, Finding 스키마)은 태그에 보존하고, M3/M4에서 필요할 때 가져온다. spike 코드는 main에 넣지 않는다.
+- 유지 자산(benchmark v2, 평가기와 테스트, Finding 스키마, 보고서, 요약 결과)은 main의 `spikes/m0a-ai-feasibility/`에 둔다. 전략 구현, 러너, 호출 래퍼, 실행별 결과는 태그에만 남긴다.

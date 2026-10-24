@@ -5,17 +5,20 @@ AI가 웹소설의 연속성 오류를 얼마나 정확하게 찾는지, 어떤 
 
 가설, 전략, 성공/실패 기준: [`docs/M0-PLAN.md`](../../docs/M0-PLAN.md#m0-a-ai-feasibility-spike) (실행 전 고정)
 
+> **main에는 유지 자산만 있다**: `benchmark/` (ground truth v2), 평가기(`src/evaluate.ts`, `schema.ts`, `benchmark.ts`)와 테스트, `REPORT.md`, `results/summary.*`.
+> 전략 구현, 러너, 호출 래퍼, 실행별 결과는 태그 `spike-m0a-2026-10-24`에만 있다. `REPORT.md`의 재현 명령은 그 태그에서 실행한다.
+
 ## 진행 상태
 
 - [x] 벤치마크 설계: 설정집, 화별 플롯, 오류·함정 배치표
 - [x] 사용자 검수: 설계
 - [x] 본문 15화 작성 (화당 공백 포함 약 1,050~1,350자)
 - [x] `ground-truth.json` 작성 (모든 인용문 원문 일치 검증)
-- [ ] 사용자 검수: 본문 + ground truth
-- [ ] 평가 하네스 (`evaluate.ts`)
-- [ ] 전략 구현 및 dev 튜닝
-- [ ] test 실행 (프롬프트 동결 후)
-- [ ] `REPORT.md`
+- [x] 사용자 검수: 본문 + ground truth (blind cold-read 30/30 일치, 라벨 밖 오류 0, 함정 오탐 0 → 2026-10-24 확정)
+- [x] 평가 하네스 (`evaluate.ts`, 테스트 12개)
+- [x] 전략 구현 (dev 튜닝 생략, 프롬프트 동결: REPORT.md 참고)
+- [x] 실행: 6개 전략 × 2개 모델 × 3회 (`results/summary.md`)
+- [x] [`REPORT.md`](REPORT.md)
 
 ## 벤치마크 (`benchmark/`)
 
