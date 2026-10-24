@@ -17,14 +17,16 @@ Possible continuity error
 
 ## 현재 상태
 
-🚧 **개발 초기 단계입니다. 아직 사용할 수 있는 앱은 없습니다.**
+🚧 **개발 초기 단계입니다. 아직 설치 파일은 없습니다.**
 
 핵심 기술의 실현 가능성을 검증하는 실험(M0)을 마쳤습니다.
 
 - **M0-A** — AI가 연속성 오류를 얼마나 정확하게 찾을 수 있는가? → [보고서](docs/spikes/M0A-REPORT.md)
 - **M0-B** — 한글 입력과 Markdown 원고 보존이 가능한 에디터를 만들 수 있는가? → [보고서](docs/spikes/M0B-REPORT.md)
 
-지금은 첫 번째 앱 단계(M1: 원고 폴더 열기, 편집, 자동 저장)를 만들고 있습니다. 계획: [`docs/M1-PLAN.md`](docs/M1-PLAN.md)
+첫 번째 앱 단계(M1)를 마쳤습니다. 원고 폴더를 열고, 화를 편집하고, 자동 저장할 수 있습니다 (AI 기능 없음). → [결과](docs/M1-REPORT.md)
+
+개발 실행: `corepack pnpm install` → `corepack pnpm dev`. 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
 
 ## 원칙
 

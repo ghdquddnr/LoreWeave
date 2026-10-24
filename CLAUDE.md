@@ -9,11 +9,11 @@ AI가 글을 대신 쓰는 것이 아니라, 작가가 자신이 만든 설정�
 - `docs/VISION.md` — 장기 비전과 설계 원칙 (항상 우선 참고)
 - `docs/DECISIONS.md` — 확정된 기술 결정 로그
 - `docs/M0-PLAN.md` — M0 spike 실험 계획 (완료)
-- `docs/M1-PLAN.md` — 현재 단계(M1) 계획
+- `docs/M1-PLAN.md`, `docs/M1-REPORT.md` — M1 계획과 결과 (완료)
 
 ## 현재 단계
 
-**M1: Electron 셸 + 에디터 + Markdown 저장** (`docs/M1-PLAN.md`, 작은 PR 5개로 진행)
+**M1 완료**: Electron 셸 + 에디터 + Markdown 저장 (`docs/M1-REPORT.md`). 다음은 M2 계획.
 
 M0 기술 검증 spike는 완료:
 
