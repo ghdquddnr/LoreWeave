@@ -46,10 +46,14 @@ export function findMatches(text: string, query: string): MatchRange[] {
   return out;
 }
 
-/** 결과 목록에 보일 앞뒤 문맥 */
-export function snippet(text: string, match: MatchRange, radius = 30): { before: string; hit: string; after: string } {
-  const start = Math.max(0, match.from - radius);
-  const end = Math.min(text.length, match.to + radius);
+/** 결과 목록에 보일 앞뒤 문맥. 한 줄로 잘려 보이므로 찾은 글자가 앞쪽에 오도록 앞 문맥을 짧게 둔다 */
+export function snippet(
+  text: string,
+  match: MatchRange,
+  { before = 12, after = 40 }: { before?: number; after?: number } = {},
+): { before: string; hit: string; after: string } {
+  const start = Math.max(0, match.from - before);
+  const end = Math.min(text.length, match.to + after);
   return {
     before: (start > 0 ? '…' : '') + text.slice(start, match.from),
     hit: text.slice(match.from, match.to),

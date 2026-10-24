@@ -7,6 +7,7 @@ import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { openManuscript, serializeManuscript, type Doc, type Envelope } from '../../core/manuscript/index.ts';
 import { editorProps, extensions } from './editor/extensions.ts';
+import { lineRangeToPositions } from './editor/jump.ts';
 
 const AUTOSAVE_DELAY_MS = 1500;
 const RETRY_DELAY_MS = 5000;
@@ -17,6 +18,14 @@ export type SaveStatus =
   | { kind: 'saving' }
   | { kind: 'error'; message: string }
   | { kind: 'conflict'; diskHash: string | null };
+
+/** 본문 줄 line의 글자 범위 [from, to)를 선택한다. seq가 바뀔 때마다 다시 이동한다 */
+export interface Jump {
+  line: number;
+  from: number;
+  to: number;
+  seq: number;
+}
 
 export interface ChapterEditorHandle {
   /** 저장할 것이 있으면 저장한다. 끝난 뒤 저장 안 된 변경이 남아 있으면 false */
@@ -29,6 +38,7 @@ interface Props {
   onSaved(text: string): void;
   /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다). outside: 다른 프로그램의 변경 때문에 자동으로 */
   onReload(outside?: boolean): void;
+  jump?: Jump | null;
 }
 
 interface Loaded {
@@ -62,7 +72,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
 });
 
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
-  { file, loaded, onStatus, onSaved, onReload },
+  { file, loaded, onStatus, onSaved, onReload, jump },
   ref,
 ) {
   const editorRef = useRef<Editor | null>(null);
@@ -151,7 +161,8 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     enableInputRules: false,
     enablePasteRules: false,
     shouldRerenderOnTransaction: false,
-    autofocus: 'start',
+    // 이동할 곳이 있으면 처음 자리로 포커스를 옮기지 않는다 (나중에 실행돼 선택을 덮어쓴다)
+    autofocus: jump ? false : 'start',
     onUpdate: () => {
       version.current++;
       if (status.current.kind === 'conflict') return;
@@ -162,6 +173,16 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
   editorRef.current = editor;
 
   useImperativeHandle(ref, () => ({ flush: () => saveRef.current() }), []);
+
+  useEffect(() => {
+    if (!editor || !jump) return;
+    const range = lineRangeToPositions(editor, jump.line, jump.from, jump.to);
+    if (!range) return;
+    editor.chain().focus().setTextSelection(range).run();
+    // 찾은 글자를 화면 가운데로 (가장자리에 걸리지 않게)
+    const { node } = editor.view.domAtPos(range.from);
+    (node instanceof Element ? node : node.parentElement)?.scrollIntoView({ block: 'center' });
+  }, [editor, jump]);
 
   // 다른 프로그램이 이 화를 바꾸면: 저장 안 된 변경이 없으면 다시 불러오고, 있으면 자동 저장을 멈추고 묻는다
   useEffect(
