@@ -1,5 +1,5 @@
 # 텍스트 파일은 저장소에 LF로 저장 (OS별 core.autocrlf 설정과 무관하게)
 * text=auto eol=lf
 
-# M0-B round-trip 코퍼스: 줄바꿈(CRLF/LF/혼합)과 BOM을 byte 단위로 보존해야 하므로 변환 금지
-spikes/m0b-editor-feasibility/corpus/** -text
+# M0-B round-trip 코퍼스는 줄바꿈·BOM을 이스케이프로 적은 TypeScript(corpus/cases.ts)라 별도 규칙이 필요 없다.
+# 실제 파일은 `pnpm corpus`로 out/에 생성하며 커밋하지 않는다.

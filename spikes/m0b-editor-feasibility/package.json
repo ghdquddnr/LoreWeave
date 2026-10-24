@@ -1,0 +1,16 @@
+{
+  "name": "m0b-editor-feasibility",
+  "private": true,
+  "type": "module",
+  "description": "M0-B spike: TipTap editor and Markdown round-trip feasibility",
+  "scripts": {
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "corpus": "tsx src/write-corpus.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
