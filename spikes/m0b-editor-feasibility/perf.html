@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>M0-B 성능 측정</title>
+    <style>
+      body { margin: 0; font: 16px/1.8 system-ui, 'Malgun Gothic', sans-serif; background: #fff; color: #1d1d24; }
+      #status { position: fixed; top: 0; right: 0; padding: 4px 8px; font: 12px ui-monospace, monospace; background: #f2f2f5; }
+      .ProseMirror { max-width: 760px; margin: 40px auto; padding: 0 16px; outline: none; white-space: pre-wrap; }
+      .ProseMirror p { margin: 0; min-height: 1.8em; }
+    </style>
+  </head>
+  <body>
+    <div id="status">로딩 중</div>
+    <div id="root"></div>
+    <script type="module" src="/src/perf.tsx"></script>
+  </body>
+</html>

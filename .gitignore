@@ -28,3 +28,4 @@ Thumbs.db
 
 # M0-B: round-trip 사례별 상세 (pnpm roundtrip으로 재생성)
 spikes/m0b-editor-feasibility/results/roundtrip.json
+spikes/m0b-editor-feasibility/results/perf.json
