@@ -13,12 +13,24 @@ AI가 글을 대신 쓰는 것이 아니라, 작가가 자신이 만든 설정�
 
 ## 현재 단계
 
-**M0: 기술 검증 spike** (제품 코드 없음)
+**M1: Electron 셸 + 에디터 + Markdown 저장** (`docs/M1-PLAN.md`, 작은 PR 5개로 진행)
+
+M0 기술 검증 spike는 완료:
 
 - M0-A: AI 연속성 오류 탐지 전략 비교 → **완료** (`docs/spikes/M0A-REPORT.md`, ADR 0001, 코드는 태그 `spike-m0a-2026-10-24`)
 - M0-B: TipTap 에디터 / Markdown round-trip 검증 → **완료** (`docs/spikes/M0B-REPORT.md`, ADR 0002, 코드는 태그 `spike-m0b-2026-10-24`)
 
-이후: M1 (Electron shell + 에디터 + Markdown 저장) → M2 (SQLite 인덱스/검색) → M3 (OpenAI 연결) → M4 (연속성 탐지 E2E) = v0.1
+이후: M2 (SQLite 인덱스/검색) → M3 (OpenAI 연결) → M4 (연속성 탐지 E2E) = v0.1
+
+## 실행
+
+```bash
+corepack pnpm install
+corepack pnpm dev        # 개발 실행 (electron-vite)
+corepack pnpm typecheck
+corepack pnpm test       # core 단위 테스트 (node:test)
+corepack pnpm test:e2e   # 빌드 후 Electron 앱 E2E (Playwright)
+```
 
 ## 디렉터리 구조 (계획)
 
