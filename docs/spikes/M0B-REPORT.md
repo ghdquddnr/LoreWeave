@@ -1,6 +1,6 @@
 # M0-B 보고서: 에디터와 Markdown 원고 형식
 
-> 사본. 원본과 코드는 `spikes/m0b-editor-feasibility/`에 있다 (정리 후에는 태그 `spike-m0b-2026-10-24`).
+> 사본. 원본과 유지 자산은 `spikes/m0b-editor-feasibility/`에, 전체 코드는 태그 [`spike-m0b-2026-10-24`](https://github.com/ghdquddnr/LoreWeave/tree/spike-m0b-2026-10-24/spikes/m0b-editor-feasibility)에 있다.
 
 - 날짜: 2026-10-24
 - PR: #4 (코퍼스·하네스), #5 (변환기 비교), #6 (성능·체크리스트), #7 (이 보고서)
@@ -99,11 +99,12 @@ production 빌드, Chrome 155와 Electron 44 (Chromium 152)를 번갈아 5회씩
 ## 유지 / 폐기 (M0-PLAN §7)
 
 - **유지**: 코퍼스와 round-trip 검사(회귀 테스트로 재사용), 수동 체크리스트와 결과, `results/`, 이 보고서, ADR 0002
-- **폐기 예정**: 검증 패널(Vite 앱), 측정 페이지·러너, Electron 창, 변환기 (a)(b). 변환기 (c)도 M1에서 코퍼스를 기준으로 테스트부터 다시 작성한다. 정리 전에 태그로 보존한다.
+- **폐기**: 검증 패널(Vite 앱), 측정 페이지·러너, Electron 창, 변환기 (a)(b)(c). 태그 `spike-m0b-2026-10-24`로 보존하고 main에서 지웠다. 변환기 (c)는 M1에서 코퍼스를 기준으로 테스트부터 다시 작성한다.
 
 ## 재현
 
 ```bash
+git checkout spike-m0b-2026-10-24
 cd spikes/m0b-editor-feasibility
 corepack pnpm install
 corepack pnpm test        # 하네스·변환기 테스트 22개
@@ -111,3 +112,5 @@ corepack pnpm roundtrip   # results/roundtrip.md
 corepack pnpm perf        # results/perf.md (약 15분, Chrome 필요)
 corepack pnpm dev         # 검증 패널
 ```
+
+main에는 코퍼스와 하네스만 남아 있다 (`pnpm test`: 17개).
