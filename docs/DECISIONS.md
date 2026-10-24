@@ -61,3 +61,4 @@
 - TipTap 공식 Markdown 확장과 `tiptap-markdown`은 쓰지 않는다. 웹소설 표기 `[대사]`를 이스케이프하고, 공식 확장은 스키마 밖 문법의 글자를 지운다.
 - VS Code 미리보기에서 C3 원고의 줄이 한 문단으로 합쳐 보이는 것은 받아들인다 (Obsidian은 정상).
 - 붙여넣기는 서식을 지우고 글자만 넣는다.
+- 유지 자산(코퍼스, round-trip 하네스와 테스트, 결과, 체크리스트, 보고서)은 main의 `spikes/m0b-editor-feasibility/`에 둔다. 변환기, 검증 패널, 성능 러너, Electron 창은 태그 `spike-m0b-2026-10-24`에만 남긴다.
