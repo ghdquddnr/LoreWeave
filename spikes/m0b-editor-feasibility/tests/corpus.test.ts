@@ -24,7 +24,7 @@ test('줄바꿈·BOM 사례가 의도한 바이트를 갖는다', () => {
   const crlfOnly = (s: string) => s.includes('\r\n') && !/(?<!\r)\n/.test(s);
   assert.ok(crlfOnly(byId.get('eol-crlf')!.raw));
   assert.ok(crlfOnly(byId.get('eol-bom-crlf')!.raw));
-  assert.ok(byId.get('eol-bom-crlf')!.raw.startsWith('﻿'));
+  assert.ok(byId.get('eol-bom-crlf')!.raw.startsWith('\uFEFF'));
   const mixed = byId.get('eol-mixed')!.raw;
   assert.ok(mixed.includes('\r\n') && /(?<!\r)\n/.test(mixed));
   assert.ok(!byId.get('eol-no-final-newline')!.raw.endsWith('\n'));
@@ -35,7 +35,7 @@ test('줄바꿈·BOM 사례가 의도한 바이트를 갖는다', () => {
 
 test('보이지 않는 문자 사례가 해당 문자를 갖는다', () => {
   const raw = byId.get('chars-invisible')!.raw;
-  for (const ch of ['　', ' ', '​', '‍']) assert.ok(raw.includes(ch), ch);
+  for (const ch of ['\u3000', '\u00A0', '\u200B', '\u200D']) assert.ok(raw.includes(ch), ch);
   assert.ok(byId.get('chars-indent-trailing')!.raw.includes('\t'));
   assert.ok(byId.get('chars-indent-trailing')!.raw.includes('  \n'));
 });

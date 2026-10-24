@@ -9,13 +9,13 @@ TipTap 에디터가 웹소설 원고(Markdown)를 깨뜨리지 않고 열고 저
 
 CodeRabbit 파일 수 제한 때문에 PR을 세 번에 나눈다.
 
-- [x] **PR ①** 코퍼스 + round-trip 하네스 (이 PR)
+- [x] **PR ①** 코퍼스 + round-trip 하네스
   - [x] 코퍼스 50개: 직접 작성 35개 + M0-A 챕터 15개 (`corpus/cases.ts`)
   - [x] 성능 측정용 원고 생성 (5천 / 2만 / 10만 / 50만 자)
   - [x] 원고 envelope: BOM, 줄바꿈, frontmatter, 마지막 개행을 에디터 밖에서 분리·복원 (`src/envelope.ts`)
   - [x] 검사: byte 동일, 멱등성, 한 문단 수정의 국소성 (`src/roundtrip.ts`), diff 유형 분류 (`src/diff.ts`)
   - [x] 성능 수치 점검 절차 (M0-PLAN §5)
-- [ ] **PR ②** 변환기 3종 (공식 확장 / `tiptap-markdown` / 직접 작성) × 빈 줄 규약 3종 비교, Vite + React + TipTap 데모와 검증 패널
+- [x] **PR ②** 변환기 3종 × 빈 줄 규약 비교 (`results/roundtrip.md`), Vite + React + TipTap 데모와 검증 패널
 - [ ] **PR ③** 최소 Electron 창, 입력 지연·로드 측정, IME·붙여넣기 체크리스트, `REPORT.md`, ADR
 
 ## 코퍼스
@@ -50,6 +50,35 @@ CodeRabbit 파일 수 제한 때문에 PR을 세 번에 나눈다.
 
 dirty flag(수정하지 않았으면 원본 바이트를 그대로 저장)가 있으면 무수정 저장은 항상 byte 동일이다. 그래서 위 검사는 dirty flag 없이 변환기 자체를 잰다.
 
+## 변환기 × 빈 줄 규약 (PR ②)
+
+| 변환기 | 구현 | 비고 |
+|---|---|---|
+| (a) 공식 | `@tiptap/markdown` 3.32 `MarkdownManager` | 에디터 없이 변환. marked 기반 |
+| (b) 커뮤니티 | `tiptap-markdown` 0.9 | markdown-it → HTML → 에디터 스키마. **작성자가 유지보수 중단을 공지함** (README) |
+| (c) 직접 작성 | `src/serializers/custom.ts` | C3 전용. 알아보는 문법(제목, `---`, `> `, `*` 강조)만 노드로, 나머지는 글자 그대로. 이스케이프 없음 |
+
+- (a)(b)는 CommonMark라 C1이 기본이다. C2(빈 문단 = `&nbsp;` 한 줄), C3(한 줄 = 한 문단)은 변환기 앞뒤 변환으로 만들었다 (`src/serializers/index.ts`). (c)의 C1·C2는 CommonMark 파서를 다시 만드는 셈이라 만들지 않았다.
+- 모든 조합은 변환 결과를 실제 TipTap 에디터에 넣었다 꺼낸 문서로 검사한다 (열기 → 편집 → 저장 경로).
+- 공통 스키마: StarterKit에서 목록, 코드, 취소선, 밑줄, 링크, trailingNode를 끔. 입력 규칙·붙여넣기 규칙 끔.
+
+결과 (비예외 49개, 상세: [`results/roundtrip.md`](results/roundtrip.md)):
+
+| 조합 | byte 동일 | 멱등 | 국소성 |
+|---|---|---|---|
+| (a) 공식 · C1 / C2 / C3 | 49% / 45% / 57% | 94% / 94% / 96% | 100% |
+| (b) 커뮤니티 · C1 / C2 / C3 | 41% / 39% / 59% | 100% / 100% / 98% | 100% |
+| (c) 직접 작성 · C3 | **100%** | 100% | 100% |
+
+관찰 (REPORT에서 결론을 낸다):
+
+- **(a)(b) 모두 M0-A 챕터 15개 중 6개를 바꾼다.** 문자 메시지·시스템창 `[대사]`의 대괄호를 `\[대사\]`로 이스케이프한다. 웹소설에서 흔한 표기다.
+- **(a)는 스키마에 없는 문법의 글자를 지운다.** `1. 첫째…` 목록 줄, 탭·공백 4칸 들여쓴 줄, `` `sudo` ``의 `sudo`가 저장 결과에서 사라진다. (b)는 기호만 빼고 글자는 남긴다.
+- **(b)는 C1에서 줄바꿈 하나를 공백으로 합친다** (한 줄 = 한 문단 원고가 한 문단이 됨). C3 변환을 붙이면 빈 줄이 에디터 안에서 NBSP 글자가 든 문단이 된다 (공백 문단 541개).
+- 공통: `***`·`* * *` → `---`, 닫히지 않은 `**` → `\*\*`, `<b>` → `**`, 빈 줄 없는 `---`는 제목(setext)으로 바뀐다.
+- 국소성: byte 동일이 아닌 파일은 어느 문단을 고쳐도 위 차이가 함께 저장된다. 그래서 "원본 대비 나머지 문단 100% 동일" 기준은 byte 동일 비율과 같다. 국소성 열은 변환기가 편집을 다른 문단으로 퍼뜨리는지만 본다.
+- (c)의 100%는 설계상 당연하다. 대신 의미 해석의 위험이 있다: `# 해시태그로…` 줄은 제목이 되고 `5*5=25, 그리고 2*3` 사이는 기울임이 된다 (bytes는 그대로). C3 파일은 다른 Markdown 뷰어에서 문단이 합쳐져 보인다. 이 트레이드오프는 PR ③의 VS Code·Obsidian 비교와 REPORT에서 다룬다.
+
 ## 실행
 
 ```bash
@@ -57,4 +86,6 @@ corepack pnpm install
 corepack pnpm test        # 하네스와 코퍼스 테스트
 corepack pnpm typecheck
 corepack pnpm corpus      # out/corpus/<그룹>/<id>.md, out/perf/perf-<자수>.md 생성 (VS Code·Obsidian 비교용)
+corepack pnpm roundtrip   # results/roundtrip.{md,json} 생성
+corepack pnpm dev         # 검증 패널 http://localhost:5173 (원본 / 에디터 / 저장 결과 / 차이)
 ```

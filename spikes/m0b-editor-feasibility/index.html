@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>M0-B 에디터 검증</title>
+    <style>
+      :root { --line: #d9d9de; --muted: #6b6b76; --bad: #b42318; --good: #067647; --mark: #9e77ed; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 14px/1.6 system-ui, 'Malgun Gothic', sans-serif; color: #1d1d24; background: #f6f6f8; }
+      header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line); }
+      header select { font: inherit; padding: 2px 6px; }
+      .status { margin-left: auto; color: var(--muted); }
+      .ok { color: var(--good); font-weight: 600; }
+      .fail { color: var(--bad); font-weight: 600; }
+      main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 16px; }
+      section { background: #fff; border: 1px solid var(--line); border-radius: 6px; display: flex; flex-direction: column; min-height: 320px; max-height: 46vh; }
+      section h2 { margin: 0; padding: 6px 10px; font-size: 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-weight: 600; }
+      section > :not(h2) { flex: 1; overflow: auto; padding: 8px 10px; margin: 0; }
+      textarea { border: 0; resize: none; font: 13px/1.6 ui-monospace, Consolas, monospace; }
+      pre { font: 13px/1.6 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+      .ws { color: var(--mark); }
+      .ProseMirror { outline: none; white-space: pre-wrap; }
+      .ProseMirror > * { margin: 0 0 2px; border-left: 3px solid #ececf0; padding-left: 6px; min-height: 1.6em; }
+      .ProseMirror blockquote { border-left-color: #b8b8c8; color: #444; }
+      .ProseMirror hr { border: 0; border-top: 1px dashed #999; margin: 10px 0; }
+      .hunk { border-top: 1px solid var(--line); padding: 4px 0; }
+      .hunk:first-child { border-top: 0; }
+      .hunk .kind { font-weight: 600; }
+      .exp { background: #fef3f2; }
+      .act { background: #ecfdf3; }
+      .legend { color: var(--muted); font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/demo.tsx"></script>
+  </body>
+</html>

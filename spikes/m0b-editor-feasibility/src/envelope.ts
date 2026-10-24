@@ -11,7 +11,7 @@ export interface Envelope {
   finalNewline: boolean;
 }
 
-const BOM = '﻿';
+const BOM = '\uFEFF';
 // 공백 없는 키 + 콜론. "그가 말했다: ..." 같은 본문 문장은 키로 보지 않는다.
 const FM_KEY = /^[^\s#:-][^\s:]*:(?:\s.*)?$/;
 // 키, 주석, 들여쓴 값, 목록, 빈 줄
