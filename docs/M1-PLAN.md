@@ -1,5 +1,7 @@
 # M1 계획: Electron 셸 + 에디터 + Markdown 저장
 
+> **완료 (2026-10-24)**. 결과: [`M1-REPORT.md`](M1-REPORT.md)
+
 M1은 **AI 없이도 쓸 수 있는 최소 집필 앱**이다. 원고 폴더를 열고, 화 목록을 보고, 한 화를 편집하면 자동으로 저장된다. 원고 파일을 망가뜨리지 않는 것이 이 단계의 전부다.
 
 - 근거: [ADR 0002](decisions/0002-editor-and-manuscript-format.md) (TipTap, C3 원고, 변환기 직접 작성), [M0-B 보고서](spikes/M0B-REPORT.md)
