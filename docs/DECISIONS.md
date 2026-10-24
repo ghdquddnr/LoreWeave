@@ -53,3 +53,11 @@
 - 한국어 검색은 FTS5 trigram만으로는 부족하다 (2글자 이름 검색 불가). M2에서 재검토한다.
 - 실제 비용: 대시보드 $2.97 (569회 호출). 장부는 상한으로 $4.32.
 - 유지 자산(benchmark v2, 평가기와 테스트, Finding 스키마, 보고서, 요약 결과)은 main의 `spikes/m0a-ai-feasibility/`에 둔다. 전략 구현, 러너, 호출 래퍼, 실행별 결과는 태그에만 남긴다.
+
+## 2026-10-24 · M0-B 결과
+
+- M0-B 성공 기준 충족. 보고서: `docs/spikes/M0B-REPORT.md`.
+- 에디터는 TipTap을 유지한다. 원고 형식은 C3(한 줄 = 한 문단, 빈 줄 = 빈 문단)이고, Markdown 변환기는 직접 작성한다: [ADR 0002](decisions/0002-editor-and-manuscript-format.md)
+- TipTap 공식 Markdown 확장과 `tiptap-markdown`은 쓰지 않는다. 웹소설 표기 `[대사]`를 이스케이프하고, 공식 확장은 스키마 밖 문법의 글자를 지운다.
+- VS Code 미리보기에서 C3 원고의 줄이 한 문단으로 합쳐 보이는 것은 받아들인다 (Obsidian은 정상).
+- 붙여넣기는 서식을 지우고 글자만 넣는다.

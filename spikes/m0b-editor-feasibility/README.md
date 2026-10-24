@@ -17,8 +17,8 @@ CodeRabbit 파일 수 제한 때문에 PR을 나눈다. 수동 검증 결과가 
   - [x] 성능 수치 점검 절차 (M0-PLAN §5)
 - [x] **PR ②** 변환기 3종 × 빈 줄 규약 비교 (`results/roundtrip.md`), Vite + React + TipTap 데모와 검증 패널
 - [x] **PR ③** 최소 Electron 창, 성능 자동 측정 (`results/perf.md`), 수동 검증 체크리스트 (`manual/CHECKLIST.md`), 검증 패널 IME 검사 모드
-- [ ] 수동 검증 (사용자): IME 30분 입력, Undo·붙여넣기, VS Code·Obsidian 렌더링
-- [ ] **PR ④** `REPORT.md`, ADR (에디터 선택·빈 줄 규약)
+- [x] 수동 검증 (사용자): IME 30분 입력, Undo·붙여넣기, VS Code·Obsidian 렌더링
+- [x] **PR ④** [`REPORT.md`](REPORT.md), [ADR 0002](../../docs/decisions/0002-editor-and-manuscript-format.md)
 
 ## 코퍼스
 
