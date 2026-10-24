@@ -7,6 +7,7 @@ import {
   newChapterText,
   nextChapterFile,
   readFrontmatterFields,
+  setFrontmatterField,
   sortChapterFiles,
 } from '../../src/core/project/chapters.ts';
 import { openManuscript } from '../../src/core/manuscript/index.ts';
@@ -65,4 +66,14 @@ test('중복 id 감지', () => {
     ]),
     [['002.md', '002 복사본.md']],
   );
+});
+
+test('frontmatter 필드 바꾸기: 본문, BOM, CRLF는 그대로', () => {
+  const raw = '\uFEFF---\r\nid: old\r\ntitle: 둘\r\n---\r\n본문 **그대로**\r\n';
+  assert.equal(setFrontmatterField(raw, 'id', 'new'), '\uFEFF---\r\nid: new\r\ntitle: 둘\r\n---\r\n본문 **그대로**\r\n');
+});
+
+test('frontmatter 필드 바꾸기: 필드가 없으면 닫는 줄 앞에, frontmatter가 없으면 맨 앞에 만든다', () => {
+  assert.equal(setFrontmatterField('---\ntitle: 셋\n---\n본문\n', 'id', 'x'), '---\ntitle: 셋\nid: x\n---\n본문\n');
+  assert.equal(setFrontmatterField('# 1화\n본문\n', 'id', 'x'), '---\nid: x\n---\n# 1화\n본문\n');
 });

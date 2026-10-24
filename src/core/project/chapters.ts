@@ -1,7 +1,7 @@
 // 프로젝트 안의 화(챕터) 파일 규칙 (M1-PLAN 4절, DECISIONS "M1 범위").
 // 화 순서는 파일 이름 앞의 번호다. frontmatter는 원문을 보존하고 최상위 `key: value`만 읽는다.
 
-import { splitEnvelope } from '../manuscript/envelope.ts';
+import { joinEnvelope, splitEnvelope } from '../manuscript/envelope.ts';
 
 export const CHAPTERS_DIR = 'chapters';
 
@@ -58,6 +58,26 @@ export function chapterInfo(raw: string, file: string): ChapterInfo {
   const fields = readFrontmatterFields(envelope.frontmatter);
   const heading = /^#{1,6} (.+)$/m.exec(body)?.[1]?.trim();
   return { title: fields['title'] || heading || file.replace(/\.md$/, ''), id: fields['id'] || null };
+}
+
+/**
+ * frontmatter의 최상위 필드 하나를 바꾼 파일 내용 (중복 id 재발급용). 본문과 BOM·줄바꿈 방식은 그대로다.
+ * 필드가 없으면 닫는 `---` 앞에 넣고, frontmatter가 없으면 맨 앞에 만든다.
+ */
+export function setFrontmatterField(raw: string, key: string, value: string): string {
+  const { envelope, body } = splitEnvelope(raw);
+  const line = `${key}: ${value}`;
+  let frontmatter: string;
+  if (envelope.frontmatter === null) {
+    frontmatter = `---\n${line}\n---\n`;
+  } else {
+    const lines = envelope.frontmatter.split('\n');
+    const at = lines.findIndex((l, i) => i > 0 && l.startsWith(`${key}:`));
+    if (at !== -1) lines[at] = line;
+    else lines.splice(lines.lastIndexOf('---'), 0, line);
+    frontmatter = lines.join('\n');
+  }
+  return joinEnvelope({ ...envelope, frontmatter }, body);
 }
 
 /** 새 화 파일 내용: 최소 frontmatter + 빈 본문 (저장하면 마지막 개행이 붙는다) */
