@@ -5,6 +5,9 @@ TipTap 에디터가 웹소설 원고(Markdown)를 깨뜨리지 않고 열고 저
 
 가설, 범위, 성공/실패 기준: [`docs/M0-PLAN.md`](../../docs/M0-PLAN.md#m0-b-editor-feasibility-spike) (실행 전 고정)
 
+> **main에는 유지 자산만 있다**: 코퍼스(`corpus/`), round-trip 하네스(`src/envelope.ts`, `diff.ts`, `roundtrip.ts`)와 테스트, `results/*.md`, `manual/CHECKLIST.md`, `REPORT.md`.
+> 변환기 3종, 검증 패널, 성능 측정 페이지·러너, Electron 창은 태그 [`spike-m0b-2026-10-24`](https://github.com/ghdquddnr/LoreWeave/tree/spike-m0b-2026-10-24/spikes/m0b-editor-feasibility)에만 있다. 아래 본문의 `src/serializers/…`, `pnpm perf` 같은 경로·명령은 그 태그 기준이다.
+
 ## 진행 상태
 
 CodeRabbit 파일 수 제한 때문에 PR을 나눈다. 수동 검증 결과가 있어야 결론을 낼 수 있어서 보고서는 마지막 PR로 분리했다.
@@ -112,8 +115,6 @@ corepack pnpm install
 corepack pnpm test        # 하네스와 코퍼스 테스트
 corepack pnpm typecheck
 corepack pnpm corpus      # out/corpus/<그룹>/<id>.md, out/perf/perf-<자수>.md 생성 (VS Code·Obsidian 비교용)
-corepack pnpm roundtrip   # results/roundtrip.{md,json} 생성
-corepack pnpm dev         # 검증 패널 http://localhost:5173 (원본 / 에디터 / 저장 결과 / 차이, IME 검사 모드)
-corepack pnpm electron    # 같은 패널을 Electron 창으로 (dev 서버가 떠 있어야 함)
-corepack pnpm perf        # results/perf.md 생성 (약 15분, 창이 열린다. 다른 무거운 작업은 멈출 것)
 ```
+
+변환기 비교(`pnpm roundtrip`), 검증 패널(`pnpm dev`), Electron 창, 성능 측정(`pnpm perf`)은 태그 `spike-m0b-2026-10-24`에서 실행한다.
