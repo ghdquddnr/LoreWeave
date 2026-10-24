@@ -10,10 +10,11 @@ AI가 글을 대신 쓰는 것이 아니라, 작가가 자신이 만든 설정�
 - `docs/DECISIONS.md` — 확정된 기술 결정 로그
 - `docs/M0-PLAN.md` — M0 spike 실험 계획 (완료)
 - `docs/M1-PLAN.md`, `docs/M1-REPORT.md` — M1 계획과 결과 (완료)
+- `docs/M2-PLAN.md` — 현재 단계(M2) 계획
 
 ## 현재 단계
 
-**M1 완료**: Electron 셸 + 에디터 + Markdown 저장 (`docs/M1-REPORT.md`). 다음은 M2 계획.
+**M2: SQLite 색인과 원고 검색** (`docs/M2-PLAN.md`). M1(Electron 셸 + 에디터 + Markdown 저장)은 완료 (`docs/M1-REPORT.md`).
 
 M0 기술 검증 spike는 완료:
 
@@ -46,7 +47,7 @@ LoreWeave/
 
 ## 기술 스택 (확정)
 
-Electron + TypeScript + electron-vite + React · TipTap(원고: 한 줄 = 한 문단 Markdown, 변환기 직접 작성) · better-sqlite3 + Raw SQL · pnpm · OpenAI API(GPT-6) 우선 · Windows-first
+Electron + TypeScript + electron-vite + React · TipTap(원고: 한 줄 = 한 문단 Markdown, 변환기 직접 작성) · node:sqlite(Electron 내장) + Raw SQL · pnpm · OpenAI API(GPT-6) 우선 · Windows-first
 
 ## 핵심 원칙
 
