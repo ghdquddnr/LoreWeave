@@ -12,6 +12,14 @@ const api: LoreweaveApi = {
     write: (file, text, expectedHash) => ipcRenderer.invoke(CHANNELS.chapterWrite, file, text, expectedHash),
     create: () => ipcRenderer.invoke(CHANNELS.chapterCreate),
   },
+  app: {
+    onBeforeClose(listener) {
+      const handler = () => listener();
+      ipcRenderer.on(CHANNELS.beforeClose, handler);
+      return () => ipcRenderer.off(CHANNELS.beforeClose, handler);
+    },
+    replyClose: (proceed) => ipcRenderer.send(CHANNELS.replyClose, proceed),
+  },
 };
 
 contextBridge.exposeInMainWorld('loreweave', api);
