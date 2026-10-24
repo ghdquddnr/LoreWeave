@@ -40,11 +40,14 @@ test('preload API가 노출되고, 프로젝트를 열기 전에는 파일 요�
     project: Object.keys(window.loreweave.project).sort(),
     chapters: Object.keys(window.loreweave.chapters).sort(),
     app: Object.keys(window.loreweave.app).sort(),
+    ai: Object.keys(window.loreweave.ai).sort(),
   }));
   assert.deepEqual(shape, {
     project: ['choose', 'reopenLast'],
     chapters: ['create', 'list', 'onChangedOutside', 'read', 'reissueId', 'search', 'write'],
     app: ['onBeforeClose', 'replyClose'],
+    // 키를 읽어 오는 함수는 없다
+    ai: ['check', 'deleteKey', 'setKey', 'setModel', 'status'],
   });
   const error = await page.evaluate(() => window.loreweave.chapters.list().then(() => null, (e: Error) => e.message));
   assert.match(error ?? '', /열린 프로젝트가 없습니다/);

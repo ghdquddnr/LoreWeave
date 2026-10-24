@@ -19,6 +19,13 @@ const api: LoreweaveApi = {
       return () => ipcRenderer.off(CHANNELS.chapterChangedOutside, handler);
     },
   },
+  ai: {
+    status: () => ipcRenderer.invoke(CHANNELS.aiStatus),
+    setKey: (key) => ipcRenderer.invoke(CHANNELS.aiSetKey, key),
+    deleteKey: () => ipcRenderer.invoke(CHANNELS.aiDeleteKey),
+    setModel: (model) => ipcRenderer.invoke(CHANNELS.aiSetModel, model),
+    check: () => ipcRenderer.invoke(CHANNELS.aiCheck),
+  },
   app: {
     onBeforeClose(listener) {
       const handler = () => listener();

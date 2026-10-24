@@ -14,6 +14,15 @@ export interface ProjectOpened {
   list: ChapterList;
 }
 
+export interface AiStatus {
+  /** 키가 저장돼 있는가 (키 자체는 renderer로 오지 않는다) */
+  hasKey: boolean;
+  /** 이 컴퓨터에서 키를 암호화해 저장할 수 있는가 */
+  canEncrypt: boolean;
+  model: string;
+  models: { id: string; label: string }[];
+}
+
 export interface LoreweaveApi {
   project: {
     /** 폴더 선택 창을 띄운다. 취소하면 null */
@@ -34,6 +43,15 @@ export interface LoreweaveApi {
     /** 다른 프로그램이 화 파일을 바꾸거나 지웠을 때 (지웠으면 hash는 null). 이 앱이 쓴 변경은 알리지 않는다 */
     onChangedOutside(listener: (change: { file: string; hash: string | null }) => void): () => void;
   };
+  ai: {
+    status(): Promise<AiStatus>;
+    /** 키를 암호화해 저장한다. 키는 돌려받을 수 없다 */
+    setKey(key: string): Promise<AiStatus>;
+    deleteKey(): Promise<AiStatus>;
+    setModel(model: string): Promise<AiStatus>;
+    /** 키와 모델로 OpenAI에 연결해 본다 (비용 없음) */
+    check(): Promise<{ ok: true } | { ok: false; message: string }>;
+  };
   app: {
     /** 창을 닫기 직전에 불린다. 저장을 마친 뒤 replyClose로 답해야 창이 닫힌다 */
     onBeforeClose(listener: () => void): () => void;
@@ -51,6 +69,11 @@ export const CHANNELS = {
   chapterChangedOutside: 'chapter:changed-outside',
   chaptersSearch: 'chapters:search',
   chapterReissueId: 'chapter:reissue-id',
+  aiStatus: 'ai:status',
+  aiSetKey: 'ai:set-key',
+  aiDeleteKey: 'ai:delete-key',
+  aiSetModel: 'ai:set-model',
+  aiCheck: 'ai:check',
   beforeClose: 'app:before-close',
   replyClose: 'app:reply-close',
 } as const;
