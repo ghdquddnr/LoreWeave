@@ -1,0 +1,16 @@
+{
+  "name": "m0a-ai-feasibility",
+  "private": true,
+  "type": "module",
+  "description": "M0-A spike: continuity-error detection strategies. Not product code.",
+  "scripts": {
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "evaluate": "tsx src/evaluate.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
