@@ -16,7 +16,7 @@
     "review": 1.6666666666666667,
     "input_tokens_per_chapter": 7028.214285714285,
     "output_tokens_per_chapter": 468.4047619047619,
-    "cost_per_chapter_usd": 0.0013117019047619047,
+    "cost_per_chapter_usd": 0.0008433542857142857,
     "category_recall_test": {
       "first_meeting": 1,
       "age": 0.6666666666666666,
@@ -67,7 +67,7 @@
     "review": 1,
     "input_tokens_per_chapter": 7028.214285714285,
     "output_tokens_per_chapter": 361.2142857142857,
-    "cost_per_chapter_usd": 0.02492795952380952,
+    "cost_per_chapter_usd": 0.015561007142857143,
     "category_recall_test": {
       "first_meeting": 1,
       "age": 1,
@@ -114,7 +114,7 @@
     "review": 0,
     "input_tokens_per_chapter": 1369.9285714285713,
     "output_tokens_per_chapter": 23.71428571428571,
-    "cost_per_chapter_usd": 0.00022175285714285718,
+    "cost_per_chapter_usd": 0.00013062428571428576,
     "category_recall_test": {
       "first_meeting": 0,
       "age": 0,
@@ -178,7 +178,7 @@
     "review": 0,
     "input_tokens_per_chapter": 1369.9285714285713,
     "output_tokens_per_chapter": 15.642857142857142,
-    "cost_per_chapter_usd": 0.006313607142857142,
+    "cost_per_chapter_usd": 0.0035797500000000005,
     "category_recall_test": {
       "first_meeting": 0,
       "age": 0,
@@ -242,7 +242,7 @@
     "review": 0.6666666666666666,
     "input_tokens_per_chapter": 2401.0714285714284,
     "output_tokens_per_chapter": 330.85714285714283,
-    "cost_per_chapter_usd": 0.0005334328571428572,
+    "cost_per_chapter_usd": 0.0003735614285714285,
     "category_recall_test": {
       "first_meeting": 0.5,
       "age": 0,
@@ -301,7 +301,7 @@
     "review": 0,
     "input_tokens_per_chapter": 2401.0714285714284,
     "output_tokens_per_chapter": 211.11904761904762,
-    "cost_per_chapter_usd": 0.009391340476190476,
+    "cost_per_chapter_usd": 0.006193911904761905,
     "category_recall_test": {
       "first_meeting": 1,
       "age": 0,
@@ -355,7 +355,7 @@
     "review": 1,
     "input_tokens_per_chapter": 7454.809523809524,
     "output_tokens_per_chapter": 1912.1904761904761,
-    "cost_per_chapter_usd": 0.0025444903571428573,
+    "cost_per_chapter_usd": 0.0018406355952380953,
     "category_recall_test": {
       "first_meeting": 0.8333333333333334,
       "age": 1,
@@ -403,7 +403,7 @@
     "review": 0,
     "input_tokens_per_chapter": 8056.428571428572,
     "output_tokens_per_chapter": 2127.452380952381,
-    "cost_per_chapter_usd": 0.05570870714285714,
+    "cost_per_chapter_usd": 0.040428373809523806,
     "category_recall_test": {
       "first_meeting": 1,
       "age": 1,
@@ -448,7 +448,7 @@
     "review": 1.3333333333333333,
     "input_tokens_per_chapter": 9750.238095238094,
     "output_tokens_per_chapter": 1892.4285714285713,
-    "cost_per_chapter_usd": 0.002128054166666667,
+    "cost_per_chapter_usd": 0.0012766660714285715,
     "category_recall_test": {
       "first_meeting": 1,
       "age": 0.8333333333333334,
@@ -500,7 +500,7 @@
     "review": 0.3333333333333333,
     "input_tokens_per_chapter": 10392.119047619048,
     "output_tokens_per_chapter": 2114.952380952381,
-    "cost_per_chapter_usd": 0.04494264285714286,
+    "cost_per_chapter_usd": 0.026631119047619046,
     "category_recall_test": {
       "first_meeting": 1,
       "age": 1,
@@ -547,7 +547,7 @@
     "review": 1,
     "input_tokens_per_chapter": 4007.857142857143,
     "output_tokens_per_chapter": 1726,
-    "cost_per_chapter_usd": 0.0007610379761904761,
+    "cost_per_chapter_usd": 0.0005035165476190476,
     "category_recall_test": {
       "first_meeting": 0.8333333333333334,
       "age": 0.3333333333333333,
@@ -606,7 +606,7 @@
     "review": 1.6666666666666667,
     "input_tokens_per_chapter": 3951.523809523809,
     "output_tokens_per_chapter": 1811.1190476190477,
-    "cost_per_chapter_usd": 0.012146264285714288,
+    "cost_per_chapter_usd": 0.007722026190476189,
     "category_recall_test": {
       "first_meeting": 1,
       "age": 0,

@@ -62,12 +62,14 @@ export function spentUsd(): number {
     .reduce((sum, line) => sum + (JSON.parse(line) as Usage).cost_usd, 0);
 }
 
-// Conservative: cache-write tokens are charged at the write price on top of the input price.
+// cached and cache-write tokens are both part of input_tokens (SDK: "breakdown of the input tokens").
+// Upper bound: on 2026-10-24 this gave $4.32 while the dashboard showed $2.97 (REPORT.md).
 export function costUsd(model: Model, u: OpenAI.Responses.ResponseUsage): number {
   const p = PRICES[model];
   const cached = u.input_tokens_details?.cached_tokens ?? 0;
   const written = u.input_tokens_details?.cache_write_tokens ?? 0;
-  return ((u.input_tokens - cached) * p.input + cached * p.cached + written * p.cacheWrite + u.output_tokens * p.output) / 1e6;
+  const plain = u.input_tokens - cached - written;
+  return (plain * p.input + cached * p.cached + written * p.cacheWrite + u.output_tokens * p.output) / 1e6;
 }
 
 let client: OpenAI | undefined;

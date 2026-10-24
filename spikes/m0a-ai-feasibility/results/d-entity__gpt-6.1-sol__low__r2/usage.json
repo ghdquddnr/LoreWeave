@@ -6,7 +6,7 @@
     "cached_tokens": 40605,
     "output_tokens": 24707,
     "reasoning_tokens": 565,
-    "cost_usd": 0.09821160000000002,
+    "cost_usd": 0.06907960000000002,
     "latency_ms_mean": 13315
   },
   "detect": {
@@ -16,7 +16,7 @@
     "cached_tokens": 24506,
     "output_tokens": 3013,
     "reasoning_tokens": 473,
-    "cost_usd": 0.09821160000000002,
+    "cost_usd": 0.06907960000000002,
     "latency_ms_mean": 5628
   },
   "extract": {
@@ -29,7 +29,7 @@
     "cost_usd": 0,
     "latency_ms_mean": 21002
   },
-  "cost_per_chapter_usd": 0.0070151142857142875,
+  "cost_per_chapter_usd": 0.004934257142857145,
   "wall_ms": 21435,
   "calls": [
     {
@@ -145,7 +145,7 @@
       "cache_write_tokens": 2906,
       "output_tokens": 37,
       "reasoning_tokens": 19,
-      "cost_usd": 0.013453,
+      "cost_usd": 0.007641,
       "latency_ms": 2628,
       "cache_hit": false
     },
@@ -197,7 +197,7 @@
       "cache_write_tokens": 2592,
       "output_tokens": 177,
       "reasoning_tokens": 55,
-      "cost_usd": 0.01344,
+      "cost_usd": 0.008256,
       "latency_ms": 6260,
       "cache_hit": false
     },
@@ -275,7 +275,7 @@
       "cache_write_tokens": 3016,
       "output_tokens": 236,
       "reasoning_tokens": 29,
-      "cost_usd": 0.015938,
+      "cost_usd": 0.009906,
       "latency_ms": 5564,
       "cache_hit": false
     },
@@ -301,7 +301,7 @@
       "cache_write_tokens": 2987,
       "output_tokens": 331,
       "reasoning_tokens": 38,
-      "cost_usd": 0.0167575,
+      "cost_usd": 0.0107835,
       "latency_ms": 7051,
       "cache_hit": false
     },
@@ -366,7 +366,7 @@
       "cache_write_tokens": 3065,
       "output_tokens": 59,
       "reasoning_tokens": 41,
-      "cost_usd": 0.0143885,
+      "cost_usd": 0.0082585,
       "latency_ms": 3118,
       "cache_hit": false
     },

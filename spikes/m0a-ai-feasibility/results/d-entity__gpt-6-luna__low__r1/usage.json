@@ -6,7 +6,7 @@
     "cached_tokens": 9150,
     "output_tokens": 24012,
     "reasoning_tokens": 4969,
-    "cost_usd": 0.01159625,
+    "cost_usd": 0.007606449999999999,
     "latency_ms_mean": 9064
   },
   "detect": {
@@ -16,7 +16,7 @@
     "cached_tokens": 0,
     "output_tokens": 5230,
     "reasoning_tokens": 3245,
-    "cost_usd": 0.01159625,
+    "cost_usd": 0.007606449999999999,
     "latency_ms_mean": 4919
   },
   "extract": {
@@ -29,7 +29,7 @@
     "cost_usd": 0,
     "latency_ms_mean": 13210
   },
-  "cost_per_chapter_usd": 0.0008283035714285715,
+  "cost_per_chapter_usd": 0.0005433178571428571,
   "wall_ms": 19779,
   "calls": [
     {
@@ -93,7 +93,7 @@
       "cache_write_tokens": 1818,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.00041685,
+      "cost_usd": 0.00023505000000000002,
       "latency_ms": 1325,
       "cache_hit": false
     },
@@ -119,7 +119,7 @@
       "cache_write_tokens": 2618,
       "output_tokens": 103,
       "reasoning_tokens": 86,
-      "cost_usd": 0.00064085,
+      "cost_usd": 0.00037905,
       "latency_ms": 2132,
       "cache_hit": false
     },
@@ -145,7 +145,7 @@
       "cache_write_tokens": 2931,
       "output_tokens": 101,
       "reasoning_tokens": 84,
-      "cost_usd": 0.0007102750000000001,
+      "cost_usd": 0.000417175,
       "latency_ms": 2052,
       "cache_hit": false
     },
@@ -171,7 +171,7 @@
       "cache_write_tokens": 2253,
       "output_tokens": 272,
       "reasoning_tokens": 154,
-      "cost_usd": 0.000643225,
+      "cost_usd": 0.00041792500000000003,
       "latency_ms": 3982,
       "cache_hit": false
     },
@@ -197,7 +197,7 @@
       "cache_write_tokens": 2693,
       "output_tokens": 353,
       "reasoning_tokens": 146,
-      "cost_usd": 0.0007827250000000001,
+      "cost_usd": 0.000513425,
       "latency_ms": 4602,
       "cache_hit": false
     },
@@ -223,7 +223,7 @@
       "cache_write_tokens": 2948,
       "output_tokens": 141,
       "reasoning_tokens": 0,
-      "cost_usd": 0.0007341,
+      "cost_usd": 0.0004393,
       "latency_ms": 2997,
       "cache_hit": false
     },
@@ -249,7 +249,7 @@
       "cache_write_tokens": 2991,
       "output_tokens": 496,
       "reasoning_tokens": 229,
-      "cost_usd": 0.000921275,
+      "cost_usd": 0.000622175,
       "latency_ms": 5314,
       "cache_hit": false
     },
@@ -275,7 +275,7 @@
       "cache_write_tokens": 3031,
       "output_tokens": 489,
       "reasoning_tokens": 472,
-      "cost_usd": 0.0009267750000000001,
+      "cost_usd": 0.000623675,
       "latency_ms": 6726,
       "cache_hit": false
     },
@@ -301,7 +301,7 @@
       "cache_write_tokens": 3144,
       "output_tokens": 622,
       "reasoning_tokens": 605,
-      "cost_usd": 0.0010187,
+      "cost_usd": 0.0007042999999999999,
       "latency_ms": 7289,
       "cache_hit": false
     },
@@ -327,7 +327,7 @@
       "cache_write_tokens": 3065,
       "output_tokens": 337,
       "reasoning_tokens": 156,
-      "cost_usd": 0.000858425,
+      "cost_usd": 0.000551925,
       "latency_ms": 4158,
       "cache_hit": false
     },
@@ -353,7 +353,7 @@
       "cache_write_tokens": 3221,
       "output_tokens": 981,
       "reasoning_tokens": 413,
-      "cost_usd": 0.001215525,
+      "cost_usd": 0.000893425,
       "latency_ms": 10392,
       "cache_hit": false
     },
@@ -366,7 +366,7 @@
       "cache_write_tokens": 2994,
       "output_tokens": 172,
       "reasoning_tokens": 155,
-      "cost_usd": 0.00075995,
+      "cost_usd": 0.00046055,
       "latency_ms": 3978,
       "cache_hit": false
     },
@@ -379,7 +379,7 @@
       "cache_write_tokens": 3126,
       "output_tokens": 627,
       "reasoning_tokens": 241,
-      "cost_usd": 0.00101715,
+      "cost_usd": 0.00070455,
       "latency_ms": 7015,
       "cache_hit": false
     },
@@ -392,7 +392,7 @@
       "cache_write_tokens": 3065,
       "output_tokens": 521,
       "reasoning_tokens": 504,
-      "cost_usd": 0.000950425,
+      "cost_usd": 0.0006439249999999999,
       "latency_ms": 6897,
       "cache_hit": false
     }

@@ -6,7 +6,7 @@
     "cached_tokens": 0,
     "output_tokens": 312,
     "reasoning_tokens": 92,
-    "cost_usd": 0.004466025,
+    "cost_usd": 0.0025523250000000003,
     "latency_ms_mean": 2164
   },
   "detect": {
@@ -16,7 +16,7 @@
     "cached_tokens": 0,
     "output_tokens": 312,
     "reasoning_tokens": 92,
-    "cost_usd": 0.004466025,
+    "cost_usd": 0.0025523250000000003,
     "latency_ms_mean": 2164
   },
   "extract": {
@@ -29,7 +29,7 @@
     "cost_usd": 0,
     "latency_ms_mean": 0
   },
-  "cost_per_chapter_usd": 0.00031900178571428575,
+  "cost_per_chapter_usd": 0.0001823089285714286,
   "wall_ms": 8371,
   "calls": [
     {
@@ -41,7 +41,7 @@
       "cache_write_tokens": 1364,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.00031470000000000006,
+      "cost_usd": 0.00017830000000000002,
       "latency_ms": 1271,
       "cache_hit": false
     },
@@ -54,7 +54,7 @@
       "cache_write_tokens": 1366,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.00031515,
+      "cost_usd": 0.00017855,
       "latency_ms": 1791,
       "cache_hit": false
     },
@@ -67,7 +67,7 @@
       "cache_write_tokens": 1400,
       "output_tokens": 39,
       "reasoning_tokens": 22,
-      "cost_usd": 0.0003348,
+      "cost_usd": 0.00019480000000000002,
       "latency_ms": 2207,
       "cache_hit": false
     },
@@ -80,7 +80,7 @@
       "cache_write_tokens": 1352,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.000312,
+      "cost_usd": 0.00017680000000000001,
       "latency_ms": 1435,
       "cache_hit": false
     },
@@ -93,7 +93,7 @@
       "cache_write_tokens": 1370,
       "output_tokens": 32,
       "reasoning_tokens": 15,
-      "cost_usd": 0.00032455,
+      "cost_usd": 0.00018755,
       "latency_ms": 1311,
       "cache_hit": false
     },
@@ -106,7 +106,7 @@
       "cache_write_tokens": 1341,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.000309525,
+      "cost_usd": 0.00017542500000000002,
       "latency_ms": 2239,
       "cache_hit": false
     },
@@ -119,7 +119,7 @@
       "cache_write_tokens": 1354,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.00031245000000000003,
+      "cost_usd": 0.00017705000000000002,
       "latency_ms": 2288,
       "cache_hit": false
     },
@@ -132,7 +132,7 @@
       "cache_write_tokens": 1469,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.00033832500000000005,
+      "cost_usd": 0.000191425,
       "latency_ms": 1110,
       "cache_hit": false
     },
@@ -145,7 +145,7 @@
       "cache_write_tokens": 1339,
       "output_tokens": 38,
       "reasoning_tokens": 21,
-      "cost_usd": 0.000320575,
+      "cost_usd": 0.00018667500000000002,
       "latency_ms": 5298,
       "cache_hit": false
     },
@@ -158,7 +158,7 @@
       "cache_write_tokens": 1414,
       "output_tokens": 31,
       "reasoning_tokens": 14,
-      "cost_usd": 0.00033395000000000007,
+      "cost_usd": 0.00019255000000000002,
       "latency_ms": 2289,
       "cache_hit": false
     },
@@ -171,7 +171,7 @@
       "cache_write_tokens": 1287,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.000297375,
+      "cost_usd": 0.00016867500000000002,
       "latency_ms": 1591,
       "cache_hit": false
     },
@@ -184,7 +184,7 @@
       "cache_write_tokens": 1367,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.000315375,
+      "cost_usd": 0.00017867500000000002,
       "latency_ms": 2808,
       "cache_hit": false
     },
@@ -197,7 +197,7 @@
       "cache_write_tokens": 1361,
       "output_tokens": 37,
       "reasoning_tokens": 20,
-      "cost_usd": 0.000325025,
+      "cost_usd": 0.000188925,
       "latency_ms": 1434,
       "cache_hit": false
     },
@@ -210,7 +210,7 @@
       "cache_write_tokens": 1353,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.000312225,
+      "cost_usd": 0.000176925,
       "latency_ms": 3221,
       "cache_hit": false
     }

@@ -6,7 +6,7 @@
     "cached_tokens": 6949,
     "output_tokens": 27898,
     "reasoning_tokens": 5371,
-    "cost_usd": 0.029651225000000003,
+    "cost_usd": 0.017970325000000002,
     "latency_ms_mean": 10595
   },
   "detect": {
@@ -16,7 +16,7 @@
     "cached_tokens": 0,
     "output_tokens": 6730,
     "reasoning_tokens": 3286,
-    "cost_usd": 0.029651225000000003,
+    "cost_usd": 0.017970325000000002,
     "latency_ms_mean": 5758
   },
   "extract": {
@@ -29,7 +29,7 @@
     "cost_usd": 0,
     "latency_ms_mean": 15109
   },
-  "cost_per_chapter_usd": 0.002117944642857143,
+  "cost_per_chapter_usd": 0.001283594642857143,
   "wall_ms": 21151,
   "calls": [
     {
@@ -106,7 +106,7 @@
       "cache_write_tokens": 2833,
       "output_tokens": 126,
       "reasoning_tokens": 109,
-      "cost_usd": 0.000700725,
+      "cost_usd": 0.000417425,
       "latency_ms": 2365,
       "cache_hit": false
     },
@@ -132,7 +132,7 @@
       "cache_write_tokens": 5420,
       "output_tokens": 160,
       "reasoning_tokens": 58,
-      "cost_usd": 0.0012998000000000003,
+      "cost_usd": 0.0007578,
       "latency_ms": 2711,
       "cache_hit": false
     },
@@ -158,7 +158,7 @@
       "cache_write_tokens": 4756,
       "output_tokens": 184,
       "reasoning_tokens": 167,
-      "cost_usd": 0.0011624,
+      "cost_usd": 0.0006868,
       "latency_ms": 2880,
       "cache_hit": false
     },
@@ -184,7 +184,7 @@
       "cache_write_tokens": 4144,
       "output_tokens": 462,
       "reasoning_tokens": 313,
-      "cost_usd": 0.0011637000000000002,
+      "cost_usd": 0.0007492999999999999,
       "latency_ms": 6175,
       "cache_hit": false
     },
@@ -210,7 +210,7 @@
       "cache_write_tokens": 6104,
       "output_tokens": 323,
       "reasoning_tokens": 181,
-      "cost_usd": 0.0015352,
+      "cost_usd": 0.0009247999999999999,
       "latency_ms": 4163,
       "cache_hit": false
     },
@@ -236,7 +236,7 @@
       "cache_write_tokens": 7768,
       "output_tokens": 462,
       "reasoning_tokens": 215,
-      "cost_usd": 0.0019790999999999997,
+      "cost_usd": 0.0012023,
       "latency_ms": 5717,
       "cache_hit": false
     },
@@ -262,7 +262,7 @@
       "cache_write_tokens": 8008,
       "output_tokens": 836,
       "reasoning_tokens": 507,
-      "cost_usd": 0.0022201,
+      "cost_usd": 0.0014192999999999999,
       "latency_ms": 10820,
       "cache_hit": false
     },
@@ -288,7 +288,7 @@
       "cache_write_tokens": 9159,
       "output_tokens": 762,
       "reasoning_tokens": 333,
-      "cost_usd": 0.0024420749999999997,
+      "cost_usd": 0.001526175,
       "latency_ms": 7215,
       "cache_hit": false
     },
@@ -314,7 +314,7 @@
       "cache_write_tokens": 9084,
       "output_tokens": 700,
       "reasoning_tokens": 390,
-      "cost_usd": 0.0023942,
+      "cost_usd": 0.0014858,
       "latency_ms": 7864,
       "cache_hit": false
     },
@@ -340,7 +340,7 @@
       "cache_write_tokens": 12338,
       "output_tokens": 251,
       "reasoning_tokens": 0,
-      "cost_usd": 0.0029018500000000005,
+      "cost_usd": 0.00166805,
       "latency_ms": 3647,
       "cache_hit": false
     },
@@ -366,7 +366,7 @@
       "cache_write_tokens": 10224,
       "output_tokens": 962,
       "reasoning_tokens": 468,
-      "cost_usd": 0.0027817,
+      "cost_usd": 0.0017592999999999999,
       "latency_ms": 10106,
       "cache_hit": false
     },
@@ -379,7 +379,7 @@
       "cache_write_tokens": 13897,
       "output_tokens": 141,
       "reasoning_tokens": 0,
-      "cost_usd": 0.003197625,
+      "cost_usd": 0.001807925,
       "latency_ms": 2326,
       "cache_hit": false
     },
@@ -392,7 +392,7 @@
       "cache_write_tokens": 11289,
       "output_tokens": 729,
       "reasoning_tokens": 349,
-      "cost_usd": 0.0029048249999999998,
+      "cost_usd": 0.001775925,
       "latency_ms": 7295,
       "cache_hit": false
     },
@@ -405,7 +405,7 @@
       "cache_write_tokens": 11785,
       "output_tokens": 632,
       "reasoning_tokens": 196,
-      "cost_usd": 0.002967925,
+      "cost_usd": 0.0017894249999999999,
       "latency_ms": 7331,
       "cache_hit": false
     }

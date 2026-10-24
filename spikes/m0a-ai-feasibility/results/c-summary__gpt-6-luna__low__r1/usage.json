@@ -6,7 +6,7 @@
     "cached_tokens": 10273,
     "output_tokens": 25569,
     "reasoning_tokens": 4033,
-    "cost_usd": 0.029730950000000003,
+    "cost_usd": 0.01771395,
     "latency_ms_mean": 9240
   },
   "detect": {
@@ -16,7 +16,7 @@
     "cached_tokens": 0,
     "output_tokens": 5377,
     "reasoning_tokens": 2158,
-    "cost_usd": 0.029730950000000003,
+    "cost_usd": 0.01771395,
     "latency_ms_mean": 4952
   },
   "extract": {
@@ -29,7 +29,7 @@
     "cost_usd": 0,
     "latency_ms_mean": 13242
   },
-  "cost_per_chapter_usd": 0.002123639285714286,
+  "cost_per_chapter_usd": 0.0012652821428571427,
   "wall_ms": 19661,
   "calls": [
     {
@@ -106,7 +106,7 @@
       "cache_write_tokens": 2752,
       "output_tokens": 15,
       "reasoning_tokens": 0,
-      "cost_usd": 0.000627,
+      "cost_usd": 0.0003518,
       "latency_ms": 1479,
       "cache_hit": false
     },
@@ -132,7 +132,7 @@
       "cache_write_tokens": 4325,
       "output_tokens": 132,
       "reasoning_tokens": 0,
-      "cost_usd": 0.0010394249999999999,
+      "cost_usd": 0.0006069249999999999,
       "latency_ms": 2929,
       "cache_hit": false
     },
@@ -158,7 +158,7 @@
       "cache_write_tokens": 5821,
       "output_tokens": 175,
       "reasoning_tokens": 67,
-      "cost_usd": 0.0013975250000000002,
+      "cost_usd": 0.0008154249999999999,
       "latency_ms": 3094,
       "cache_hit": false
     },
@@ -184,7 +184,7 @@
       "cache_write_tokens": 6723,
       "output_tokens": 242,
       "reasoning_tokens": 102,
-      "cost_usd": 0.001633975,
+      "cost_usd": 0.0009616749999999999,
       "latency_ms": 3560,
       "cache_hit": false
     },
@@ -210,7 +210,7 @@
       "cache_write_tokens": 4965,
       "output_tokens": 271,
       "reasoning_tokens": 254,
-      "cost_usd": 0.001252925,
+      "cost_usd": 0.0007564249999999999,
       "latency_ms": 5106,
       "cache_hit": false
     },
@@ -236,7 +236,7 @@
       "cache_write_tokens": 8545,
       "output_tokens": 446,
       "reasoning_tokens": 199,
-      "cost_usd": 0.0021459250000000003,
+      "cost_usd": 0.001291425,
       "latency_ms": 4919,
       "cache_hit": false
     },
@@ -262,7 +262,7 @@
       "cache_write_tokens": 7814,
       "output_tokens": 416,
       "reasoning_tokens": 194,
-      "cost_usd": 0.0019664500000000002,
+      "cost_usd": 0.00118505,
       "latency_ms": 5133,
       "cache_hit": false
     },
@@ -288,7 +288,7 @@
       "cache_write_tokens": 9161,
       "output_tokens": 456,
       "reasoning_tokens": 0,
-      "cost_usd": 0.002289525,
+      "cost_usd": 0.001373425,
       "latency_ms": 6005,
       "cache_hit": false
     },
@@ -314,7 +314,7 @@
       "cache_write_tokens": 10071,
       "output_tokens": 303,
       "reasoning_tokens": 0,
-      "cost_usd": 0.002417775,
+      "cost_usd": 0.001410675,
       "latency_ms": 3577,
       "cache_hit": false
     },
@@ -340,7 +340,7 @@
       "cache_write_tokens": 9473,
       "output_tokens": 805,
       "reasoning_tokens": 570,
-      "cost_usd": 0.0025342249999999998,
+      "cost_usd": 0.0015869249999999999,
       "latency_ms": 10207,
       "cache_hit": false
     },
@@ -366,7 +366,7 @@
       "cache_write_tokens": 12659,
       "output_tokens": 388,
       "reasoning_tokens": 0,
-      "cost_usd": 0.0030425749999999996,
+      "cost_usd": 0.001776675,
       "latency_ms": 4122,
       "cache_hit": false
     },
@@ -379,7 +379,7 @@
       "cache_write_tokens": 11712,
       "output_tokens": 782,
       "reasoning_tokens": 397,
-      "cost_usd": 0.0030265,
+      "cost_usd": 0.0018553,
       "latency_ms": 8199,
       "cache_hit": false
     },
@@ -392,7 +392,7 @@
       "cache_write_tokens": 14205,
       "output_tokens": 149,
       "reasoning_tokens": 0,
-      "cost_usd": 0.003270925,
+      "cost_usd": 0.001850425,
       "latency_ms": 2452,
       "cache_hit": false
     },
@@ -405,7 +405,7 @@
       "cache_write_tokens": 11944,
       "output_tokens": 797,
       "reasoning_tokens": 375,
-      "cost_usd": 0.0030862,
+      "cost_usd": 0.0018918,
       "latency_ms": 8544,
       "cache_hit": false
     }
