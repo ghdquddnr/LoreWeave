@@ -11,10 +11,11 @@ AI가 글을 대신 쓰는 것이 아니라, 작가가 자신이 만든 설정�
 - `docs/M0-PLAN.md` — M0 spike 실험 계획 (완료)
 - `docs/M1-PLAN.md`, `docs/M1-REPORT.md` — M1 계획과 결과 (완료)
 - `docs/M2-PLAN.md`, `docs/M2-REPORT.md` — M2 계획과 결과 (완료)
+- `docs/M3-PLAN.md` — 현재 단계(M3) 계획
 
 ## 현재 단계
 
-**M2 완료**: SQLite 색인과 원고 검색 (`docs/M2-REPORT.md`). 다음은 M3(OpenAI 연결) 계획. M1(Electron 셸 + 에디터 + Markdown 저장)도 완료 (`docs/M1-REPORT.md`).
+**M2 완료**: SQLite 색인과 원고 검색 (`docs/M2-REPORT.md`). 다음은 M3(OpenAI 연결, `docs/M3-PLAN.md`). M1(Electron 셸 + 에디터 + Markdown 저장)도 완료 (`docs/M1-REPORT.md`).
 
 M0 기술 검증 spike는 완료:
 
