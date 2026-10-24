@@ -49,6 +49,8 @@ export function serializeInline(content: Inline[] = []): string {
     .map((n) => {
       // C3에는 문단 안 줄바꿈이 없다. 저장하면 다음 줄(다음 문단)이 된다
       if (n.type === 'hardBreak') return '\n';
+      // 스키마 밖의 인라인 노드는 쓰지 않는다. 그 글자가 사라지면 저장 전 검사가 막는다
+      if (n.type !== 'text') return '';
       const types = new Set((n.marks ?? []).map((m) => m.type));
       const delimiter = types.has('bold') ? (types.has('italic') ? '***' : '**') : types.has('italic') ? '*' : '';
       if (!delimiter) return n.text;
@@ -103,6 +105,9 @@ function serializeBlock(block: Block): string[] {
         .map((line) => (line ? `> ${line}` : '>'));
     case 'paragraph':
       return [serializeInline(block.content)];
+    default:
+      // 스키마 밖의 블록은 쓰지 않는다. 그 안의 글자가 사라지면 저장 전 검사가 막는다
+      return [];
   }
 }
 

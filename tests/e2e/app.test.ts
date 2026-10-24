@@ -2,25 +2,23 @@
 
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import electronPath from 'electron';
-import { _electron, type ElectronApplication, type Page } from 'playwright';
+import type { ElectronApplication, Page } from 'playwright';
+import { launch, tempDir } from './launch.ts';
 
 let app: ElectronApplication;
 let page: Page;
 
 before(async () => {
-  app = await _electron.launch({ executablePath: electronPath as unknown as string, args: ['.'] });
-  page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
+  ({ app, page } = await launch(await tempDir('userdata')));
 });
 
 after(async () => {
   await app?.close();
 });
 
-test('창이 열리고 첫 화면이 그려진다', async () => {
+test('창이 열리고 첫 화면(원고 폴더 열기)이 그려진다', async () => {
   assert.equal(await page.title(), 'LoreWeave');
-  await page.getByRole('heading', { name: 'LoreWeave' }).waitFor();
+  await page.getByRole('button', { name: '원고 폴더 열기' }).waitFor();
 });
 
 test('renderer에서 Node.js에 접근할 수 없다 (컨텍스트 격리, Node 통합 끔)', async () => {
@@ -41,8 +39,13 @@ test('preload API가 노출되고, 프로젝트를 열기 전에는 파일 요�
   const shape = await page.evaluate(() => ({
     project: Object.keys(window.loreweave.project).sort(),
     chapters: Object.keys(window.loreweave.chapters).sort(),
+    app: Object.keys(window.loreweave.app).sort(),
   }));
-  assert.deepEqual(shape, { project: ['choose', 'reopenLast'], chapters: ['create', 'list', 'read', 'write'] });
+  assert.deepEqual(shape, {
+    project: ['choose', 'reopenLast'],
+    chapters: ['create', 'list', 'read', 'write'],
+    app: ['onBeforeClose', 'replyClose'],
+  });
   const error = await page.evaluate(() => window.loreweave.chapters.list().then(() => null, (e: Error) => e.message));
   assert.match(error ?? '', /열린 프로젝트가 없습니다/);
 });

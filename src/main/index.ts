@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { app, BrowserWindow, shell } from 'electron';
-import { registerIpc } from './ipc.ts';
+import { guardWindowClose, registerIpc } from './ipc.ts';
 
 // 모든 renderer를 sandbox로 실행한다 (창별 설정을 빠뜨려도 적용됨). ready 전에 호출해야 한다
 app.enableSandbox();
@@ -21,6 +21,7 @@ function createWindow(): void {
   });
 
   win.once('ready-to-show', () => win.show());
+  guardWindowClose(win);
 
   // 앱 밖으로 나가는 탐색과 새 창은 막는다. https 링크만 기본 브라우저로 연다
   win.webContents.setWindowOpenHandler(({ url }) => {

@@ -39,6 +39,34 @@ function requireRoot(): string {
   return root;
 }
 
+const CLOSE_TIMEOUT_MS = 10_000;
+
+/**
+ * 창을 닫기 전에 renderer에 저장할 기회를 준다. renderer가 답하지 않으면(멈춤 등) 10초 뒤 닫는다.
+ * renderer가 false로 답하면(사용자가 닫기를 취소) 창을 그대로 둔다.
+ */
+export function guardWindowClose(win: BrowserWindow): void {
+  let allowed = false;
+  let timer: NodeJS.Timeout | null = null;
+  const close = () => {
+    allowed = true;
+    if (!win.isDestroyed()) win.close();
+  };
+  win.on('close', (event) => {
+    if (allowed) return;
+    event.preventDefault();
+    if (timer) return;
+    win.webContents.send(CHANNELS.beforeClose);
+    timer = setTimeout(close, CLOSE_TIMEOUT_MS);
+  });
+  ipcMain.on(CHANNELS.replyClose, (event, proceed: boolean) => {
+    if (event.sender !== win.webContents || !timer) return;
+    clearTimeout(timer);
+    timer = null;
+    if (proceed) close();
+  });
+}
+
 export function registerIpc(): void {
   ipcMain.handle(CHANNELS.projectChoose, async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -55,7 +83,7 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.chaptersList, () => listChapters(requireRoot()));
   ipcMain.handle(CHANNELS.chapterRead, (_e, file: string) => readChapter(requireRoot(), file));
-  ipcMain.handle(CHANNELS.chapterWrite, (_e, file: string, text: string, expectedHash: string) =>
+  ipcMain.handle(CHANNELS.chapterWrite, (_e, file: string, text: string, expectedHash: string | null) =>
     writeChapter(requireRoot(), file, text, expectedHash),
   );
   ipcMain.handle(CHANNELS.chapterCreate, () => createChapter(requireRoot()));

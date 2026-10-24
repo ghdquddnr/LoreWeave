@@ -134,9 +134,10 @@ async function atomicWrite(path: string, bytes: Uint8Array): Promise<void> {
 
 /**
  * expectedHash: 마지막으로 읽은(또는 저장한) 내용의 해시. 디스크가 그와 다르면 쓰지 않고 conflict를 돌려준다.
+ * null이면 파일이 없을 때만 쓴다.
  * 같은 파일에 대한 쓰기는 호출하는 쪽이 한 번에 하나씩 보낸다.
  */
-export async function writeChapter(root: string, file: string, text: string, expectedHash: string): Promise<WriteResult> {
+export async function writeChapter(root: string, file: string, text: string, expectedHash: string | null): Promise<WriteResult> {
   const path = chapterPath(root, file);
   const disk = await readBytes(path);
   const diskHash = disk ? hashOf(disk) : null;

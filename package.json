@@ -11,9 +11,14 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"tests/core/**/*.test.ts\"",
-    "test:e2e": "electron-vite build && node --import tsx --test \"tests/e2e/**/*.test.ts\""
+    "test:e2e": "electron-vite build && node --import tsx --test --test-timeout=60000 --test-concurrency=1 \"tests/e2e/**/*.test.ts\""
   },
   "devDependencies": {
+    "@tiptap/core": "3.32.0",
+    "@tiptap/extension-blockquote": "3.32.0",
+    "@tiptap/pm": "3.32.0",
+    "@tiptap/react": "3.32.0",
+    "@tiptap/starter-kit": "3.32.0",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

@@ -21,8 +21,14 @@ export interface LoreweaveApi {
   chapters: {
     list(): Promise<ChapterList>;
     read(file: string): Promise<ChapterContent>;
-    write(file: string, text: string, expectedHash: string): Promise<WriteResult>;
+    /** expectedHash: 마지막으로 읽거나 저장한 내용의 해시. null이면 파일이 없어야 한다 (지워진 화를 다시 만들 때) */
+    write(file: string, text: string, expectedHash: string | null): Promise<WriteResult>;
     create(): Promise<{ file: string } & ChapterContent>;
+  };
+  app: {
+    /** 창을 닫기 직전에 불린다. 저장을 마친 뒤 replyClose로 답해야 창이 닫힌다 */
+    onBeforeClose(listener: () => void): () => void;
+    replyClose(proceed: boolean): void;
   };
 }
 
@@ -33,6 +39,8 @@ export const CHANNELS = {
   chapterRead: 'chapter:read',
   chapterWrite: 'chapter:write',
   chapterCreate: 'chapter:create',
+  beforeClose: 'app:before-close',
+  replyClose: 'app:reply-close',
 } as const;
 
 declare global {
