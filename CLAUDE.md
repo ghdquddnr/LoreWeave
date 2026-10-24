@@ -22,7 +22,7 @@ M0 기술 검증 spike는 완료:
 - M0-A: AI 연속성 오류 탐지 전략 비교 → **완료** (`docs/spikes/M0A-REPORT.md`, ADR 0001, 코드는 태그 `spike-m0a-2026-10-24`)
 - M0-B: TipTap 에디터 / Markdown round-trip 검증 → **완료** (`docs/spikes/M0B-REPORT.md`, ADR 0002, 코드는 태그 `spike-m0b-2026-10-24`)
 
-이후: M2 (SQLite 인덱스/검색) → M3 (OpenAI 연결) → M4 (연속성 탐지 E2E) = v0.1
+이후: M3 (OpenAI 연결, 사실 추출) → M4 (연속성 탐지 E2E) = v0.1
 
 ## 실행
 
