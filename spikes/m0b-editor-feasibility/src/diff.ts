@@ -17,9 +17,9 @@ export interface DiffResult {
   hunks: Hunk[];
 }
 
-const BOM = '﻿';
-const SPACE = /[\s​]/g;
-const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', nbsp: ' ', '#39': "'" };
+const BOM = '\uFEFF';
+const SPACE = /[\s\u200B]/g;
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', nbsp: '\u00A0', '#39': "'" };
 
 function unescape(s: string): string {
   return s
@@ -76,8 +76,8 @@ export function classifyDiff(expected: string, actual: string): DiffResult {
   if (expected === actual) return { kinds: [], hunks: [] };
   const kinds = new Set<DiffKind>();
   if (expected.startsWith(BOM) !== actual.startsWith(BOM)) kinds.add('bom');
-  const e = expected.replace(/^﻿/, '');
-  const a = actual.replace(/^﻿/, '');
+  const e = expected.replace(/^\uFEFF/, '');
+  const a = actual.replace(/^\uFEFF/, '');
   if (detectEol(e) !== detectEol(a)) kinds.add('eol');
   const hunks = lineHunks(e.replace(/\r\n?/g, '\n').split('\n'), a.replace(/\r\n?/g, '\n').split('\n')).map(
     (h) => ({ ...h, kind: classifyHunk(h.expected, h.actual) }),
