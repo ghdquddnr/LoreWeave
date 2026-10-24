@@ -1,4 +1,5 @@
 // 수동 검증 패널: 원본 / 에디터 / 저장 결과 / 차이 (M0-PLAN §2).
+// IME 검사 모드: 빈 에디터에 선택한 사례를 따라 치면 기대 원고와의 차이와 입력 이벤트 기록을 보여 준다.
 // 성능 측정과 같은 조건을 위해 StrictMode는 쓰지 않는다.
 
 import { EditorContent, useEditor } from '@tiptap/react';
@@ -32,6 +33,8 @@ function Demo() {
   const [doc, setDoc] = useState<PMNode | null>(null);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ime, setIme] = useState(false);
+  const [events, setEvents] = useState<string[]>([]);
   const converters = useRef(new Map<string, Converter>());
 
   const converter = useMemo(() => {
@@ -69,19 +72,49 @@ function Demo() {
 
   useEffect(() => {
     if (!editor) return;
+    const dom = editor.view.dom;
+    const log = (line: string) => setEvents((prev) => [...prev.slice(-39), line]);
+    const onKey = (e: KeyboardEvent) => log(`keydown ${e.key} composing=${e.isComposing}`);
+    const onComposition = (e: CompositionEvent) => log(`${e.type} "${e.data}"`);
+    const onInput = (e: Event) => {
+      const ie = e as InputEvent;
+      log(`beforeinput ${ie.inputType} "${ie.data ?? ''}"`);
+    };
+    dom.addEventListener('keydown', onKey);
+    dom.addEventListener('beforeinput', onInput);
+    for (const type of ['compositionstart', 'compositionupdate', 'compositionend'] as const) {
+      dom.addEventListener(type, onComposition);
+    }
+    return () => {
+      dom.removeEventListener('keydown', onKey);
+      dom.removeEventListener('beforeinput', onInput);
+      for (const type of ['compositionstart', 'compositionupdate', 'compositionend'] as const) {
+        dom.removeEventListener(type, onComposition);
+      }
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
     try {
-      editor.commands.setContent(converter.parse(body), { emitUpdate: false });
+      editor.commands.setContent(ime ? { type: 'doc', content: [{ type: 'paragraph' }] } : converter.parse(body), {
+        emitUpdate: false,
+      });
+      setEvents([]);
       setDoc(editor.getJSON() as PMNode);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
     setDirty(false);
-  }, [editor, converter, body]);
+  }, [editor, converter, body, ime]);
 
   const output = useMemo(() => (doc ? join(envelope, converter.serialize(doc)) : ''), [doc, envelope, converter]);
   const saved = dirty ? output : raw;
-  const diff = useMemo(() => classifyDiff(raw, output), [raw, output]);
+  const diff = useMemo(
+    () => (ime ? classifyDiff(body, doc ? converter.serialize(doc) : '') : classifyDiff(raw, output)),
+    [ime, body, doc, converter, raw, output],
+  );
   const paragraphs = doc?.content?.length ?? 0;
   const groups = [...new Set(cases.map((c) => c.group))];
 
@@ -114,8 +147,17 @@ function Demo() {
             ))}
           </select>
         </label>
+        <label>
+          <input type="checkbox" checked={ime} onChange={(e) => setIme(e.target.checked)} /> IME 검사 모드
+        </label>
         <span className="status">
-          {error ? (
+          {ime ? (
+            diff.hunks.length === 0 ? (
+              <span className="ok">따라 친 내용이 원고와 같음</span>
+            ) : (
+              <span className="fail">원고와 다른 곳 {diff.hunks.length}군데 (아직 치지 않은 부분 포함)</span>
+            )
+          ) : error ? (
             <span className="fail">변환 오류: {error}</span>
           ) : (
             <>
@@ -128,8 +170,10 @@ function Demo() {
       </header>
       <main>
         <section>
-          <h2>원본 (편집하면 에디터에 다시 읽음) — {cases.find((c) => c.id === caseId)?.note}</h2>
-          <textarea value={raw} onChange={(e) => setRaw(e.target.value)} spellCheck={false} />
+          <h2>
+            {ime ? '따라 칠 원고 (빈 줄 = Enter 두 번)' : '원본 (편집하면 에디터에 다시 읽음)'} — {cases.find((c) => c.id === caseId)?.note}
+          </h2>
+          {ime ? <pre>{body}</pre> : <textarea value={raw} onChange={(e) => setRaw(e.target.value)} spellCheck={false} />}
         </section>
         <section>
           <h2>에디터 (왼쪽 선 하나 = 블록 하나)</h2>
@@ -141,7 +185,7 @@ function Demo() {
         </section>
         <section>
           <h2>
-            차이: 원본 → 변환기 출력 <span className="legend">· 줄 끝 공백 ⍽ NBSP □ 전각 공백 ⇥ 탭 ␍ CR ↵ 줄 끝</span>
+            {ime ? '차이: 원고 → 입력 결과' : '차이: 원본 → 변환기 출력'} <span className="legend">· 줄 끝 공백 ⍽ NBSP □ 전각 공백 ⇥ 탭 ␍ CR ↵ 줄 끝</span>
           </h2>
           <div>
             {diff.hunks.length === 0 && <p className="legend">차이 없음</p>}
@@ -154,6 +198,12 @@ function Demo() {
                 <pre className="act">{visible(h.actual.join('\n')) || '(없음)'}</pre>
               </div>
             ))}
+            {ime && (
+              <>
+                <h3 className="legend">입력 이벤트 (최근 40개, 문제 재현 기록용)</h3>
+                <pre className="legend">{events.join('\n')}</pre>
+              </>
+            )}
           </div>
         </section>
       </main>
