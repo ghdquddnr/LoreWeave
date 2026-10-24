@@ -93,6 +93,12 @@ export async function listChapters(root: string): Promise<ChapterList> {
   return { chapters, duplicateIds: findDuplicateIds(chapters) };
 }
 
+/** 디스크에 있는 화 파일의 해시. 파일이 없으면 null */
+export async function chapterHash(root: string, file: string): Promise<string | null> {
+  const bytes = await readBytes(chapterPath(root, file));
+  return bytes ? hashOf(bytes) : null;
+}
+
 export async function readChapter(root: string, file: string): Promise<ChapterContent> {
   const bytes = await readFile(chapterPath(root, file));
   const text = decode(bytes);

@@ -4,9 +4,23 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { CHANNELS, type ProjectOpened } from '../preload/api.ts';
-import { createChapter, listChapters, readChapter, writeChapter } from './project-files.ts';
+import { chapterHash, createChapter, listChapters, readChapter, writeChapter } from './project-files.ts';
+import { watchChapters } from './watch.ts';
 
 let root: string | null = null;
+let stopWatching: () => void = () => {};
+/** 이 앱이 마지막으로 쓴 내용의 해시. 감시 이벤트가 자기 쓰기 때문이면 알리지 않는다 */
+const ownWrites = new Map<string, string>();
+
+function startWatching(path: string): void {
+  stopWatching();
+  stopWatching = watchChapters(path, (file) => {
+    void chapterHash(path, file).then((hash) => {
+      if (root !== path || (hash !== null && ownWrites.get(file) === hash)) return;
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.chapterChangedOutside, { file, hash });
+    });
+  });
+}
 
 const settingsPath = () => join(app.getPath('userData'), 'settings.json');
 
@@ -30,6 +44,8 @@ async function isDirectory(path: string): Promise<boolean> {
 async function openProject(path: string): Promise<ProjectOpened> {
   const list = await listChapters(path);
   root = path;
+  ownWrites.clear();
+  startWatching(path);
   await writeFile(settingsPath(), JSON.stringify({ lastProject: path }, null, 2));
   return { name: basename(path), list };
 }
@@ -83,8 +99,17 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.chaptersList, () => listChapters(requireRoot()));
   ipcMain.handle(CHANNELS.chapterRead, (_e, file: string) => readChapter(requireRoot(), file));
-  ipcMain.handle(CHANNELS.chapterWrite, (_e, file: string, text: string, expectedHash: string | null) =>
-    writeChapter(requireRoot(), file, text, expectedHash),
-  );
-  ipcMain.handle(CHANNELS.chapterCreate, () => createChapter(requireRoot()));
+  ipcMain.handle(CHANNELS.chapterWrite, async (_e, file: string, text: string, expectedHash: string | null) => {
+    const result = await writeChapter(requireRoot(), file, text, expectedHash);
+    if (result.status === 'saved') ownWrites.set(file, result.hash);
+    return result;
+  });
+  ipcMain.handle(CHANNELS.chapterCreate, async () => {
+    const path = requireRoot();
+    const created = await createChapter(path);
+    ownWrites.set(created.file, created.hash);
+    // chapters 폴더를 방금 만들었을 수 있다
+    startWatching(path);
+    return created;
+  });
 }
