@@ -1,10 +1,11 @@
-// 앱 화면: 왼쪽 화 목록, 가운데 에디터, 아래 저장 상태 (M1-PLAN 1절).
+// 앱 화면: 왼쪽 검색창과 화 목록(또는 검색 결과), 가운데 에디터, 아래 저장 상태 (M1-PLAN 1절, M2-PLAN 1절).
 // 화를 옮기거나 폴더를 바꾸거나 창을 닫기 전에는 항상 현재 화를 먼저 저장한다.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chapterInfo } from '../../core/project/chapters.ts';
-import type { ProjectOpened } from '../../preload/api.ts';
-import { ChapterEditor, type ChapterEditorHandle, type SaveStatus } from './ChapterEditor.tsx';
+import type { ProjectOpened, SearchHit } from '../../preload/api.ts';
+import { ChapterEditor, type ChapterEditorHandle, type Jump, type SaveStatus } from './ChapterEditor.tsx';
+import { SearchPanel, type SearchPanelHandle } from './SearchPanel.tsx';
 
 const api = window.loreweave;
 
@@ -31,7 +32,10 @@ export function App() {
   });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [jump, setJump] = useState<Jump | null>(null);
   const editor = useRef<ChapterEditorHandle>(null);
+  const search = useRef<SearchPanelHandle>(null);
 
   const showProject = useCallback((p: ProjectOpened) => {
     setProject(p);
@@ -59,6 +63,10 @@ export function App() {
         e.preventDefault();
         void editor.current?.flush();
       }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        search.current?.focus();
+      }
     };
     window.addEventListener('blur', onBlur);
     window.addEventListener('keydown', onKey);
@@ -75,7 +83,25 @@ export function App() {
   const openChapter = (next: string) =>
     run(async () => {
       if (next === file || !(await leave())) return;
+      setJump(null);
       setFile(next);
+    });
+
+  /** 검색 결과로 이동: 그 화를 열고 찾은 글자를 선택한다 */
+  const openResult = (hit: SearchHit, match: SearchHit['matches'][number]) =>
+    run(async () => {
+      if (hit.file !== file && !(await leave())) return;
+      setFile(hit.file);
+      setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
+    });
+
+  /** 중복 id 해결: 고른 화에 새 id를 넣는다. 그 화가 열려 있으면 저장한 뒤 다시 연다 */
+  const reissueId = (target: string) =>
+    run(async () => {
+      if (!project || !(await leave())) return;
+      const list = await api.chapters.reissueId(target);
+      setProject({ ...project, list });
+      if (target === file) setReloadKey((k) => k + 1);
     });
 
   const newChapter = () =>
@@ -100,6 +126,7 @@ export function App() {
 
   const onReload = useCallback((outside?: boolean) => {
     setReloadKey((k) => k + 1);
+    setJump(null);
     setNotice(outside ? '다른 프로그램에서 바뀌어 다시 불러왔습니다' : null);
   }, []);
 
@@ -140,13 +167,33 @@ export function App() {
         <button className="new-chapter" onClick={newChapter}>
           + 새 화
         </button>
+        <SearchPanel
+          ref={search}
+          active={searching}
+          onActiveChange={setSearching}
+          beforeSearch={() => editor.current?.flush() ?? Promise.resolve()}
+          onOpen={openResult}
+        />
         {project.list.duplicateIds.length > 0 && (
-          <p className="warning">
-            같은 id를 쓰는 화가 있습니다 (파일 복사로 생김):{' '}
-            {project.list.duplicateIds.map((files) => files.join(', ')).join(' / ')}
-          </p>
+          <div className="warning duplicates" role="alert">
+            같은 id를 쓰는 화가 있습니다 (파일 복사로 생김). 하나만 남기고 새 id를 주세요.
+            {project.list.duplicateIds.map((files) => (
+              <ul key={files[0]}>
+                {files.map((f, i) => (
+                  <li key={f}>
+                    {f}{' '}
+                    {i > 0 && (
+                      <button type="button" className="link" onClick={() => reissueId(f)}>
+                        새 id 발급
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ))}
+          </div>
         )}
-        <nav aria-label="화 목록">
+        <nav aria-label="화 목록" hidden={searching}>
           {project.list.chapters.length === 0 && <p className="empty">아직 화가 없습니다.</p>}
           {project.list.chapters.map((c) => (
             <button
@@ -170,6 +217,7 @@ export function App() {
             onStatus={onStatus}
             onSaved={onSaved}
             onReload={onReload}
+            jump={jump}
           />
         ) : (
           <p className="editor-message">왼쪽에서 화를 고르거나 새 화를 만드세요.</p>

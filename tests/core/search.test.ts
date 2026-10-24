@@ -34,8 +34,9 @@ test('이모지·결합 문자 덩어리 중간에서 끝나도 덩어리 전체
   assert.deepEqual(hits(`가족 ${family} 끝`, '\u{1F468}'), [family]);
 });
 
-test('문맥: 앞뒤 radius 글자와 말줄임표', () => {
+test('문맥: 앞뒤 글자 수와 말줄임표', () => {
   const text = '0123456789민수0123456789';
-  assert.deepEqual(snippet(text, { from: 10, to: 12 }, 3), { before: '…789', hit: '민수', after: '012…' });
+  assert.deepEqual(snippet(text, { from: 10, to: 12 }, { before: 3, after: 3 }), { before: '…789', hit: '민수', after: '012…' });
+  assert.equal(snippet(text, { from: 10, to: 12 }).before, '0123456789');
   assert.deepEqual(snippet('민수', { from: 0, to: 2 }), { before: '', hit: '민수', after: '' });
 });
