@@ -1,5 +1,6 @@
 // renderer 요청 처리. 열린 프로젝트 폴더는 main만 알고, 모든 파일 접근은 그 폴더의 `chapters/` 안으로 제한된다.
 
+import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
@@ -7,9 +8,19 @@ import { MODELS } from '../core/ai/models.ts';
 import { CHAPTERS_DIR } from '../core/project/chapters.ts';
 import { CHANNELS, type AiStatus, type ProjectOpened } from '../preload/api.ts';
 import { createOpenAiClient, toAiError } from './ai-client.ts';
-import { ManuscriptIndex } from './index-db.ts';
+import { AiStore } from './ai-db.ts';
+import { analysisStates, analyzeChapters, estimate } from './analyzer.ts';
+import { INDEX_DIR, ManuscriptIndex } from './index-db.ts';
 import { indexChapterText, reindexChapter, searchIndex, syncIndex } from './indexer.ts';
-import { chapterHash, createChapter, listChapters, readChapter, reissueChapterId, writeChapter } from './project-files.ts';
+import {
+  chapterFileNames,
+  chapterHash,
+  createChapter,
+  listChapters,
+  readChapter,
+  reissueChapterId,
+  writeChapter,
+} from './project-files.ts';
 import { canEncrypt, deleteApiKey, loadApiKey, saveApiKey } from './secrets.ts';
 import { readSettings, updateSettings } from './settings.ts';
 import { watchChapters } from './watch.ts';
@@ -20,6 +31,17 @@ let index: ManuscriptIndex | null = null;
 /** 폴더를 열 때의 색인 동기화. 검색은 이것이 끝난 뒤에 한다 */
 let indexReady: Promise<void> = Promise.resolve();
 let indexError: string | null = null;
+/** AI 분석 결과 저장소. 처음 분석할 때 만든다 (AI를 쓰지 않으면 ai.db가 생기지 않는다) */
+let aiStore: AiStore | null = null;
+/** 진행 중인 분석의 취소 장치. 분석은 한 번에 하나만 */
+let analyzing: AbortController | null = null;
+
+function openAiStore(path: string, create: boolean): AiStore | null {
+  if (aiStore) return aiStore;
+  if (!create && !existsSync(join(path, INDEX_DIR, 'ai.db'))) return null;
+  aiStore = AiStore.open(path);
+  return aiStore;
+}
 
 function openIndex(path: string): void {
   index?.close();
@@ -85,6 +107,9 @@ async function isDirectory(path: string): Promise<boolean> {
 
 async function openProject(path: string): Promise<ProjectOpened> {
   const list = await listChapters(path);
+  analyzing?.abort();
+  aiStore?.close();
+  aiStore = null;
   root = path;
   ownWrites.clear();
   startWatching(path);
@@ -192,6 +217,52 @@ export function registerIpc(): void {
       return { ok: true };
     } catch (e) {
       return { ok: false, message: toAiError(e).message };
+    }
+  });
+  ipcMain.handle(CHANNELS.aiSetConsent, async (_e, consent: boolean) => {
+    await updateSettings(userData(), { aiSendConsent: consent === true });
+  });
+  ipcMain.handle(CHANNELS.aiAnalysisStatus, async () => {
+    const path = requireRoot();
+    const store = openAiStore(path, false);
+    const settings = await readSettings(userData());
+    if (!store) {
+      const files = await chapterFileNames(path);
+      return { states: Object.fromEntries(files.map((f) => [f, 'none'])), totalCostUsd: 0, recoveredFrom: null, consent: settings.aiSendConsent };
+    }
+    return {
+      states: await analysisStates(path, store),
+      totalCostUsd: store.totalCost(),
+      recoveredFrom: store.recoveredFrom,
+      consent: settings.aiSendConsent,
+    };
+  });
+  ipcMain.handle(CHANNELS.aiEstimate, async (_e, files: string[]) => {
+    const path = requireRoot();
+    return estimate(path, files, (await readSettings(userData())).aiModel);
+  });
+  ipcMain.handle(CHANNELS.aiAnalysis, (_e, file: string) => openAiStore(requireRoot(), false)?.analysis(file) ?? null);
+  ipcMain.handle(CHANNELS.aiCancel, () => analyzing?.abort());
+  ipcMain.handle(CHANNELS.aiAnalyze, async (event, files: string[]) => {
+    const path = requireRoot();
+    if (analyzing) throw new Error('이미 분석 중입니다');
+    const settings = await readSettings(userData());
+    if (!settings.aiSendConsent) throw new Error('원고 전송에 동의해야 분석할 수 있습니다');
+    const key = await loadApiKey(userData());
+    if (!key) throw new Error('API 키가 없습니다. 설정에서 키를 넣으세요.');
+    const controller = new AbortController();
+    analyzing = controller;
+    try {
+      return await analyzeChapters(files, {
+        root: path,
+        store: openAiStore(path, true)!,
+        client: createOpenAiClient(key),
+        model: settings.aiModel,
+        signal: controller.signal,
+        onProgress: (p) => event.sender.send(CHANNELS.aiProgress, p),
+      });
+    } finally {
+      analyzing = null;
     }
   });
   ipcMain.handle(CHANNELS.chaptersSearch, async (_e, query: string) => {
