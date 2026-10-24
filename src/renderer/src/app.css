@@ -39,7 +39,7 @@ button {
 .app {
   height: 100vh;
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px 1fr auto;
   grid-template-rows: 1fr auto;
 }
 
@@ -163,7 +163,7 @@ button {
 }
 
 .statusbar {
-  grid-column: 2;
+  grid-column: 2 / 4;
   display: flex;
   gap: 16px;
   padding: 4px 12px;
@@ -264,4 +264,128 @@ button {
 .duplicates ul {
   margin: 4px 0;
   padding-left: 16px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.row.end {
+  justify-content: flex-end;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.analysis {
+  padding: 0 12px 8px;
+}
+
+.analysis button:not(.link) {
+  font-size: 12px;
+}
+
+.mark {
+  margin-left: 6px;
+  font-size: 10px;
+}
+
+.mark-fresh {
+  color: #12b76a;
+}
+
+.mark-stale {
+  color: #f79009;
+}
+
+.facts {
+  width: 300px;
+  grid-row: 1;
+  grid-column: 3;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: #fff;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.facts h2 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.facts h3 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+
+.facts ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.facts li {
+  margin-bottom: 6px;
+}
+
+.facts .fact {
+  display: block;
+  font-weight: 600;
+}
+
+.facts .quote {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: #444;
+  font-size: 12px;
+}
+
+.facts .quote:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 20, 30, 0.35);
+  z-index: 10;
+}
+
+.modal {
+  width: min(520px, calc(100vw - 32px));
+  background: #fff;
+  border-radius: 8px;
+  padding: 18px 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.modal h3 {
+  margin: 14px 0 4px;
+  font-size: 13px;
+}
+
+.modal input[type='password'] {
+  flex: 1;
+  min-width: 200px;
+  font: inherit;
+  padding: 4px 8px;
 }
