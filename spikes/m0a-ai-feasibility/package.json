@@ -6,11 +6,15 @@
   "scripts": {
     "test": "node --import tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "evaluate": "tsx src/evaluate.ts"
+    "evaluate": "tsx src/evaluate.ts",
+    "probe": "node --env-file=.env --import tsx src/probe.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "openai": "^7.43.0"
   }
 }
