@@ -5,7 +5,7 @@ import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path';
 import { before, test } from 'node:test';
 import type { Page } from 'playwright';
-import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+import { closeWindow, killApp, launch, stubFolderDialog, tempDir } from './launch.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
 let project: string;
@@ -91,17 +91,48 @@ test('입력한 * 가 다시 열 때 기울임이 되면 저장하고 경고한�
   await closeWindow(app);
 });
 
-test('다른 프로그램이 바꾼 화는 덮어쓰지 않고 묻는다', async () => {
+test('저장 안 된 변경이 있을 때 다른 프로그램이 화를 바꾸면 덮어쓰지 않고 묻는다', async () => {
   const { app, page } = await launch(userData);
   await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: '넷째' }).click();
   await page.locator('.ProseMirror').getByText(/둘째 줄/).click();
-  await writeFile(chapterFile('004.md'), '다른 편집기에서 고침\n');
   await page.keyboard.press('End');
   await page.keyboard.type('!');
+  // 자동 저장(1.5초) 전에 바깥에서 바꾼다
+  await writeFile(chapterFile('004.md'), '다른 편집기에서 고침\n');
   await page.getByRole('alert').getByText(/다른 프로그램에서 바뀌었습니다/).waitFor({ timeout: 5000 });
+  await page.waitForTimeout(2000);
   assert.equal(await readFile(chapterFile('004.md'), 'utf8'), '다른 편집기에서 고침\n');
   await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).click();
   await saved(page);
   assert.match(await readFile(chapterFile('004.md'), 'utf8'), /둘째 줄\. 추가!\r\n$/);
   await closeWindow(app);
+});
+
+test('저장 안 된 변경이 없을 때 다른 프로그램이 화를 바꾸면 다시 불러온다', async () => {
+  const outside = '---\nid: x\ntitle: 넷째\n---\n바깥에서 새로 쓴 줄\n';
+  const { app, page } = await launch(userData);
+  await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: '넷째' }).click();
+  await page.locator('.ProseMirror').getByText(/둘째 줄/).waitFor();
+  await writeFile(chapterFile('004.md'), outside);
+  await page.locator('.ProseMirror').getByText('바깥에서 새로 쓴 줄').waitFor({ timeout: 5000 });
+  await page.getByRole('status').getByText('다른 프로그램에서 바뀌어 다시 불러왔습니다').waitFor();
+  await closeWindow(app);
+  assert.equal(await readFile(chapterFile('004.md'), 'utf8'), outside);
+});
+
+test('입력 중 앱이 강제로 꺼져도 잃는 것은 마지막 자동 저장 이후 분량뿐이다', async () => {
+  const { app, page } = await launch(userData);
+  await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: '1화. 입학' }).click();
+  await page.locator('.ProseMirror').getByText(/북적였다/).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' 앞부분');
+  await saved(page);
+  await page.keyboard.type(' 뒷부분');
+  await killApp(app);
+  // 살아남은 프로세스가 자동 저장(1.5초)을 하지 않는지 확인할 만큼 기다린다
+  await new Promise((r) => setTimeout(r, 2500));
+  const text = await readFile(chapterFile('001.md'), 'utf8');
+  // 원자적 쓰기라 파일이 반쯤 쓰인 채로 남지 않는다: 마지막 자동 저장 그대로다
+  assert.equal(text, originals.get('001.md')!.toString('utf8').replace('북적였다.', '북적였다. 앞부분'));
+  assert.deepEqual((await readdir(join(project, 'chapters'))).filter((f) => f.endsWith('.tmp')), []);
 });

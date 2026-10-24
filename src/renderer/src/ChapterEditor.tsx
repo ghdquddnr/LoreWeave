@@ -27,8 +27,8 @@ interface Props {
   file: string;
   onStatus(status: SaveStatus, changesOnReopen: number | null): void;
   onSaved(text: string): void;
-  /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다) */
-  onReload(): void;
+  /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다). outside: 다른 프로그램의 변경 때문에 자동으로 */
+  onReload(outside?: boolean): void;
 }
 
 interface Loaded {
@@ -163,6 +163,18 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
 
   useImperativeHandle(ref, () => ({ flush: () => saveRef.current() }), []);
 
+  // 다른 프로그램이 이 화를 바꾸면: 저장 안 된 변경이 없으면 다시 불러오고, 있으면 자동 저장을 멈추고 묻는다
+  useEffect(
+    () =>
+      window.loreweave.chapters.onChangedOutside((change) => {
+        if (change.file !== file || change.hash === hash.current) return;
+        const clean = version.current === savedVersion.current && !saving.current;
+        if (clean && change.hash !== null) onReload(true);
+        else report({ kind: 'conflict', diskHash: change.hash });
+      }),
+    [file, onReload, report],
+  );
+
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
@@ -182,7 +194,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
           <button onClick={() => void saveRef.current(conflict.diskHash)}>
             {conflict.diskHash === null ? '내 것으로 다시 만들기' : '내 것으로 덮어쓰기'}
           </button>
-          {conflict.diskHash !== null && <button onClick={onReload}>디스크 내용 불러오기 (내 수정은 버림)</button>}
+          {conflict.diskHash !== null && <button onClick={() => onReload()}>디스크 내용 불러오기 (내 수정은 버림)</button>}
         </div>
       )}
       <EditorContent editor={editor} className="manuscript" />

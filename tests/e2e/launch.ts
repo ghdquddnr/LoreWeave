@@ -1,5 +1,6 @@
 // E2E 공통: 빌드된 앱을 임시 사용자 데이터 폴더로 띄운다 (사용자의 실제 설정을 건드리지 않음).
 
+import { execFileSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,4 +33,15 @@ export async function closeWindow(app: ElectronApplication): Promise<void> {
   const closed = new Promise<void>((resolve) => app.once('close', () => resolve()));
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
   await closed;
+}
+
+/** 앱을 강제로 죽인다 (저장 기회 없음). Windows에서는 자식 프로세스까지 트리 전체를 끝낸다 */
+export async function killApp(app: ElectronApplication): Promise<void> {
+  const child = app.process();
+  const exited = new Promise((resolve) => child.once('exit', resolve));
+  if (process.platform === 'win32') execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  else child.kill('SIGKILL');
+  await exited;
+  // 죽은 앱과의 연결을 정리한다 (안 하면 테스트 프로세스가 끝나지 않는다)
+  await app.close().catch(() => {});
 }

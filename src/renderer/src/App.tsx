@@ -30,6 +30,7 @@ export function App() {
     changesOnReopen: null,
   });
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const editor = useRef<ChapterEditorHandle>(null);
 
   const showProject = useCallback((p: ProjectOpened) => {
@@ -94,6 +95,12 @@ export function App() {
 
   const onStatus = useCallback((status: SaveStatus, changesOnReopen: number | null) => {
     setSave({ status, changesOnReopen });
+    if (status.kind !== 'saved') setNotice(null);
+  }, []);
+
+  const onReload = useCallback((outside?: boolean) => {
+    setReloadKey((k) => k + 1);
+    setNotice(outside ? '다른 프로그램에서 바뀌어 다시 불러왔습니다' : null);
   }, []);
 
   const onSaved = useCallback(
@@ -162,7 +169,7 @@ export function App() {
             file={file}
             onStatus={onStatus}
             onSaved={onSaved}
-            onReload={() => setReloadKey((k) => k + 1)}
+            onReload={onReload}
           />
         ) : (
           <p className="editor-message">왼쪽에서 화를 고르거나 새 화를 만드세요.</p>
@@ -179,6 +186,7 @@ export function App() {
             {save.changesOnReopen + 1}번째 줄 근처는 다시 열면 다르게 보입니다 (예: `*` 두 개 사이가 기울임이 됨)
           </span>
         )}
+        {notice && <span className="notice">{notice}</span>}
         {error && <span className="error">{error}</span>}
       </footer>
     </div>
