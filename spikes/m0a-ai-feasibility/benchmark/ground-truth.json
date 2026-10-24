@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "changelog": ["v2 (2026-10-24, review queue adjudication after first runs): E15 target widened to the whole phone-call scene (ch8), E30 target widened to the rooftop sentence (ch14). Both are the same error, quoted from a different sentence of the same scene. No error/trap added or removed."],
   "notes": "target/source quotes are verbatim substrings of benchmark/chapters/chNN.md. distance = target - nearest source chapter. See error-plan.md for definitions and the echo rule.",
   "errors": [
     { "id": "E01", "category": "first_meeting", "split": "dev", "explicitness": "L1", "distance": 7,
@@ -59,7 +60,7 @@
       "sources": [{ "chapter": 6, "quotes": ["한도윤 교수는 그날 새벽 연구실에서 쓰러졌다."] }],
       "description": "12화는 2008-10. '지난달'(2008-09) 추천서 작성은 사망(2007-10) 이후." },
     { "id": "E15", "category": "dead_character", "split": "test", "explicitness": "L1", "distance": 7,
-      "target": { "chapter": 8, "quotes": ["화면에 '할머니'라는 글자가 떠 있었다.", "\"민수야, 밥은 먹었니?\""] },
+      "target": { "chapter": 8, "quotes": ["화면에 '할머니'라는 글자가 떠 있었다.", "\"민수야, 밥은 먹었니?\"", "\"네, 할머니. 먹었어요.\"", "\"알았어요. 할머니도 감기 조심하세요.\"", "전화를 끊고 민수는 혼자 웃었다. 할머니의 \"밥은 먹었니?\"는 어릴 때부터 변함이 없었다."] },
       "sources": [{ "chapter": 1, "quotes": ["3년 전 돌아가신 할머니는"] }],
       "description": "할머니는 이야기 시작 3년 전에 별세. 8화에서 전화 통화." },
     { "id": "E16", "category": "relationship", "split": "test", "explicitness": "L2", "distance": 9,
@@ -119,7 +120,7 @@
       "sources": [{ "chapter": 3, "quotes": ["지현은 왼손으로 빠르게 메모를 했다.", "선배님, 왼손잡이세요?"] }],
       "description": "지현은 왼손잡이." },
     { "id": "E30", "category": "habit", "split": "test", "explicitness": "L2", "distance": 9,
-      "target": { "chapter": 14, "quotes": ["옥상 난간에 팔을 걸치고 한참 동안 아래를 내려다보았다.", "높은 곳에 서 있으니 마음이 조금 가라앉았다."] },
+      "target": { "chapter": 14, "quotes": ["그날 저녁, 민수는 혼자 판교 창업지원센터 옥상으로 올라갔다.", "옥상 난간에 팔을 걸치고 한참 동안 아래를 내려다보았다.", "높은 곳에 서 있으니 마음이 조금 가라앉았다."] },
       "sources": [{ "chapter": 5, "quotes": ["고소공포증이에요?", "옥상도 못 가."] }],
       "description": "민수는 고소공포증이 있다." }
   ],
