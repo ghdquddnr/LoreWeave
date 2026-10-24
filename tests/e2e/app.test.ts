@@ -43,7 +43,7 @@ test('preload API가 노출되고, 프로젝트를 열기 전에는 파일 요�
   }));
   assert.deepEqual(shape, {
     project: ['choose', 'reopenLast'],
-    chapters: ['create', 'list', 'onChangedOutside', 'read', 'write'],
+    chapters: ['create', 'list', 'onChangedOutside', 'read', 'reissueId', 'search', 'write'],
     app: ['onBeforeClose', 'replyClose'],
   });
   const error = await page.evaluate(() => window.loreweave.chapters.list().then(() => null, (e: Error) => e.message));
