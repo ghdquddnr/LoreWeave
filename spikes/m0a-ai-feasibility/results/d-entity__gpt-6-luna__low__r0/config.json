@@ -1,0 +1,17 @@
+{
+  "run_id": "d-entity__gpt-6-luna__low__r0",
+  "strategy": "d-entity",
+  "model": "gpt-6-luna",
+  "model_versions": [
+    "gpt-6-luna"
+  ],
+  "reasoning": "low",
+  "repeat": 0,
+  "retrieval_only": false,
+  "prompt_hashes": {
+    "detect": "53207cd406ae",
+    "extract": "fa2971c6f7e8"
+  },
+  "git_commit": "3643f75",
+  "created_at": "2026-10-24T03:11:40.972Z"
+}
