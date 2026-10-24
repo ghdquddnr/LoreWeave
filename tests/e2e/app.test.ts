@@ -36,3 +36,13 @@ test('새 창을 열 수 없다', async () => {
   await page.waitForTimeout(300);
   assert.equal(app.windows().length, 1);
 });
+
+test('preload API가 노출되고, 프로젝트를 열기 전에는 파일 요청을 거부한다', async () => {
+  const shape = await page.evaluate(() => ({
+    project: Object.keys(window.loreweave.project).sort(),
+    chapters: Object.keys(window.loreweave.chapters).sort(),
+  }));
+  assert.deepEqual(shape, { project: ['choose', 'reopenLast'], chapters: ['create', 'list', 'read', 'write'] });
+  const error = await page.evaluate(() => window.loreweave.chapters.list().then(() => null, (e: Error) => e.message));
+  assert.match(error ?? '', /열린 프로젝트가 없습니다/);
+});

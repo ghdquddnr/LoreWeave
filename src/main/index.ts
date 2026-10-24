@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { app, BrowserWindow, shell } from 'electron';
+import { registerIpc } from './ipc.ts';
 
 // 모든 renderer를 sandbox로 실행한다 (창별 설정을 빠뜨려도 적용됨). ready 전에 호출해야 한다
 app.enableSandbox();
@@ -15,6 +16,7 @@ function createWindow(): void {
       sandbox: true,
       nodeIntegration: false,
       webSecurity: true,
+      preload: join(__dirname, '../preload/index.js'),
     },
   });
 
@@ -35,6 +37,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerIpc();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
