@@ -1,0 +1,15 @@
+{
+  "run_id": "a-search__retrieval",
+  "strategy": "a-search",
+  "model": "gpt-6-luna",
+  "model_versions": [],
+  "reasoning": null,
+  "repeat": 0,
+  "retrieval_only": true,
+  "prompt_hashes": {
+    "detect": "53207cd406ae",
+    "extract": "fa2971c6f7e8"
+  },
+  "git_commit": "3d02d25",
+  "created_at": "2026-10-24T03:07:33.655Z"
+}

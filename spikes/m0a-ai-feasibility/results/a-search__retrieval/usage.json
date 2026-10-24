@@ -1,0 +1,35 @@
+{
+  "total": {
+    "calls": 0,
+    "cache_hits": 0,
+    "input_tokens": 0,
+    "cached_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "cost_usd": 0,
+    "latency_ms_mean": 0
+  },
+  "detect": {
+    "calls": 0,
+    "cache_hits": 0,
+    "input_tokens": 0,
+    "cached_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "cost_usd": 0,
+    "latency_ms_mean": 0
+  },
+  "extract": {
+    "calls": 0,
+    "cache_hits": 0,
+    "input_tokens": 0,
+    "cached_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "cost_usd": 0,
+    "latency_ms_mean": 0
+  },
+  "cost_per_chapter_usd": 0,
+  "wall_ms": 117,
+  "calls": []
+}

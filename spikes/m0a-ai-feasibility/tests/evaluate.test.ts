@@ -150,3 +150,10 @@ test('retrieval recall uses the context the model saw', () => {
   // chapters without recorded context are unknown, not misses
   assert.equal(r1.retrieval.per_error['E04'], undefined);
 });
+
+test('retrieval counts short fact quotes that overlap a source span', () => {
+  const e = gt.errors.find((x) => x.id === 'E29')!; // ch15 ← ch3 left-handed
+  const piece = { chapter: 3, text: '지현은 왼손으로 빠르게 메모를 했다.' };
+  const r = evaluate(run([{ target_chapter: 15, context: [piece], findings: [] }]), gt, chapters);
+  assert.equal(r.retrieval.per_error[e.id], true);
+});

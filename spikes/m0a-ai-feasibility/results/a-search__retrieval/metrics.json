@@ -1,0 +1,595 @@
+{
+  "run_id": "a-search__retrieval",
+  "strategy": "a-search",
+  "model": "none",
+  "n_chapters": 14,
+  "by_threshold": [
+    {
+      "threshold": 0,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.1,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.2,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.3,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.4,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.5,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.6,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.7,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.8,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    },
+    {
+      "threshold": 0.9,
+      "all": {
+        "total": 30,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "dev": {
+        "total": 10,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      },
+      "test": {
+        "total": 20,
+        "tp": 0,
+        "fp": 0,
+        "recall": 0,
+        "precision": null,
+        "fp_per_chapter": 0
+      }
+    }
+  ],
+  "findings": [],
+  "missed": {
+    "all": [
+      "E01",
+      "E02",
+      "E03",
+      "E04",
+      "E05",
+      "E06",
+      "E07",
+      "E08",
+      "E09",
+      "E10",
+      "E11",
+      "E12",
+      "E13",
+      "E14",
+      "E15",
+      "E16",
+      "E17",
+      "E18",
+      "E19",
+      "E20",
+      "E21",
+      "E22",
+      "E23",
+      "E24",
+      "E25",
+      "E26",
+      "E27",
+      "E28",
+      "E29",
+      "E30"
+    ],
+    "dev": [
+      "E01",
+      "E04",
+      "E09",
+      "E10",
+      "E14",
+      "E17",
+      "E21",
+      "E24",
+      "E25",
+      "E28"
+    ],
+    "test": [
+      "E02",
+      "E03",
+      "E05",
+      "E06",
+      "E07",
+      "E08",
+      "E11",
+      "E12",
+      "E13",
+      "E15",
+      "E16",
+      "E18",
+      "E19",
+      "E20",
+      "E22",
+      "E23",
+      "E26",
+      "E27",
+      "E29",
+      "E30"
+    ]
+  },
+  "breakdown": {
+    "all": {
+      "category": {
+        "first_meeting": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "age": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "occupation": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "name": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "dead_character": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "relationship": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "date_order": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "number": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "location": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        },
+        "habit": {
+          "total": 3,
+          "tp": 0,
+          "recall": 0
+        }
+      },
+      "distance": {
+        "far": {
+          "total": 17,
+          "tp": 0,
+          "recall": 0
+        },
+        "near": {
+          "total": 7,
+          "tp": 0,
+          "recall": 0
+        },
+        "mid": {
+          "total": 6,
+          "tp": 0,
+          "recall": 0
+        }
+      },
+      "explicitness": {
+        "L1": {
+          "total": 16,
+          "tp": 0,
+          "recall": 0
+        },
+        "L2": {
+          "total": 10,
+          "tp": 0,
+          "recall": 0
+        },
+        "L3": {
+          "total": 4,
+          "tp": 0,
+          "recall": 0
+        }
+      }
+    },
+    "test": {
+      "category": {
+        "first_meeting": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "age": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "occupation": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "name": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "dead_character": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "relationship": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "date_order": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "number": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "location": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "habit": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        }
+      },
+      "distance": {
+        "near": {
+          "total": 4,
+          "tp": 0,
+          "recall": 0
+        },
+        "far": {
+          "total": 12,
+          "tp": 0,
+          "recall": 0
+        },
+        "mid": {
+          "total": 4,
+          "tp": 0,
+          "recall": 0
+        }
+      },
+      "explicitness": {
+        "L2": {
+          "total": 8,
+          "tp": 0,
+          "recall": 0
+        },
+        "L3": {
+          "total": 2,
+          "tp": 0,
+          "recall": 0
+        },
+        "L1": {
+          "total": 10,
+          "tp": 0,
+          "recall": 0
+        }
+      }
+    }
+  },
+  "quotes": {
+    "total": 0,
+    "found": 0,
+    "existence_rate": null
+  },
+  "evidence": {
+    "tp": 0,
+    "chapter_accuracy": null,
+    "quote_accuracy": null
+  },
+  "category_agreement": null,
+  "traps": {
+    "all": {
+      "total": 10,
+      "hit": 0,
+      "rate": 0
+    },
+    "dev": {
+      "total": 3,
+      "hit": 0,
+      "rate": 0
+    },
+    "test": {
+      "total": 7,
+      "hit": 0,
+      "rate": 0
+    },
+    "hit_ids": []
+  },
+  "echo_count": 0,
+  "duplicate_count": 0,
+  "retrieval": {
+    "per_error": {
+      "E01": false,
+      "E02": true,
+      "E03": true,
+      "E04": true,
+      "E05": false,
+      "E06": false,
+      "E07": true,
+      "E08": true,
+      "E09": false,
+      "E10": false,
+      "E11": false,
+      "E12": true,
+      "E13": true,
+      "E14": false,
+      "E15": true,
+      "E16": false,
+      "E17": true,
+      "E18": false,
+      "E19": false,
+      "E20": true,
+      "E21": true,
+      "E22": false,
+      "E23": false,
+      "E24": false,
+      "E25": false,
+      "E26": false,
+      "E27": false,
+      "E28": false,
+      "E29": true,
+      "E30": false
+    },
+    "known": 30,
+    "retrieved": 12,
+    "retrieval_recall": 0.4,
+    "judge_recall": 0
+  },
+  "review_queue": []
+}

@@ -237,13 +237,15 @@ export function evaluate(preds: Predictions, gt: GroundTruth, chapters: Map<numb
   };
   const traps = { all: trapCounts('all'), dev: trapCounts('dev'), test: trapCounts('test'), hit_ids: [...hitTraps].sort() };
 
-  // Retrieval: did any source quote of the error appear in what the model saw?
+  // Retrieval: did what the model saw overlap a source span of the error?
+  // Pieces may be whole chapters, paragraphs or short fact quotes, so compare spans, not containment.
   const per_error: Record<string, boolean> = {};
   for (const e of gt.errors) {
     const cp = preds.chapters.find((c) => c.target_chapter === e.target.chapter);
     if (!cp?.context) continue;
+    const pieceSpans = cp.context.map((p) => ({ ch: p.chapter, span: spanIn(p.chapter, p.text) }));
     per_error[e.id] = e.sources.some((s) =>
-      s.quotes.some((q) => cp.context!.some((piece) => piece.chapter === s.chapter && locate(piece.text, q) !== null)),
+      spansOf(s.chapter, s.quotes).some((src) => pieceSpans.some((p) => p.ch === s.chapter && p.span !== null && overlaps(p.span, src))),
     );
   }
   const known = Object.keys(per_error).length;

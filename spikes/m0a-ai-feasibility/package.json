@@ -7,7 +7,8 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "evaluate": "tsx src/evaluate.ts",
-    "probe": "node --env-file=.env --import tsx src/probe.ts"
+    "probe": "node --env-file=.env --import tsx src/probe.ts",
+    "run:strategy": "node --env-file=.env --no-warnings=ExperimentalWarning --import tsx src/run.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
