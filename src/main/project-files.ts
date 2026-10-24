@@ -13,6 +13,7 @@ import {
   isChapterFileName,
   newChapterText,
   nextChapterFile,
+  setFrontmatterField,
   sortChapterFiles,
 } from '../core/project/chapters.ts';
 
@@ -63,7 +64,8 @@ async function readBytes(path: string): Promise<Buffer | null> {
   }
 }
 
-function decode(bytes: Uint8Array): string | null {
+/** UTF-8로 읽는다. UTF-8이 아니면 null */
+export function decodeUtf8(bytes: Uint8Array): string | null {
   try {
     return utf8.decode(bytes);
   } catch {
@@ -71,7 +73,8 @@ function decode(bytes: Uint8Array): string | null {
   }
 }
 
-async function chapterFiles(root: string): Promise<string[]> {
+/** `chapters/` 안의 화 파일 이름 (정렬 안 함). 폴더가 없으면 빈 목록 */
+export async function chapterFileNames(root: string): Promise<string[]> {
   try {
     const entries = await readdir(join(root, CHAPTERS_DIR), { withFileTypes: true });
     return entries.filter((e) => e.isFile() && isChapterFileName(e.name)).map((e) => e.name);
@@ -82,10 +85,10 @@ async function chapterFiles(root: string): Promise<string[]> {
 }
 
 export async function listChapters(root: string): Promise<ChapterList> {
-  const files = sortChapterFiles(await chapterFiles(root));
+  const files = sortChapterFiles(await chapterFileNames(root));
   const chapters = await Promise.all(
     files.map(async (file): Promise<ChapterSummary> => {
-      const text = decode(await readFile(chapterPath(root, file)));
+      const text = decodeUtf8(await readFile(chapterPath(root, file)));
       if (text === null) return { file, title: file.replace(/\.md$/, ''), id: null, unreadable: true };
       return { file, ...chapterInfo(text, file), unreadable: false };
     }),
@@ -101,7 +104,7 @@ export async function chapterHash(root: string, file: string): Promise<string | 
 
 export async function readChapter(root: string, file: string): Promise<ChapterContent> {
   const bytes = await readFile(chapterPath(root, file));
-  const text = decode(bytes);
+  const text = decodeUtf8(bytes);
   if (text === null) throw new NotUtf8Error(file);
   return { text, hash: hashOf(bytes) };
 }
@@ -155,7 +158,7 @@ export async function writeChapter(root: string, file: string, text: string, exp
 
 export async function createChapter(root: string): Promise<{ file: string } & ChapterContent> {
   await mkdir(join(root, CHAPTERS_DIR), { recursive: true });
-  const file = nextChapterFile(await chapterFiles(root));
+  const file = nextChapterFile(await chapterFileNames(root));
   const number = Number(file.replace(/\.md$/, ''));
   const bytes = Buffer.from(newChapterText(randomUUID(), `${number}화`), 'utf8');
   // 'wx': 같은 이름이 이미 있으면 덮어쓰지 않고 실패한다
@@ -167,4 +170,17 @@ export async function createChapter(root: string): Promise<{ file: string } & Ch
     await handle.close();
   }
   return { file, text: bytes.toString('utf8'), hash: hashOf(bytes) };
+}
+
+/**
+ * 화의 frontmatter `id`를 새 UUID로 바꾼다 (중복 id 해결, 사용자가 고른 화만). 본문은 그대로다.
+ * 읽은 뒤 쓰기 전에 다른 프로그램이 바꿨으면 쓰지 않고 실패한다.
+ */
+export async function reissueChapterId(root: string, file: string): Promise<{ id: string } & ChapterContent> {
+  const { text, hash } = await readChapter(root, file);
+  const id = randomUUID();
+  const next = setFrontmatterField(text, 'id', id);
+  const result = await writeChapter(root, file, next, hash);
+  if (result.status === 'conflict') throw new Error(`다른 프로그램에서 바뀌는 중이라 id를 바꾸지 못했습니다: ${file}`);
+  return { id, text: next, hash: result.hash };
 }
