@@ -199,7 +199,12 @@
  "costsApi": {
   "before": 5.6888,
   "afterRightAway": 6.3335,
-  "note": "실행 직후 확인값. 토큰 계산($1.17)보다 작아 반영 지연으로 보임"
+  "afterRightAwayAt": "2026-10-25T22:59+09:00",
+  "note": "afterRightAway는 실행 직후 확인값. 토큰 계산($1.17)보다 작아 반영 지연으로 보임",
+  "settled": 6.8615,
+  "settledAt": "2026-10-25T23:07+09:00",
+  "settledDeltaUsd": 1.1727,
+  "settledNote": "다시 확인한 값. 실행 전 대비 차액이 토큰 계산($1.173)과 일치"
  },
  "scorer": {
   "recall": 0.45,
