@@ -1,13 +1,17 @@
 // renderer 요청 처리. 열린 프로젝트 폴더는 main만 알고, 모든 파일 접근은 그 폴더의 `chapters/` 안으로 제한된다.
 
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { MODELS } from '../core/ai/models.ts';
 import { CHAPTERS_DIR } from '../core/project/chapters.ts';
-import { CHANNELS, type ProjectOpened } from '../preload/api.ts';
+import { CHANNELS, type AiStatus, type ProjectOpened } from '../preload/api.ts';
+import { createOpenAiClient, toAiError } from './ai-client.ts';
 import { ManuscriptIndex } from './index-db.ts';
 import { indexChapterText, reindexChapter, searchIndex, syncIndex } from './indexer.ts';
 import { chapterHash, createChapter, listChapters, readChapter, reissueChapterId, writeChapter } from './project-files.ts';
+import { canEncrypt, deleteApiKey, loadApiKey, saveApiKey } from './secrets.ts';
+import { readSettings, updateSettings } from './settings.ts';
 import { watchChapters } from './watch.ts';
 
 let root: string | null = null;
@@ -59,15 +63,16 @@ function startWatching(path: string): void {
   });
 }
 
-const settingsPath = () => join(app.getPath('userData'), 'settings.json');
+const userData = () => app.getPath('userData');
 
-async function loadLastProject(): Promise<string | null> {
-  try {
-    const settings = JSON.parse(await readFile(settingsPath(), 'utf8')) as { lastProject?: unknown };
-    return typeof settings.lastProject === 'string' ? settings.lastProject : null;
-  } catch {
-    return null;
-  }
+async function aiStatus(): Promise<AiStatus> {
+  const settings = await readSettings(userData());
+  return {
+    hasKey: (await loadApiKey(userData())) !== null,
+    canEncrypt: canEncrypt(),
+    model: settings.aiModel,
+    models: MODELS.map(({ id, label }) => ({ id, label })),
+  };
 }
 
 async function isDirectory(path: string): Promise<boolean> {
@@ -84,7 +89,7 @@ async function openProject(path: string): Promise<ProjectOpened> {
   ownWrites.clear();
   startWatching(path);
   openIndex(path);
-  await writeFile(settingsPath(), JSON.stringify({ lastProject: path }, null, 2));
+  await updateSettings(userData(), { lastProject: path });
   return { name: basename(path), list };
 }
 
@@ -131,7 +136,7 @@ export function registerIpc(): void {
   });
 
   ipcMain.handle(CHANNELS.projectReopenLast, async () => {
-    const path = await loadLastProject();
+    const path = (await readSettings(userData())).lastProject;
     return path && (await isDirectory(path)) ? openProject(path) : null;
   });
 
@@ -164,6 +169,30 @@ export function registerIpc(): void {
     ownWrites.set(file, hash);
     await updateIndex((i) => reindexChapter(i, path, file));
     return listChapters(path);
+  });
+  ipcMain.handle(CHANNELS.aiStatus, () => aiStatus());
+  ipcMain.handle(CHANNELS.aiSetKey, async (_e, key: string) => {
+    await saveApiKey(userData(), key);
+    return aiStatus();
+  });
+  ipcMain.handle(CHANNELS.aiDeleteKey, async () => {
+    await deleteApiKey(userData());
+    return aiStatus();
+  });
+  ipcMain.handle(CHANNELS.aiSetModel, async (_e, model: string) => {
+    if (!MODELS.some((m) => m.id === model)) throw new Error(`알 수 없는 모델: ${model}`);
+    await updateSettings(userData(), { aiModel: model });
+    return aiStatus();
+  });
+  ipcMain.handle(CHANNELS.aiCheck, async () => {
+    const key = await loadApiKey(userData());
+    if (!key) return { ok: false, message: 'API 키가 없습니다' };
+    try {
+      await createOpenAiClient(key).check((await readSettings(userData())).aiModel);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: toAiError(e).message };
+    }
   });
   ipcMain.handle(CHANNELS.chaptersSearch, async (_e, query: string) => {
     requireRoot();
