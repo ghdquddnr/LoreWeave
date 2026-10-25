@@ -25,6 +25,17 @@ const api: LoreweaveApi = {
     deleteKey: () => ipcRenderer.invoke(CHANNELS.aiDeleteKey),
     setModel: (model) => ipcRenderer.invoke(CHANNELS.aiSetModel, model),
     check: () => ipcRenderer.invoke(CHANNELS.aiCheck),
+    setConsent: (consent) => ipcRenderer.invoke(CHANNELS.aiSetConsent, consent),
+    analysisStatus: () => ipcRenderer.invoke(CHANNELS.aiAnalysisStatus),
+    estimate: (files) => ipcRenderer.invoke(CHANNELS.aiEstimate, files),
+    analyze: (files) => ipcRenderer.invoke(CHANNELS.aiAnalyze, files),
+    cancel: () => ipcRenderer.invoke(CHANNELS.aiCancel),
+    onProgress(listener) {
+      const handler = (_e: Electron.IpcRendererEvent, progress: Parameters<typeof listener>[0]) => listener(progress);
+      ipcRenderer.on(CHANNELS.aiProgress, handler);
+      return () => ipcRenderer.off(CHANNELS.aiProgress, handler);
+    },
+    analysis: (file) => ipcRenderer.invoke(CHANNELS.aiAnalysis, file),
   },
   app: {
     onBeforeClose(listener) {

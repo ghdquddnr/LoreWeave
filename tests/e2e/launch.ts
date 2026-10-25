@@ -11,10 +11,12 @@ export async function tempDir(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), `loreweave-${prefix}-`));
 }
 
-export async function launch(userData: string): Promise<{ app: ElectronApplication; page: Page }> {
+/** env: 앱에 더할 환경 변수 (예: 가짜 OpenAI 서버 주소 OPENAI_BASE_URL) */
+export async function launch(userData: string, env: Record<string, string> = {}): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await _electron.launch({
     executablePath: electronPath as unknown as string,
     args: ['.', `--user-data-dir=${userData}`],
+    env: { ...(process.env as Record<string, string>), ...env },
   });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');

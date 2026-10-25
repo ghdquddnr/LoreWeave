@@ -47,7 +47,7 @@ test('preload API가 노출되고, 프로젝트를 열기 전에는 파일 요�
     chapters: ['create', 'list', 'onChangedOutside', 'read', 'reissueId', 'search', 'write'],
     app: ['onBeforeClose', 'replyClose'],
     // 키를 읽어 오는 함수는 없다
-    ai: ['check', 'deleteKey', 'setKey', 'setModel', 'status'],
+    ai: ['analysis', 'analysisStatus', 'analyze', 'cancel', 'check', 'deleteKey', 'estimate', 'onProgress', 'setConsent', 'setKey', 'setModel', 'status'],
   });
   const error = await page.evaluate(() => window.loreweave.chapters.list().then(() => null, (e: Error) => e.message));
   assert.match(error ?? '', /열린 프로젝트가 없습니다/);

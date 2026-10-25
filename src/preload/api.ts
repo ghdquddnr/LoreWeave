@@ -1,7 +1,12 @@
 // renderer가 쓸 수 있는 main 기능 전부. preload가 이 모양 그대로 window.loreweave에 노출한다.
 // renderer는 파일 경로를 다루지 않는다. 화는 `chapters/` 안의 파일 이름으로만 가리킨다.
 
+import type { StoredAnalysis } from '../main/ai-db.ts';
+import type { AnalysisState, AnalyzeProgress } from '../main/analyzer.ts';
 import type { SearchResult } from '../main/indexer.ts';
+
+export type { StoredAnalysis } from '../main/ai-db.ts';
+export type { AnalysisState, AnalyzeProgress } from '../main/analyzer.ts';
 import type { ChapterContent, ChapterList, WriteResult } from '../main/project-files.ts';
 
 export type { SearchHit, SearchResult } from '../main/indexer.ts';
@@ -51,6 +56,23 @@ export interface LoreweaveApi {
     setModel(model: string): Promise<AiStatus>;
     /** 키와 모델로 OpenAI에 연결해 본다 (비용 없음) */
     check(): Promise<{ ok: true } | { ok: false; message: string }>;
+    /** 원고가 OpenAI로 전송된다는 안내에 동의했는지 저장한다 */
+    setConsent(consent: boolean): Promise<void>;
+    /** 화마다 분석 상태, 지금까지 쓴 비용, 깨진 분석 파일을 옮겼는지, 전송 동의 여부 */
+    analysisStatus(): Promise<{
+      states: Record<string, AnalysisState>;
+      totalCostUsd: number;
+      recoveredFrom: string | null;
+      consent: boolean;
+    }>;
+    /** 분석 전에 보여 줄 예상 비용 (상한) */
+    estimate(files: string[]): Promise<{ chars: number; costUsd: number }>;
+    /** 화들을 차례로 분석한다. 진행 상황은 onProgress로 온다 */
+    analyze(files: string[]): Promise<AnalyzeProgress>;
+    cancel(): Promise<void>;
+    onProgress(listener: (progress: AnalyzeProgress) => void): () => void;
+    /** 저장된 분석 결과 */
+    analysis(file: string): Promise<StoredAnalysis | null>;
   };
   app: {
     /** 창을 닫기 직전에 불린다. 저장을 마친 뒤 replyClose로 답해야 창이 닫힌다 */
@@ -74,6 +96,13 @@ export const CHANNELS = {
   aiDeleteKey: 'ai:delete-key',
   aiSetModel: 'ai:set-model',
   aiCheck: 'ai:check',
+  aiSetConsent: 'ai:set-consent',
+  aiAnalysisStatus: 'ai:analysis-status',
+  aiEstimate: 'ai:estimate',
+  aiAnalyze: 'ai:analyze',
+  aiCancel: 'ai:cancel',
+  aiProgress: 'ai:progress',
+  aiAnalysis: 'ai:analysis',
   beforeClose: 'app:before-close',
   replyClose: 'app:reply-close',
 } as const;
