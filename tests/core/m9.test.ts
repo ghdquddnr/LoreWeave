@@ -2,6 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, statSync, symlinkSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,7 +18,7 @@ import { checkChapter, prepareCheck } from '../../src/main/checker.ts';
 import { toPredictions } from '../../scripts/export-predictions.ts';
 import { buildDetect2, DETECT2_SYSTEM, DETECT2_VERSION } from '../../scripts/lib/detect2.ts';
 import { filesFingerprint, preflight } from '../../scripts/lib/m9-preflight.ts';
-import { runM9 } from '../../scripts/lib/m9-run.ts';
+import { M9_STAGE_LIMIT_USD, overlapReason, runM9 } from '../../scripts/lib/m9-run.ts';
 import { BudgetRefused, callCostBound, inputTokenBound, MESSAGE_OVERHEAD_TOKENS, withReservation } from '../../scripts/lib/reserve.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
@@ -276,6 +277,101 @@ test('실행: 대조 뒤 실행 직전에 작업 복사본이 바뀌면 보내�
   assert.equal(r.stage, 'stopped');
   assert.match(r.reason!, /바뀌었|다릅니다/);
   assert.equal(client.calls.length, 0);
+});
+
+/** 폴더 아래 모든 파일과 폴더 (경로·크기·수정 시각) */
+function tree(root: string): string[] {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      const st = statSync(p);
+      out.push(`${p}|${e.isDirectory() ? 'd' : st.size}|${st.mtimeMs}`);
+      if (e.isDirectory()) walk(p);
+    }
+  };
+  walk(root);
+  return out.sort();
+}
+
+const appendLine = async (file: string) => writeFile(file, (await readFile(file, 'utf8')) + '\n연결하는 사이 덧붙인 줄\n');
+
+for (const [name, run, file] of [
+  ['run-1의 마지막 대상', 'run-1', '003.md'],
+  ['run-2의 첫 대상', 'run-2', '002.md'],
+  ['run-2의 마지막 대상', 'run-2', '003.md'],
+] as const) {
+  test(`실행: 연결하는 동안 ${name} 본문이 바뀌면 첫 호출 전에 멈춘다 (전체 호출 0)`, async () => {
+    const client = fakeClient();
+    const work = join(tmp, 'work');
+    const r = await runM9(
+      m9({
+        run: true,
+        work,
+        connect: async () => {
+          await appendLine(join(work, run, 'chapters', file));
+          return client;
+        },
+      }).options,
+    );
+    assert.equal(r.stage, 'stopped');
+    assert.ok(r.reason!.startsWith(`${run} ${file}:`), r.reason!);
+    assert.equal(client.calls.length, 0);
+    assert.equal(r.ledger!.attempts, 0);
+    assert.equal(r.ledger!.spent, 0);
+  });
+}
+
+test('경로: 작업 폴더가 기준 폴더 안이거나, 링크(junction)를 거쳐 기준·저장소 안을 가리키면 아무것도 만들지 않고 거절한다', async () => {
+  const before = tree(baseline);
+  const cases: string[] = [join(baseline, 'nested-work'), join(baseline, 'a', 'b')];
+  // junction: 관리자 권한 없이 만들 수 있다
+  const toBase = join(tmp, 'link-to-base');
+  symlinkSync(baseline, toBase, 'junction');
+  cases.push(join(toBase, 'work'), join(toBase, 'x', 'y'));
+  const toRepo = join(tmp, 'link-to-repo');
+  symlinkSync(REPO, toRepo, 'junction');
+  cases.push(join(toRepo, 'm9-work-should-not-exist'));
+  for (const work of cases) {
+    const x = m9({ run: true, work });
+    const r = await runM9(x.options);
+    assert.equal(r.stage, 'refused', work);
+    assert.match(r.reason!, /저장소 밖|서로 안/);
+    assert.equal(x.connected.length + x.client.calls.length, 0);
+    assert.equal(existsSync(work), false, work);
+  }
+  // 기준을 링크로 가리켜도 같은 폴더로 본다
+  const viaLink = m9({ run: true, baseline: toBase, work: join(baseline, 'w') });
+  assert.equal((await runM9(viaLink.options)).stage, 'refused');
+  assert.deepEqual(tree(baseline), before);
+  assert.equal(existsSync(join(REPO, 'm9-work-should-not-exist')), false);
+  // 기준이 작업 폴더 안에 있어도 안 된다 (아직 없는 작업 폴더가 기준의 부모일 수는 없으므로 함수로 확인)
+  assert.match(overlapReason(REPO, baseline, tmp)!, /서로 안/);
+  assert.equal(overlapReason(REPO, baseline, join(tmp, 'elsewhere')), null);
+});
+
+test('옵션: 실행 횟수·한도가 잘못되면 폴더를 만들기 전에 거절한다', async () => {
+  const bad: [number, number][] = [
+    [0, 1],
+    [-1, 1],
+    [Number.NaN, 1],
+    [1.5, 1],
+    [11, 1],
+    [Number.POSITIVE_INFINITY, 1],
+    [2, 0],
+    [2, -1],
+    [2, Number.NaN],
+    [2, Number.POSITIVE_INFINITY],
+    [2, M9_STAGE_LIMIT_USD + 0.01],
+  ];
+  for (const [runs, budgetUsd] of bad) {
+    const work = join(tmp, `w-${String(runs)}-${String(budgetUsd)}`);
+    const x = m9({ run: true, work, runs, budgetUsd });
+    const r = await runM9(x.options);
+    assert.equal(r.stage, 'refused', `${runs} ${budgetUsd}`);
+    assert.equal(x.connected.length + x.client.calls.length, 0);
+    assert.equal(existsSync(work), false);
+  }
 });
 
 test('실행: 통과하면 detect-2로, M8과 같은 사용자 입력을 보내고 기준 폴더는 그대로다', async () => {

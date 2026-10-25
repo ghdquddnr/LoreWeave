@@ -6,17 +6,21 @@
 //   5) 화마다 요청을 다시 만들어 대조 때의 fingerprint와 같을 때만 detect-2로 보낸다. 다르면 멈춘다
 // 화별 fingerprint와 결과(원문 포함)는 작업 폴더(저장소 밖)에만 쓴다.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { AiStore } from '../../src/main/ai-db.ts';
 import type { AiClient } from '../../src/main/ai-client.ts';
-import { prepareCheck, runPreparedCheck } from '../../src/main/checker.ts';
+import { prepareCheck, runPreparedCheck, type PreparedCheck } from '../../src/main/checker.ts';
 import { toPredictions } from '../export-predictions.ts';
 import { DETECT2_SYSTEM, DETECT2_VERSION } from './detect2.ts';
 import { analysesFingerprint, filesFingerprint, preflight, publicSummary, requestFingerprint, type PreflightReport } from './m9-preflight.ts';
 import { withReservation, type ReservedLedger } from './reserve.ts';
 
 export const M9_MODEL = 'gpt-6-luna';
+/** M9 단계 한도 (USD). 실제 원고 2회와 M4 3회가 이 한도를 함께 쓴다 (M9-PLAN 5절) */
+export const M9_STAGE_LIMIT_USD = 1.2;
+/** 실행 횟수 상한 (계획은 2회) */
+export const M9_MAX_RUNS = 10;
 
 export interface M9Options {
   /** M8 복사본 (읽기만 한다) */
@@ -47,11 +51,51 @@ export interface M9Result {
   connected: boolean;
 }
 
-/** p가 root 안에 있는가. 드라이브가 다르면 relative가 절대 경로를 돌려주므로 밖이다 */
+/** p가 root 안(같은 폴더 포함)에 있는가. 드라이브가 다르면 relative가 절대 경로를 돌려주므로 밖이다 */
 const inside = (root: string, p: string) => {
-  const rel = relative(resolve(root), resolve(p));
-  return !rel.startsWith('..') && !isAbsolute(rel);
+  const rel = relative(root, p);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 };
+
+/**
+ * 실제 경로 (junction·symlink를 따라간 경로). 아직 없는 경로는 가장 가까운 기존 부모의 실제 경로에 나머지를 붙인다.
+ * Windows에서는 대소문자를 구분하지 않으므로 비교용으로 소문자로 맞춘다
+ */
+export function realPath(p: string): string {
+  let existing = resolve(p);
+  const rest: string[] = [];
+  for (;;) {
+    try {
+      lstatSync(existing);
+      break;
+    } catch {
+      const parent = dirname(existing);
+      if (parent === existing) break;
+      rest.unshift(basename(existing));
+      existing = parent;
+    }
+  }
+  const real = join(realpathSync.native(existing), ...rest);
+  return process.platform === 'win32' ? real.toLowerCase() : real;
+}
+
+/** 저장소·기준·작업 폴더가 서로 겹치지 않는가. 겹치면 그 이유 */
+export function overlapReason(repoRoot: string, baseline: string, work: string): string | null {
+  const repo = realPath(repoRoot);
+  const base = realPath(baseline);
+  const w = realPath(work);
+  if (inside(repo, base) || inside(base, repo)) return '기준 폴더는 저장소 밖에 있어야 합니다';
+  if (inside(repo, w) || inside(w, repo)) return '작업 폴더는 저장소 밖에 있어야 합니다';
+  if (inside(base, w) || inside(w, base)) return '작업 폴더와 기준 폴더는 서로 안에 있으면 안 됩니다';
+  return null;
+}
+
+/** 실행 횟수와 한도가 올바른가. 아니면 그 이유 */
+export function optionsReason(runs: number, budgetUsd: number): string | null {
+  if (!Number.isInteger(runs) || runs < 1 || runs > M9_MAX_RUNS) return `실행 횟수는 1~${M9_MAX_RUNS}의 정수여야 합니다`;
+  if (!Number.isFinite(budgetUsd) || budgetUsd <= 0 || budgetUsd > M9_STAGE_LIMIT_USD) return `한도는 0보다 크고 $${M9_STAGE_LIMIT_USD} 이하여야 합니다`;
+  return null;
+}
 
 /** 기준 폴더에서 복사할 파일: chapters/의 화 파일과 .loreweave/ai.db(와 WAL 파일) */
 function projectFiles(root: string): string[] {
@@ -71,8 +115,23 @@ export async function runM9(o: M9Options): Promise<M9Result> {
   const log = o.log ?? (() => {});
   const result: M9Result = { stage: 'refused', reason: null, preflight: [], ledger: null, connected: false };
   const refuse = (reason: string) => ({ ...result, reason });
-  if (inside(o.repoRoot, o.baseline) || inside(o.repoRoot, o.work)) return refuse('기준과 작업 폴더는 저장소 밖에 있어야 합니다');
-  if (existsSync(o.work)) return refuse('작업 폴더가 이미 있습니다. 새 폴더를 지정하세요');
+  // 폴더를 만들거나 쓰기 전에 모두 확인한다
+  const bad = optionsReason(o.runs, o.budgetUsd);
+  if (bad) return refuse(bad);
+  if (!existsSync(o.baseline)) return refuse('기준 폴더가 없습니다');
+  let overlap: string | null;
+  try {
+    overlap = overlapReason(o.repoRoot, o.baseline, o.work);
+  } catch (e) {
+    return refuse(`폴더의 실제 경로를 확인할 수 없습니다: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (overlap) return refuse(overlap);
+  try {
+    lstatSync(o.work);
+    return refuse('작업 폴더가 이미 있습니다. 새 폴더를 지정하세요');
+  } catch {
+    // 없어야 한다 (끊어진 링크도 있는 것으로 본다)
+  }
   if (!existsSync(join(o.baseline, '.loreweave', 'ai.db'))) return refuse('기준 폴더에 .loreweave/ai.db가 없습니다');
   if (!existsSync(o.predictions)) return refuse('기준 평가기 출력(predictions.json)이 없습니다');
   if (o.targets.length === 0) return refuse('검사할 화가 없습니다');
@@ -100,20 +159,39 @@ export async function runM9(o: M9Options): Promise<M9Result> {
       writeFileSync(join(o.work, `preflight-run-${r}.json`), JSON.stringify(report, null, 2) + '\n');
       log(`run-${r} 대조: ${report.chapters.filter((c) => c.ok).length}/${report.chapters.length}화 일치${report.ok ? '' : ' (불일치 있음)'}`);
     }
-    if (!runs.every((r) => r.report.ok)) return { ...result, stage: 'preflight-failed', reason: '기준 입력과 맞지 않는 화가 있어 호출하지 않았습니다' };
+    if (runs.length !== o.runs || !runs.every((r) => r.report.ok)) return { ...result, stage: 'preflight-failed', reason: '기준 입력과 맞지 않는 화가 있어 호출하지 않았습니다' };
     if (!o.run) return { ...result, stage: 'preflight-ok' };
 
     // 3) 대조를 통과했을 때만 연결한다
     const client = withReservation(await o.connect(), { model: M9_MODEL, limitUsd: o.budgetUsd, retries: 1 });
     result.connected = true;
+
+    /** 대조 때와 같은 요청을 다시 만든다. 다르면 그 이유 */
+    const verify = async (i: number, run: (typeof runs)[number], file: string): Promise<PreparedCheck | string> => {
+      if ((await analysesFingerprint(run.root, run.store)) !== run.analyses) return `run-${i + 1}: 대조 뒤 분석이 바뀌었습니다`;
+      const prepared = await prepareCheck(file, { root: run.root, store: run.store });
+      const expected = run.report.chapters.find((c) => c.file === file)?.fingerprint;
+      if (typeof prepared === 'string' || !expected || requestFingerprint(prepared) !== expected) return `run-${i + 1} ${file}: 요청이 대조 때와 다릅니다`;
+      return prepared;
+    };
+    // 4) 첫 호출 전에, 연결하는 동안 바뀐 것이 없는지 모든 실행·모든 화를 다시 확인한다 (여기서 확인한 요청을 그대로 보낸다)
+    const verified: PreparedCheck[][] = [];
+    for (const [i, run] of runs.entries()) {
+      const list: PreparedCheck[] = [];
+      for (const file of o.targets) {
+        const v = await verify(i, run, file);
+        if (typeof v === 'string') return { ...result, stage: 'stopped', reason: v, ledger: client.ledger() };
+        list.push(v);
+      }
+      verified.push(list);
+    }
     const signal = new AbortController().signal;
     for (const [i, run] of runs.entries()) {
-      if ((await analysesFingerprint(run.root, run.store)) !== run.analyses) return { ...result, stage: 'stopped', reason: `run-${i + 1}: 대조 뒤 분석이 바뀌었습니다`, ledger: client.ledger() };
-      for (const file of o.targets) {
-        const prepared = await prepareCheck(file, { root: run.root, store: run.store });
-        const expected = run.report.chapters.find((c) => c.file === file)?.fingerprint;
-        if (typeof prepared === 'string' || requestFingerprint(prepared) !== expected)
-          return { ...result, stage: 'stopped', reason: `run-${i + 1} ${file}: 요청이 대조 때와 다릅니다`, ledger: client.ledger() };
+      for (const [j, file] of o.targets.entries()) {
+        // 5) 화마다 보내기 직전에도 다시 확인한다 (앞 화를 보내는 동안 바뀌었을 수 있다)
+        const again = await verify(i, run, file);
+        if (typeof again === 'string') return { ...result, stage: 'stopped', reason: again, ledger: client.ledger() };
+        const prepared = verified[i]![j]!;
         const outcome = await runPreparedCheck(prepared, {
           root: run.root,
           store: run.store,

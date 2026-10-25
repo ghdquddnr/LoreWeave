@@ -29,8 +29,8 @@ runWithLazyKey(async ({ connect, args }) => {
   const work = option(args, '--work');
   if (!baseline || !work) throw new Error('--baseline <M8 복사본>과 --work <새 작업 폴더>가 필요합니다');
   const run = args.includes('--run');
+  // 한도·횟수는 runM9이 다시 확인한다. 실제 원고와 M4가 단계 한도 $1.2를 함께 쓰므로, 앞서 쓴 몫을 뺀 값을 넘긴다
   const budgetUsd = Number(option(args, '--budget') ?? '1.2');
-  if (!(budgetUsd > 0 && budgetUsd <= 1.2)) throw new Error('단계 한도는 0보다 크고 $1.2 이하여야 합니다');
   const result = await runM9({
     baseline: resolve(baseline),
     work: resolve(work),
