@@ -1,0 +1,261 @@
+{
+ "note": "M9 후속 실험(같은 속성 이름 사실 더하기) 고정 유료 검증. M4 3회 중 m4-3이 기준 8(Recall ≥ 17/20)에 미달해 실제 원고 회차는 시작하지 않았다. 합성 원고(M0-A 벤치마크) 결과다.",
+ "approval": "m9p-predicate-20261026-0210",
+ "commit": "79054ea71fd964332c6d0942dd1fbf7f702afb92",
+ "stageId": "m9p-predicate",
+ "fixed": {
+  "model": "gpt-6-luna",
+  "system": "detect-1",
+  "copyVersion": "detect-1+predicate-match",
+  "batchConcurrency": 2,
+  "maxOutputTokensInclReasoning": 16000,
+  "retriesPerRequest": 1,
+  "sdkRetries": 0
+ },
+ "stage": "m4-failed",
+ "m4": {
+  "m4-1": {
+   "gatePass": true,
+   "failures": [],
+   "auto": {
+    "before0": {
+     "tp": 17,
+     "total": 20,
+     "fp": 0,
+     "recall": 0.85,
+     "precision": 1,
+     "fpPerChapter": 0
+    },
+    "after07": {
+     "tp": 17,
+     "total": 20,
+     "fp": 0,
+     "recall": 0.85,
+     "precision": 1,
+     "fpPerChapter": 0
+    }
+   },
+   "hiddenBelow07": 0,
+   "minCorrectConfidence": 0.91,
+   "missedTest": [
+    "E23",
+    "E26",
+    "E29"
+   ],
+   "missedDev": [
+    "E09",
+    "E24",
+    "E25",
+    "E28"
+   ],
+   "labels": {
+    "tp": 23,
+    "echo": 1
+   },
+   "trapHitsTest": 0,
+   "e23": {
+    "contentEvidenceInInput": true,
+    "scorerFound": false,
+    "foundByContent": false,
+    "note": "추가 입력에 같은 내용 사실이 들어갔으나 보고하지 않음"
+   },
+   "outsideGroundTruthHuman": [],
+   "ledgerSpentUsd": 0.013969825,
+   "attempts": 14
+  },
+  "m4-2": {
+   "gatePass": true,
+   "failures": [],
+   "auto": {
+    "before0": {
+     "tp": 17,
+     "total": 20,
+     "fp": 0,
+     "recall": 0.85,
+     "precision": 1,
+     "fpPerChapter": 0
+    },
+    "after07": {
+     "tp": 17,
+     "total": 20,
+     "fp": 0,
+     "recall": 0.85,
+     "precision": 1,
+     "fpPerChapter": 0
+    }
+   },
+   "hiddenBelow07": 0,
+   "minCorrectConfidence": 0.94,
+   "missedTest": [
+    "E20",
+    "E26",
+    "E29"
+   ],
+   "missedDev": [
+    "E09",
+    "E25",
+    "E28"
+   ],
+   "labels": {
+    "tp": 24,
+    "echo": 2
+   },
+   "trapHitsTest": 0,
+   "e23": {
+    "contentEvidenceInInput": true,
+    "scorerFound": true,
+    "foundByContent": true,
+    "note": "추가 입력에 7화의 같은 내용 사실(투자금 3억 원)이 들어감. 찾은 회는 그 사실의 원문을 근거로 듦"
+   },
+   "outsideGroundTruthHuman": [],
+   "ledgerSpentUsd": 0.00445275,
+   "attempts": 14
+  },
+  "m4-3": {
+   "gatePass": false,
+   "failures": [
+    "Recall 16/20 < 17/20"
+   ],
+   "auto": {
+    "before0": {
+     "tp": 16,
+     "total": 20,
+     "fp": 2,
+     "recall": 0.8,
+     "precision": 0.8888888888888888,
+     "fpPerChapter": 0.14285714285714285
+    },
+    "after07": {
+     "tp": 16,
+     "total": 20,
+     "fp": 2,
+     "recall": 0.8,
+     "precision": 0.8888888888888888,
+     "fpPerChapter": 0.14285714285714285
+    }
+   },
+   "hiddenBelow07": 0,
+   "minCorrectConfidence": 0.84,
+   "missedTest": [
+    "E06",
+    "E20",
+    "E26",
+    "E30"
+   ],
+   "missedDev": [
+    "E24",
+    "E25",
+    "E28"
+   ],
+   "labels": {
+    "tp": 23,
+    "unlabeled": 2
+   },
+   "trapHitsTest": 0,
+   "e23": {
+    "contentEvidenceInInput": true,
+    "scorerFound": true,
+    "foundByContent": true,
+    "note": "추가 입력에 7화의 같은 내용 사실(투자금 3억 원)이 들어감. 찾은 회는 그 사실의 원문을 근거로 듦"
+   },
+   "outsideGroundTruthHuman": [
+    {
+     "chapter": 8,
+     "evaluatorLabel": "unlabeled",
+     "verdict": "duplicate-of-E13",
+     "reason": "정답표 E13(사망한 교수의 8화 등장)을 같은 장면의 다른 문장으로 짚음. E13은 같은 회에서 이미 찾음. 평가기는 지정 문장 위치만 맞춰 unlabeled로 셈"
+    },
+    {
+     "chapter": 8,
+     "evaluatorLabel": "unlabeled",
+     "verdict": "duplicate-of-E13",
+     "reason": "정답표 E13(사망한 교수의 8화 등장)을 같은 장면의 다른 문장으로 짚음. E13은 같은 회에서 이미 찾음. 평가기는 지정 문장 위치만 맞춰 unlabeled로 셈"
+    }
+   ],
+   "ledgerSpentUsd": 0.00378525,
+   "attempts": 14,
+   "humanAdjusted": {
+    "tp": 16,
+    "fp": 0,
+    "precision": 1.0,
+    "fpPerChapter": 0,
+    "note": "사람 판정 참고값. 관문(기준 8)은 자동 채점으로 고정이며 바뀌지 않음. Recall은 그대로"
+   }
+  }
+ },
+ "real": {
+  "status": "not-started",
+  "calls": 0,
+  "reason": "M4 관문 미달"
+ },
+ "preflight": "M4 3회 각 기준 14/14·추가 14/14, 실제 원고 2회 각 기준 20/20·추가 20/20 (호출 전)",
+ "comparison": {
+  "d1M4": {
+   "runs": 1,
+   "testTp": 18,
+   "missedTest": [
+    "E23",
+    "E26"
+   ]
+  },
+  "detect2M4": {
+   "runs": 3,
+   "testTp": [
+    17,
+    18,
+    15
+   ]
+  },
+  "thisM4": {
+   "runs": 3,
+   "testTp": [
+    17,
+    17,
+    16
+   ]
+  },
+  "e23": {
+   "d1": "놓침 (근거 사실 입력에 없음)",
+   "detect2": "3회 놓침 (입력에 없음)",
+   "this": "3회 모두 같은 내용 근거 입력에 있음, 2회 찾음"
+  },
+  "limits": [
+   "detect-1 기준은 1회뿐",
+   "회 간 편차가 큼 (같은 입력에서 E20·E29·E30·E06이 회마다 갈림)",
+   "세부 모델 버전·당시 요청 바이트 모름"
+  ]
+ },
+ "exportNote": "run의 predictions.json context는 export-predictions가 제품 이름 기준 고르기로 다시 만든 것이라 추가 사실이 빠져 있다. 평가기 retrieval(86.7%)은 기준 입력 값이다. 추가 입력의 retrieval은 오프라인 계산(27/30)을 쓴다. E23 입력 판정은 runner와 같은 함수로 실제 요청을 다시 만들어 확인했다",
+ "stageLedger": {
+  "attempts": 42,
+  "settled": 42,
+  "unknown": 0,
+  "reservedUnsettled": 0,
+  "committedUsd": 0.022207825,
+  "remainingStageUsd": 1.177792175,
+  "runs": {
+   "m4-1": "done",
+   "m4-2": "done",
+   "m4-3": "done"
+  },
+  "lockLeft": false
+ },
+ "costsApi": {
+  "before": {
+   "total": 6.8844,
+   "at": "2026-10-26T02:12+09:00"
+  },
+  "after": {
+   "total": 6.8967,
+   "at": "2026-10-26T02:20+09:00",
+   "reflected": 0.0123,
+   "note": "장부 $0.022208보다 작아 반영 중"
+  },
+  "conservativeRemainingTotalUsd": 3.0934
+ },
+ "costNote": "실행 비용은 장부 값. 복사본 ai.db calls의 과거 호출은 섞지 않음",
+ "sources": "원본 두 곳과 종료된 M9 장부 해시 292개 실행 전후 동일",
+ "unknown": [
+  "M8·M4 당시 실제 요청 바이트"
+ ]
+}
