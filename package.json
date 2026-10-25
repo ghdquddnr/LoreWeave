@@ -1,6 +1,6 @@
 {
   "name": "loreweave",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "웹소설 작가를 위한 Local-first AI-assisted Writing IDE",
   "license": "MIT",

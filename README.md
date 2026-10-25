@@ -17,14 +17,21 @@ Possible continuity error
 
 ## 현재 상태
 
-🚧 **개발 초기 단계입니다. 아직 설치 파일은 없습니다.**
+🚧 **v0.1 (개발 버전)입니다. 아직 설치 파일은 없습니다.**
 
 핵심 기술의 실현 가능성을 검증하는 실험(M0)을 마쳤습니다.
 
 - **M0-A** — AI가 연속성 오류를 얼마나 정확하게 찾을 수 있는가? → [보고서](docs/spikes/M0A-REPORT.md)
 - **M0-B** — 한글 입력과 Markdown 원고 보존이 가능한 에디터를 만들 수 있는가? → [보고서](docs/spikes/M0B-REPORT.md)
 
-앱 단계 M1~M3를 마쳤습니다. 원고 폴더를 열고, 화를 편집하고, 자동 저장하고, 원고 전체를 검색해 그 줄로 이동할 수 있습니다. 자신의 OpenAI API 키를 넣으면, 버튼을 누른 화에서 인물과 사실을 원문 인용과 함께 뽑아 보여 줍니다 (원고는 버튼을 누를 때만 OpenAI로 전송). → [M1 결과](docs/M1-REPORT.md), [M2 결과](docs/M2-REPORT.md), [M3 결과](docs/M3-REPORT.md)
+앱 단계 M1~M4를 마쳐 v0.1이 됐습니다.
+
+- 원고 폴더를 열고, 화를 편집하고, 자동 저장하고, 원고 전체를 검색해 그 줄로 이동합니다 (AI 없이 동작).
+- 자신의 OpenAI API 키를 넣으면, 버튼을 누른 화에서 인물과 사실을 원문 인용과 함께 뽑아 보여 줍니다.
+- **[이 화 검사]**: 그 화가 앞 화에서 정한 설정과 부딪히는 곳을 근거 문장과 함께 "문제 가능성"으로 보여 주고, 근거 화로 이동합니다. 합성 벤치마크에서 정답 오류의 90%를 오탐 없이 찾았습니다.
+- 원고는 버튼을 누를 때만 OpenAI로 전송됩니다.
+
+→ [M1 결과](docs/M1-REPORT.md), [M2 결과](docs/M2-REPORT.md), [M3 결과](docs/M3-REPORT.md), [M4 결과](docs/M4-REPORT.md)
 
 개발 실행: `corepack pnpm install` → `corepack pnpm dev`. 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
 
@@ -48,15 +55,15 @@ Possible continuity error
 
 인물 관계 그래프, 타임라인, 복선 관리 등은 v0.1 이후에 검토합니다.
 
-## 기술 스택 (예정)
+## 기술 스택
 
-Electron · TypeScript · React · TipTap · SQLite (better-sqlite3)
+Electron · TypeScript · React · TipTap · SQLite (`node:sqlite`) · OpenAI API
 
 ## 문서
 
 - [`docs/VISION.md`](docs/VISION.md) — 프로젝트 비전과 설계 원칙
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — 기술 결정 로그
-- [`docs/M0-PLAN.md`](docs/M0-PLAN.md) — 현재 실험 계획
+- 단계별 계획과 결과: [`docs/`](docs/) 의 `M*-PLAN.md`, `M*-REPORT.md`
 
 ## License
 
