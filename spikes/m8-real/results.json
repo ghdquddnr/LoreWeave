@@ -1,0 +1,445 @@
+{
+ "note": "M8 실제 장편 복사본(M7과 같은 심은 오류 20개)을 나눠 추출로 다시 분석·검사한 집계. 작품 이름·원문·인물 이름은 넣지 않는다.",
+ "model": "gpt-6-luna",
+ "analysis": {
+  "done": 265,
+  "failed": 0,
+  "costUsd": 0.7030673649999999,
+  "seconds": 2517
+ },
+ "extraction": {
+  "facts": 8588,
+  "droppedQuotes": 669,
+  "retention": 0.9277303662093551,
+  "factsPerChapter": 32.40754716981132
+ },
+ "checks": [
+  {
+   "chapter": 2,
+   "facts": 25,
+   "batches": 1,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.0006843,
+   "seconds": 1.518
+  },
+  {
+   "chapter": 16,
+   "facts": 293,
+   "batches": 1,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.0029694250000000004,
+   "seconds": 1.424
+  },
+  {
+   "chapter": 30,
+   "facts": 594,
+   "batches": 2,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.006439475,
+   "seconds": 7.128
+  },
+  {
+   "chapter": 44,
+   "facts": 903,
+   "batches": 3,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.008598775,
+   "seconds": 7.583
+  },
+  {
+   "chapter": 57,
+   "facts": 1222,
+   "batches": 4,
+   "findings": 1,
+   "dropped": 3,
+   "costUsd": 0.01289445,
+   "seconds": 9.284
+  },
+  {
+   "chapter": 71,
+   "facts": 1549,
+   "batches": 4,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.015888325000000002,
+   "seconds": 11.47
+  },
+  {
+   "chapter": 85,
+   "facts": 1425,
+   "batches": 4,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.014360575,
+   "seconds": 8.101
+  },
+  {
+   "chapter": 99,
+   "facts": 1802,
+   "batches": 5,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.018542875,
+   "seconds": 16.393
+  },
+  {
+   "chapter": 113,
+   "facts": 1856,
+   "batches": 5,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.0186535,
+   "seconds": 12.908
+  },
+  {
+   "chapter": 127,
+   "facts": 1975,
+   "batches": 5,
+   "findings": 0,
+   "dropped": 1,
+   "costUsd": 0.019240375000000004,
+   "seconds": 12.593
+  },
+  {
+   "chapter": 140,
+   "facts": 2541,
+   "batches": 7,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.025453725000000003,
+   "seconds": 19.858
+  },
+  {
+   "chapter": 154,
+   "facts": 2772,
+   "batches": 7,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.027557850000000005,
+   "seconds": 18.385
+  },
+  {
+   "chapter": 168,
+   "facts": 2979,
+   "batches": 8,
+   "findings": 3,
+   "dropped": 0,
+   "costUsd": 0.0302809,
+   "seconds": 22.114
+  },
+  {
+   "chapter": 182,
+   "facts": 3432,
+   "batches": 9,
+   "findings": 2,
+   "dropped": 0,
+   "costUsd": 0.03447382500000001,
+   "seconds": 20.947
+  },
+  {
+   "chapter": 196,
+   "facts": 3511,
+   "batches": 9,
+   "findings": 3,
+   "dropped": 0,
+   "costUsd": 0.03491695,
+   "seconds": 47.05
+  },
+  {
+   "chapter": 210,
+   "facts": 3272,
+   "batches": 9,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.032612825000000005,
+   "seconds": 21.442
+  },
+  {
+   "chapter": 223,
+   "facts": 4032,
+   "batches": 11,
+   "findings": 2,
+   "dropped": 0,
+   "costUsd": 0.0404678,
+   "seconds": 30.79
+  },
+  {
+   "chapter": 237,
+   "facts": 4063,
+   "batches": 11,
+   "findings": 2,
+   "dropped": 0,
+   "costUsd": 0.040695675,
+   "seconds": 30.457
+  },
+  {
+   "chapter": 251,
+   "facts": 4279,
+   "batches": 11,
+   "findings": 2,
+   "dropped": 0,
+   "costUsd": 0.0422103,
+   "seconds": 28.457
+  },
+  {
+   "chapter": 265,
+   "facts": 4513,
+   "batches": 12,
+   "findings": 3,
+   "dropped": 0,
+   "costUsd": 0.0426946,
+   "seconds": 41.041
+  }
+ ],
+ "scriptCostUsd": 1.1727038899999995,
+ "costsApi": {
+  "before": 5.6888,
+  "afterRightAway": 6.3335,
+  "note": "실행 직후 확인값. 토큰 계산($1.17)보다 작아 반영 지연으로 보임"
+ },
+ "scorer": {
+  "recall": 0.45,
+  "recallAt07": 0.45,
+  "precision": 0.4090909090909091,
+  "retrieval": 0.6,
+  "judge": 0.4166666666666667
+ },
+ "human": {
+  "found": 9,
+  "unlabeled": 13,
+  "unlabeledVerdicts": {
+   "정당한 변화": 5,
+   "잘못 읽음": 4,
+   "판단 어려움": 3,
+   "맞는 지적(원고의 사소한 계산 차이)": 1
+  },
+  "falsePositives": 9,
+  "unclear": 3
+ },
+ "seeds": [
+  {
+   "id": "S01",
+   "chapter": 2,
+   "category": "number",
+   "distance": 1,
+   "retrieved": false,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": true,
+   "m7FoundHuman": true
+  },
+  {
+   "id": "S02",
+   "chapter": 16,
+   "category": "location",
+   "distance": 3,
+   "retrieved": false,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": false,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S03",
+   "chapter": 30,
+   "category": "occupation",
+   "distance": 6,
+   "retrieved": true,
+   "found": true,
+   "confidence": 0.99,
+   "m7Retrieved": false,
+   "m7FoundHuman": true
+  },
+  {
+   "id": "S04",
+   "chapter": 44,
+   "category": "age",
+   "distance": 21,
+   "retrieved": true,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": true,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S05",
+   "chapter": 57,
+   "category": "name",
+   "distance": 1,
+   "retrieved": true,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": true,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S06",
+   "chapter": 71,
+   "category": "number",
+   "distance": 28,
+   "retrieved": true,
+   "found": true,
+   "confidence": 0.99,
+   "m7Retrieved": true,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S07",
+   "chapter": 85,
+   "category": "habit",
+   "distance": 10,
+   "retrieved": true,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": false,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S08",
+   "chapter": 99,
+   "category": "date_order",
+   "distance": 95,
+   "retrieved": true,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": false,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S09",
+   "chapter": 113,
+   "category": "occupation",
+   "distance": 83,
+   "retrieved": false,
+   "found": true,
+   "confidence": 0.88,
+   "m7Retrieved": true,
+   "m7FoundHuman": true
+  },
+  {
+   "id": "S10",
+   "chapter": 127,
+   "category": "name",
+   "distance": 2,
+   "retrieved": false,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": true,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S11",
+   "chapter": 140,
+   "category": "first_meeting",
+   "distance": 109,
+   "retrieved": true,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": false,
+   "m7FoundHuman": true
+  },
+  {
+   "id": "S12",
+   "chapter": 154,
+   "category": "relationship",
+   "distance": 106,
+   "retrieved": true,
+   "found": true,
+   "confidence": 0.91,
+   "m7Retrieved": true,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S13",
+   "chapter": 168,
+   "category": "number",
+   "distance": 93,
+   "retrieved": false,
+   "found": true,
+   "confidence": 0.99,
+   "m7Retrieved": false,
+   "m7FoundHuman": true
+  },
+  {
+   "id": "S14",
+   "chapter": 182,
+   "category": "occupation",
+   "distance": 82,
+   "retrieved": true,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": true,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S15",
+   "chapter": 196,
+   "category": "age",
+   "distance": 78,
+   "retrieved": true,
+   "found": true,
+   "confidence": 0.99,
+   "m7Retrieved": true,
+   "m7FoundHuman": true
+  },
+  {
+   "id": "S16",
+   "chapter": 210,
+   "category": "number",
+   "distance": 16,
+   "retrieved": false,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": false,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S17",
+   "chapter": 223,
+   "category": "number",
+   "distance": 217,
+   "retrieved": false,
+   "found": true,
+   "confidence": 0.98,
+   "m7Retrieved": false,
+   "m7FoundHuman": true
+  },
+  {
+   "id": "S18",
+   "chapter": 237,
+   "category": "number",
+   "distance": 180,
+   "retrieved": false,
+   "found": true,
+   "confidence": 0.99,
+   "m7Retrieved": false,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S19",
+   "chapter": 251,
+   "category": "number",
+   "distance": 194,
+   "retrieved": true,
+   "found": false,
+   "confidence": null,
+   "m7Retrieved": false,
+   "m7FoundHuman": false
+  },
+  {
+   "id": "S20",
+   "chapter": 265,
+   "category": "habit",
+   "distance": 163,
+   "retrieved": true,
+   "found": true,
+   "confidence": 0.84,
+   "m7Retrieved": true,
+   "m7FoundHuman": false
+  }
+ ]
+}
