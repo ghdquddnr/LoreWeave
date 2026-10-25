@@ -107,3 +107,61 @@ export function parseExtraction(value: unknown): Extraction {
     }),
   };
 }
+
+/**
+ * 이보다 긴 화(보이는 본문 글자 수)는 나눠 추출한다 (M8-PLAN 3절).
+ * 한 화를 통째로 보내면 화 길이와 상관없이 비슷한 수의 사실만 뽑혔다
+ * (합성 원고 약 1,200자 화에서 1,000자당 약 10개, 실제 원고 약 5,000자 화에서 약 3개).
+ * 시범에서 약 1,500자 조각으로 나누자 화당 사실이 약 2배가 되고, 빠졌던 근거 10개 중 5개가 사실로 잡혔다.
+ * 합성 원고(M0-A) 화는 모두 이보다 짧아 나뉘지 않는다.
+ */
+export const EXTRACT_CHUNK_CHARS = 1500;
+
+/**
+ * 보이는 줄을 추출 조각으로 나눈다. 조각이 maxChars를 넘으면 다음 빈 줄에서 끊고,
+ * 빈 줄 없이 두 배를 넘으면 줄 끝에서 끊는다. 짧은 화는 한 조각이다.
+ */
+export function splitForExtraction(lines: string[], maxChars = EXTRACT_CHUNK_CHARS): string[][] {
+  if (lines.join('\n').length <= maxChars) return [lines];
+  const chunks: string[][] = [];
+  let current: string[] = [];
+  let size = 0;
+  for (const line of lines) {
+    current.push(line);
+    size += line.length + 1;
+    if ((size >= maxChars && !line.trim()) || size >= maxChars * 2) {
+      chunks.push(current);
+      current = [];
+      size = 0;
+    }
+  }
+  if (current.some((l) => l.trim())) chunks.push(current);
+  else if (current.length && chunks.length) chunks[chunks.length - 1]!.push(...current);
+  return chunks.filter((c) => c.some((l) => l.trim()));
+}
+
+/** 조각별 추출을 합친다: 인물·대상은 이름으로 합치고 별칭을 모으며, 같은 사실은 하나만 남긴다 */
+export function mergeExtractions(parts: Extraction[]): Extraction {
+  const entities = new Map<string, Set<string>>();
+  for (const e of parts.flatMap((p) => p.entities)) {
+    const aliases = entities.get(e.name) ?? new Set<string>();
+    for (const a of e.aliases) if (a !== e.name) aliases.add(a);
+    entities.set(e.name, aliases);
+  }
+  const seen = new Set<string>();
+  const facts: Fact[] = [];
+  for (const f of parts.flatMap((p) => p.facts)) {
+    const key = [f.entity, f.predicate, f.value, f.quote].join('\u0000');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    facts.push(f);
+  }
+  return {
+    summary: parts
+      .map((p) => p.summary.trim())
+      .filter(Boolean)
+      .join(' '),
+    entities: [...entities].map(([name, aliases]) => ({ name, aliases: [...aliases] })),
+    facts,
+  };
+}

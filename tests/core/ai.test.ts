@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { costUsd, estimateExtractionCost, estimateExtractionTokens } from '../../src/core/ai/cost.ts';
-import { EXTRACT_SYSTEM, extractionInput, parseExtraction } from '../../src/core/ai/extraction.ts';
+import { EXTRACT_SYSTEM, extractionInput, mergeExtractions, parseExtraction, splitForExtraction } from '../../src/core/ai/extraction.ts';
 import { checkQuotes, locateQuote } from '../../src/core/ai/locate.ts';
 import { DEFAULT_MODEL, modelInfo } from '../../src/core/ai/models.ts';
 import { parseC3 } from '../../src/core/manuscript/c3.ts';
@@ -97,4 +97,48 @@ test('인용문 존재 검사: 본문에 없는 인용의 사실은 버린다', 
   );
   assert.deepEqual(result.facts.map((f) => [f.value, f.line]), [['20', 4]]);
   assert.deepEqual(result.dropped.map((f) => f.value), ['21']);
+});
+
+test('나눠 추출: 짧은 화는 한 조각, 긴 화는 maxChars를 넘은 뒤 빈 줄에서, 빈 줄이 없으면 두 배에서 끊는다', () => {
+  assert.deepEqual(splitForExtraction(['짧은 화', '', '본문'], 100), [['짧은 화', '', '본문']]);
+  const p = (n: number) => '가'.repeat(n);
+  const chunks = splitForExtraction([p(60), p(50), '', p(60), '', p(30)], 100);
+  assert.deepEqual(chunks.map((c) => c.join('\n').replace(/\n+$/, '')), [`${p(60)}\n${p(50)}`, `${p(60)}\n\n${p(30)}`]);
+  // 빈 줄 없이 길면 두 배(200)를 넘는 줄에서 끊는다
+  const solid = splitForExtraction([p(90), p(90), p(90), p(90)], 100);
+  assert.deepEqual(solid.map((c) => c.length), [3, 1]);
+  // 모든 줄이 어느 조각엔가 그대로 들어간다
+  const lines = [p(60), p(50), '', p(60), '', p(30)];
+  assert.deepEqual(splitForExtraction(lines, 100).flat(), lines);
+});
+
+test('나눠 추출: M0-A 화(합성 원고)는 모두 한 조각이라 지금과 같다', () => {
+  const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
+  for (const f of readdirSync(M0A)) {
+    const lines = visibleLines(parseC3(splitEnvelope(readFileSync(join(M0A, f), 'utf8')).body));
+    assert.equal(splitForExtraction(lines).length, 1, f);
+  }
+});
+
+test('조각 합치기: 인물은 이름으로 합쳐 별칭을 모으고, 같은 사실은 하나만, 요약은 잇는다', () => {
+  const merged = mergeExtractions([
+    { summary: '앞.', entities: [{ name: '김민수', aliases: ['민수'] }], facts: [{ entity: '김민수', predicate: '나이', value: '20', quote: 'q1' }] },
+    {
+      summary: ' 뒤. ',
+      entities: [
+        { name: '김민수', aliases: ['민수', '김 대표', '김민수'] },
+        { name: '이지현', aliases: [] },
+      ],
+      facts: [
+        { entity: '김민수', predicate: '나이', value: '20', quote: 'q1' },
+        { entity: '김민수', predicate: '학과', value: '전자', quote: 'q2' },
+      ],
+    },
+  ]);
+  assert.equal(merged.summary, '앞. 뒤.');
+  assert.deepEqual(merged.entities, [
+    { name: '김민수', aliases: ['민수', '김 대표'] },
+    { name: '이지현', aliases: [] },
+  ]);
+  assert.deepEqual(merged.facts.map((f) => f.quote), ['q1', 'q2']);
 });

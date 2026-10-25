@@ -5,7 +5,16 @@
 //   - 화 파일은 읽기만 한다
 
 import { costUsd, estimateExtractionCost, type Usage } from '../core/ai/cost.ts';
-import { EXTRACT_SCHEMA, EXTRACT_SYSTEM, extractionInput, parseExtraction, PROMPT_VERSION } from '../core/ai/extraction.ts';
+import {
+  EXTRACT_SCHEMA,
+  EXTRACT_SYSTEM,
+  extractionInput,
+  mergeExtractions,
+  parseExtraction,
+  PROMPT_VERSION,
+  splitForExtraction,
+  type Extraction,
+} from '../core/ai/extraction.ts';
 import { checkQuotes } from '../core/ai/locate.ts';
 import { parseC3 } from '../core/manuscript/c3.ts';
 import { splitEnvelope } from '../core/manuscript/envelope.ts';
@@ -38,9 +47,10 @@ export async function estimate(root: string, files: string[], model: string): Pr
   let chars = 0;
   let cost = 0;
   for (const file of files) {
-    const n = (await chapterLines(root, file)).lines.join('\n').length;
-    chars += n;
-    cost += estimateExtractionCost(model, n);
+    const { lines } = await chapterLines(root, file);
+    chars += lines.join('\n').length;
+    // 나눠 추출하면 조각마다 프롬프트가 붙는다
+    for (const chunk of splitForExtraction(lines)) cost += estimateExtractionCost(model, chunk.join('\n').length);
   }
   return { chars, costUsd: cost };
 }
@@ -101,23 +111,34 @@ export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promi
       const { lines, hash } = await chapterLines(o.root, file);
       // 화 파일을 읽는 동안 취소했거나 다른 화가 멈췄을 수 있다
       if (!mayContinue()) return;
-      started = performance.now();
-      const result = await o.client.json({
-        model: o.model,
-        system: EXTRACT_SYSTEM,
-        user: extractionInput(file, lines),
-        schema: EXTRACT_SCHEMA,
-        signal: o.signal,
-      });
-      const cost = log(file, true, result.usage, Math.round(performance.now() - started));
-      const extraction = parseExtraction(result.data);
+      // 긴 화는 조각마다 따로 추출해 합친다 (M8). 인용 확인과 줄 주소는 화 전체 기준이다
+      const chunks = splitForExtraction(lines);
+      const parts: Extraction[] = [];
+      let cost = 0;
+      let modelVersion = '';
+      for (const chunk of chunks) {
+        if (o.signal.aborted) throw new Error('취소했습니다');
+        started = performance.now();
+        const result = await o.client.json({
+          model: o.model,
+          system: EXTRACT_SYSTEM,
+          user: extractionInput(file, chunk),
+          schema: EXTRACT_SCHEMA,
+          signal: o.signal,
+        });
+        cost += log(file, true, result.usage, Math.round(performance.now() - started));
+        modelVersion = result.modelVersion;
+        parts.push(parseExtraction(result.data));
+      }
+      const extraction = mergeExtractions(parts);
       const { facts, dropped } = checkQuotes(extraction, lines);
       o.store.saveAnalysis({
         file,
         contentHash: hash,
         model: o.model,
-        modelVersion: result.modelVersion,
+        modelVersion,
         promptVersion: PROMPT_VERSION,
+        chunks: chunks.length,
         summary: extraction.summary,
         droppedQuotes: dropped.length,
         costUsd: cost,
