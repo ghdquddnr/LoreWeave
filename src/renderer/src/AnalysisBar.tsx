@@ -118,7 +118,7 @@ export function AnalysisBar({ file, states, consent, beforeAnalyze, onAnalyzed, 
       {!running && result?.kind === 'check' && (
         <p className={result.outcome.stopped ? 'warning' : 'muted'} role="status">
           {result.outcome.checked
-            ? `검사 완료: 문제 가능성 ${result.outcome.findings}개`
+            ? `검사 완료: 문제 가능성 ${result.outcome.findings}개${result.outcome.lowConfidence ? ` (확신이 낮아 숨긴 것 ${result.outcome.lowConfidence}개)` : ''}`
             : `검사하지 못함: ${result.outcome.stopped}`}
           {` · $${result.outcome.costUsd.toFixed(4)}`}
           {result.outcome.analysis && ` · 먼저 분석한 화 ${result.outcome.analysis.done}개`}

@@ -24,6 +24,13 @@ before(async () => {
             evidence: [{ chapter: 1, quote: '둘 다 스무 살이었다.' }],
             confidence: 0.9,
           },
+          {
+            category: 'number',
+            target_quote: '"스물두 살입니다."',
+            claim: '모순으로 볼 근거가 없다.',
+            evidence: [{ chapter: 1, quote: '둘 다 스무 살이었다.' }],
+            confidence: 0.1,
+          },
         ],
       };
     }
@@ -68,10 +75,15 @@ test('이 화 검사: 먼저 분석할 화와 비용을 확인받고, 문제 가
 
     await page.getByRole('button', { name: '이 화 검사' }).click();
     await page.getByRole('dialog', { name: '검사 확인' }).getByRole('button', { name: '검사' }).click();
-    await page.getByText(/검사 완료: 문제 가능성 1개 · \$[\d.]+ · 먼저 분석한 화 3개/).waitFor();
+    await page.getByText(/검사 완료: 문제 가능성 1개 \(확신이 낮아 숨긴 것 1개\) · \$[\d.]+ · 먼저 분석한 화 3개/).waitFor();
     await issues.getByRole('heading', { name: '문제 가능성 (1)' }).waitFor();
     await issues.getByText('앞 화 2개의 사실 1개와 비교', { exact: false }).waitFor();
     await issues.getByText('나이', { exact: true }).waitFor();
+    // 확신도가 낮은 결과는 숨기고 [보기]로 볼 수 있다
+    assert.equal(await issues.getByText('숫자·금액', { exact: true }).count(), 0);
+    await issues.getByRole('button', { name: '확신이 낮아 숨긴 결과 1개 보기' }).click();
+    await issues.getByText('숫자·금액', { exact: true }).waitFor();
+    await issues.getByRole('button', { name: '확신이 낮은 결과 숨기기' }).click();
 
     // 이 화 문장으로
     await issues.getByRole('button', { name: /^이 화: / }).click();
@@ -83,7 +95,7 @@ test('이 화 검사: 먼저 분석할 화와 비용을 확인받고, 문제 가
 
     // 3화로 돌아가 무시
     await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: /^3화/ }).click();
-    await issues.getByRole('button', { name: '무시' }).click();
+    await issues.getByRole('button', { name: '무시' }).first().click();
     await issues.getByText('찾은 문제 가능성이 없습니다.').waitFor();
     await issues.getByRole('button', { name: '무시한 결과 1개 보기' }).click();
     await issues.getByText('무시함').waitFor();

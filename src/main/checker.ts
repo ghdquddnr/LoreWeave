@@ -8,6 +8,7 @@ import { costUsd, estimateCheckCost, estimateExtractionTokens } from '../core/ai
 import {
   candidateFacts,
   CHECK_BATCH_SIZE,
+  MIN_CONFIDENCE,
   DETECT_PROMPT_VERSION,
   DETECT_SCHEMA,
   DETECT_SYSTEM,
@@ -100,7 +101,10 @@ export interface CheckOutcome {
   /** 검사 전에 분석했으면 그 결과 */
   analysis: AnalyzeProgress | null;
   checked: boolean;
+  /** 패널에 보이는 결과 수 (확신도가 MIN_CONFIDENCE 이상) */
   findings: number;
+  /** 확신도가 낮아 숨긴 결과 수 */
+  lowConfidence: number;
   dropped: number;
   /** 분석과 검사에 쓴 비용 */
   costUsd: number;
@@ -127,7 +131,7 @@ const BATCH_CONCURRENCY = 2;
 
 export async function checkChapter(file: string, o: CheckOptions): Promise<CheckOutcome> {
   const now = o.now ?? (() => new Date());
-  const outcome: CheckOutcome = { analysis: null, checked: false, findings: 0, dropped: 0, costUsd: 0, stopped: null };
+  const outcome: CheckOutcome = { analysis: null, checked: false, findings: 0, lowConfidence: 0, dropped: 0, costUsd: 0, stopped: null };
   const stop = (reason: string) => ({ ...outcome, stopped: reason });
 
   const plan = await planCheck(o.root, o.store, file, o.model);
@@ -226,5 +230,6 @@ export async function checkChapter(file: string, o: CheckOptions): Promise<Check
     inputs,
     findings,
   });
-  return { ...outcome, checked: true, findings: findings.length, dropped: verified.dropped.length };
+  const shown = findings.filter((f) => f.confidence >= MIN_CONFIDENCE).length;
+  return { ...outcome, checked: true, findings: shown, lowConfidence: findings.length - shown, dropped: verified.dropped.length };
 }
