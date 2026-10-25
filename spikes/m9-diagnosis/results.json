@@ -1,0 +1,75 @@
+{
+  "note": "M9 오프라인 실패 진단. M8 저장 결과(ai.db 복사본, 검사 입력, 판정)만 다시 읽었다. 유료 호출 0회. 원문·인물명 없음. 실패 사례 원문은 저장소 밖에 둔다.",
+  "source": {
+    "run": "M8 (product-2026-10-25, gpt-6-luna, detect-1, CHECK_BATCH_SIZE 400, MIN_CONFIDENCE 0.7)",
+    "results": "spikes/m8-real/results.json"
+  },
+  "totals": {
+    "seeds": 20,
+    "found": 9,
+    "missed": 11,
+    "missedRetrieved": 7,
+    "missedNotRetrieved": 4,
+    "foundWithoutRetrieval": 4,
+    "findings": 24,
+    "duplicates": 2,
+    "outsideGroundTruth": 13,
+    "correctOutsideGroundTruth": 1,
+    "falsePositives": 9,
+    "unclear": 3
+  },
+  "missed": [
+    { "id": "S04", "category": "age", "retrieved": true, "batch": 2, "of": 3, "cause": "same-attribute-conflict-missed", "detail": "학년 값이 직접 다르고 같은 인물·같은 속성 이름의 사실이 입력에 있었다. 둘 사이에 시간 경과 서술이 없다." },
+    { "id": "S14", "category": "occupation", "retrieved": true, "batch": 6, "of": 9, "cause": "same-attribute-conflict-missed", "detail": "직책 값이 직접 다르다. 이름 일부 일치로 같은 인물의 사실이 입력에 있었다. 속성 이름은 직책/직업으로 다르다." },
+    { "id": "S19", "category": "number", "retrieved": true, "batch": 3, "of": 11, "cause": "same-attribute-conflict-missed", "detail": "같은 주문의 서클 등급이 직접 다르다. 대상 화 문장이 '~라 알려진'이라는 전언 형식이다." },
+    { "id": "S08", "category": "date_order", "retrieved": true, "batch": 1, "of": 5, "cause": "inference-needed", "detail": "시간 배속 비율로 계산해야 드러나는 모순. 비율 사실은 첫 묶음에 있었다." },
+    { "id": "S11", "category": "first_meeting", "retrieved": true, "batch": 2, "of": 7, "cause": "inference-needed", "detail": "앞 화의 '일정' 사실에서 이미 만났음을 추론해야 한다. 심은 문장 앞뒤 문맥이 '오랫동안 못 만났다'로 읽힐 여지가 있다." },
+    { "id": "S07", "category": "habit", "retrieved": true, "batch": 4, "of": 4, "cause": "evidence-content-thin", "detail": "근거 사실의 값에 성별이 없고 인용의 대명사·호칭에만 있다. 원문 호칭에 물음표가 붙어 근거 자체가 모호하다." },
+    { "id": "S05", "category": "name", "retrieved": true, "batch": 4, "of": 4, "cause": "identifier-changed", "detail": "바뀐 것이 이름(코드네임) 자체라 근거 사실에서 그 이름이 속성이 아닌 대상 이름으로만 저장됐다. 대상 화의 새 이름과 연결할 단서가 약하다. 호칭 허용 규칙과도 겹친다." },
+    { "id": "S01", "category": "number", "retrieved": false, "cause": "extraction-miss", "detail": "근거가 짧은 독백 한 줄이라 어떤 사실로도 추출되지 않았다." },
+    { "id": "S02", "category": "location", "retrieved": false, "cause": "extraction-miss", "detail": "장소 관계가 서술에 암시만 되어 있어 추출되지 않았다." },
+    { "id": "S10", "category": "name", "retrieved": false, "cause": "extraction-miss", "detail": "근거가 진행자 대사 속 이름이라 추출되지 않았다." },
+    { "id": "S16", "category": "number", "retrieved": false, "cause": "extraction-miss", "detail": "근거가 상태창 목록 한 줄이라 추출되지 않았다." }
+  ],
+  "missedByCause": {
+    "same-attribute-conflict-missed": 3,
+    "inference-needed": 2,
+    "evidence-content-thin": 1,
+    "identifier-changed": 1,
+    "extraction-miss": 4
+  },
+  "outsideGroundTruth": [
+    { "id": "U01", "chapter": 57, "category": "number", "confidence": 0.8, "verdict": "legit-change", "cause": "no-time-context", "detail": "앞 화 능력치와 비교했지만 그 사이 성장이 있었다. 사실에 시점이 없다." },
+    { "id": "U02", "chapter": 85, "category": "habit", "confidence": 0.97, "verdict": "misread", "cause": "different-sense-linked", "detail": "같은 낱말의 다른 뜻 서술을 엮었다." },
+    { "id": "U03", "chapter": 99, "category": "name", "confidence": 0.88, "verdict": "legit-change", "cause": "nickname-rule-ignored", "detail": "작중 별명으로 부른 것을 이름 모순으로 봤다. 프롬프트 규칙 2에서 이미 제외한 경우다." },
+    { "id": "U04", "chapter": 168, "category": "relationship", "confidence": 0.84, "verdict": "misread", "cause": "joke-as-fact", "detail": "물음표가 붙은 농담 섞인 묘사를 성별 근거로 썼다." },
+    { "id": "U05", "chapter": 182, "category": "number", "confidence": 0.94, "verdict": "legit-change", "cause": "target-explanation-ignored", "detail": "실력을 숨긴다는 설명이 검사한 화 안에 있다." },
+    { "id": "U06", "chapter": 182, "category": "number", "confidence": 0.89, "verdict": "legit-change", "cause": "target-explanation-ignored", "detail": "실력을 숨긴다는 설명이 검사한 화 안에 있다." },
+    { "id": "U07", "chapter": 196, "category": "number", "confidence": 0.99, "verdict": "unclear", "cause": "different-target-linked", "detail": "서로 다른 인물의 같은 이름 아이템 등급을 엮었을 수 있다." },
+    { "id": "U08", "chapter": 223, "category": "number", "confidence": 0.96, "verdict": "correct", "cause": null, "detail": "원고에 원래 있던 계산 차이." },
+    { "id": "U09", "chapter": 237, "category": "number", "confidence": 0.78, "verdict": "unclear", "cause": "unclear", "detail": "인물의 팔. 입력 사실만으로 판단할 수 없다." },
+    { "id": "U10", "chapter": 251, "category": "habit", "confidence": 0.96, "verdict": "misread", "cause": "general-rule-overapplied", "detail": "미리 저장한 마법 사용을 일반 설정 위반으로 봤다." },
+    { "id": "U11", "chapter": 251, "category": "location", "confidence": 0.84, "verdict": "misread", "cause": "general-rule-overapplied", "detail": "마법을 창의적으로 쓴 장면을 설정 위반으로 봤다." },
+    { "id": "U12", "chapter": 265, "category": "dead_character", "confidence": 0.87, "verdict": "legit-change", "cause": "target-explanation-ignored", "detail": "가상현실 재회라는 설명이 검사한 화 안에 있고, 모델의 claim도 그 설명을 언급한다." },
+    { "id": "U13", "chapter": 265, "category": "dead_character", "confidence": 0.78, "verdict": "unclear", "cause": "unclear", "detail": "결말부의 사망 인물 등장. 작중 의도를 입력만으로 판단할 수 없다." }
+  ],
+  "falsePositiveAndUnclearByCause": {
+    "target-explanation-ignored": 3,
+    "no-time-context": 1,
+    "nickname-rule-ignored": 1,
+    "different-sense-linked": 1,
+    "different-target-linked": 1,
+    "joke-as-fact": 1,
+    "general-rule-overapplied": 2,
+    "unclear": 2
+  },
+  "observedJudgmentProblems": { "missedRetrieved": 7, "confirmedFalsePositives": 9, "total": 16, "unclearSeparate": 3 },
+  "candidates": {
+    "basis": "진단 사례로 세운 가설. 증명된 상한이나 배타적 사실이 아니다. 0은 그 후보가 그 사례를 겨냥하지 않는다는 뜻이다.",
+    "judgePrompt": { "missesAddressable": "3~5 (S04, S14, S19; S08 계산; S05 일부)", "fpAddressable": "3~4 (U05, U06, U12; U01 일부)" },
+    "inputPairing": { "missesAddressable": "최대 3 (S04, S14, S19)", "fpAddressable": "0 (U01·U05·U06은 짝지으면 더 눈에 띌 수 있음)" },
+    "shortNotationExtraction": { "missesAddressable": "2~3 (S01, S16, S10 일부)", "fpAddressable": "0 (사실 증가로 M8처럼 오탐이 늘 수 있음)" },
+    "chosen": "judgePrompt"
+  },
+  "costsApi": { "total": 6.8615, "at": "2026-10-26T00:01+09:00", "cap": 10, "left": 3.1385, "callsThisStep": 0 }
+}
