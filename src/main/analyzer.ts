@@ -62,6 +62,8 @@ export interface AnalyzeOptions {
   signal: AbortSignal;
   onProgress?(progress: AnalyzeProgress): void;
   now?(): Date;
+  /** 동시에 보내는 화 수 (기본 CONCURRENCY). 측정 스크립트가 많은 화를 분석할 때 늘린다 */
+  concurrency?: number;
 }
 
 const STOP_KINDS = new Set<AiError['kind']>(['auth', 'model', 'rate-limit']);
@@ -141,7 +143,7 @@ export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promi
   };
 
   report();
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(o.concurrency ?? CONCURRENCY, files.length) }, worker));
   report();
   return progress;
 }
