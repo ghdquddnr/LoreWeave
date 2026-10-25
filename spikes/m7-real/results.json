@@ -1,0 +1,410 @@
+{
+ "note": "M7 실제 장편 복사본에 심은 오류 20개의 측정 집계. 작품 이름·원문·인물 이름은 넣지 않는다. 심은 목록과 판정표는 저장소 밖에 있다.",
+ "model": "gpt-6-luna",
+ "analysis": {
+  "done": 20,
+  "failed": 0,
+  "costUsd": 0.02527449999999999,
+  "seconds": 68
+ },
+ "checks": [
+  {
+   "chapter": 2,
+   "facts": 16,
+   "batches": 1,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.0007903,
+   "seconds": 9.887
+  },
+  {
+   "chapter": 16,
+   "facts": 137,
+   "batches": 1,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.001768675,
+   "seconds": 6.103
+  },
+  {
+   "chapter": 30,
+   "facts": 302,
+   "batches": 1,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.00327355,
+   "seconds": 7.913
+  },
+  {
+   "chapter": 44,
+   "facts": 434,
+   "batches": 2,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.00424135,
+   "seconds": 3.074
+  },
+  {
+   "chapter": 57,
+   "facts": 543,
+   "batches": 2,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.00594785,
+   "seconds": 9.395
+  },
+  {
+   "chapter": 71,
+   "facts": 749,
+   "batches": 2,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.00752835,
+   "seconds": 6.588
+  },
+  {
+   "chapter": 85,
+   "facts": 677,
+   "batches": 2,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.0066841,
+   "seconds": 7.257
+  },
+  {
+   "chapter": 99,
+   "facts": 845,
+   "batches": 3,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.008883525000000001,
+   "seconds": 5.836
+  },
+  {
+   "chapter": 113,
+   "facts": 886,
+   "batches": 3,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.0092549,
+   "seconds": 10.276
+  },
+  {
+   "chapter": 127,
+   "facts": 954,
+   "batches": 3,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.009647025,
+   "seconds": 9.823
+  },
+  {
+   "chapter": 140,
+   "facts": 1096,
+   "batches": 3,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.010756025,
+   "seconds": 8.484
+  },
+  {
+   "chapter": 154,
+   "facts": 1264,
+   "batches": 4,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.012579325,
+   "seconds": 12.572
+  },
+  {
+   "chapter": 168,
+   "facts": 1152,
+   "batches": 3,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.011559650000000001,
+   "seconds": 14.742
+  },
+  {
+   "chapter": 182,
+   "facts": 1534,
+   "batches": 4,
+   "findings": 1,
+   "dropped": 1,
+   "costUsd": 0.01510045,
+   "seconds": 14.72
+  },
+  {
+   "chapter": 196,
+   "facts": 1578,
+   "batches": 4,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.015169325,
+   "seconds": 10.339
+  },
+  {
+   "chapter": 210,
+   "facts": 1410,
+   "batches": 4,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.01408645,
+   "seconds": 10.271
+  },
+  {
+   "chapter": 223,
+   "facts": 1832,
+   "batches": 5,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.018312625,
+   "seconds": 15.845
+  },
+  {
+   "chapter": 237,
+   "facts": 1757,
+   "batches": 5,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.017836249999999998,
+   "seconds": 16.383
+  },
+  {
+   "chapter": 251,
+   "facts": 1842,
+   "batches": 5,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.017933125,
+   "seconds": 10.3
+  },
+  {
+   "chapter": 265,
+   "facts": 2155,
+   "batches": 6,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.0205403,
+   "seconds": 15.386
+  }
+ ],
+ "costUsd": 0.23716765000000004,
+ "scorer": {
+  "recall": 0.3,
+  "recallAt07": 0.25,
+  "precision": 0.75,
+  "retrieval": 0.5,
+  "judge": 0.3
+ },
+ "human": {
+  "found": 7,
+  "falsePositives": 1,
+  "falsePositiveCauses": [
+   "첫 만남이 나빴다는 서술을 첫 만남 모순으로 봄 (확신 0.78)"
+  ],
+  "note": "S17은 바뀐 문장 바로 다음 문장을 인용해 채점기는 놓쳤지만 사람 판정으로는 심은 오류를 짚었다"
+ },
+ "seeds": [
+  {
+   "id": "S01",
+   "chapter": 2,
+   "category": "number",
+   "distance": 1,
+   "retrieved": true,
+   "found": true,
+   "foundHuman": true,
+   "confidence": 0.99
+  },
+  {
+   "id": "S02",
+   "chapter": 16,
+   "category": "location",
+   "distance": 3,
+   "retrieved": false,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S03",
+   "chapter": 30,
+   "category": "occupation",
+   "distance": 6,
+   "retrieved": false,
+   "found": true,
+   "foundHuman": true,
+   "confidence": 0.99
+  },
+  {
+   "id": "S04",
+   "chapter": 44,
+   "category": "age",
+   "distance": 21,
+   "retrieved": true,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S05",
+   "chapter": 57,
+   "category": "name",
+   "distance": 1,
+   "retrieved": true,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S06",
+   "chapter": 71,
+   "category": "number",
+   "distance": 28,
+   "retrieved": true,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S07",
+   "chapter": 85,
+   "category": "habit",
+   "distance": 10,
+   "retrieved": false,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S08",
+   "chapter": 99,
+   "category": "date_order",
+   "distance": 95,
+   "retrieved": false,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S09",
+   "chapter": 113,
+   "category": "occupation",
+   "distance": 83,
+   "retrieved": true,
+   "found": true,
+   "foundHuman": true,
+   "confidence": 0.92
+  },
+  {
+   "id": "S10",
+   "chapter": 127,
+   "category": "name",
+   "distance": 2,
+   "retrieved": true,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S11",
+   "chapter": 140,
+   "category": "first_meeting",
+   "distance": 109,
+   "retrieved": false,
+   "found": true,
+   "foundHuman": true,
+   "confidence": 0.99
+  },
+  {
+   "id": "S12",
+   "chapter": 154,
+   "category": "relationship",
+   "distance": 106,
+   "retrieved": true,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S13",
+   "chapter": 168,
+   "category": "number",
+   "distance": 93,
+   "retrieved": false,
+   "found": true,
+   "foundHuman": true,
+   "confidence": 0.99
+  },
+  {
+   "id": "S14",
+   "chapter": 182,
+   "category": "occupation",
+   "distance": 82,
+   "retrieved": true,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S15",
+   "chapter": 196,
+   "category": "age",
+   "distance": 78,
+   "retrieved": true,
+   "found": true,
+   "foundHuman": true,
+   "confidence": 0.12
+  },
+  {
+   "id": "S16",
+   "chapter": 210,
+   "category": "number",
+   "distance": 16,
+   "retrieved": false,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S17",
+   "chapter": 223,
+   "category": "number",
+   "distance": 217,
+   "retrieved": false,
+   "found": false,
+   "foundHuman": true,
+   "confidence": 0.98
+  },
+  {
+   "id": "S18",
+   "chapter": 237,
+   "category": "number",
+   "distance": 180,
+   "retrieved": false,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S19",
+   "chapter": 251,
+   "category": "number",
+   "distance": 194,
+   "retrieved": false,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  },
+  {
+   "id": "S20",
+   "chapter": 265,
+   "category": "habit",
+   "distance": 163,
+   "retrieved": true,
+   "found": false,
+   "foundHuman": false,
+   "confidence": null
+  }
+ ]
+}
