@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { startOfDay, summarizeCosts } from '../../scripts/lib/costs.ts';
+import { readEnvValue, startOfDay, summarizeCosts } from '../../scripts/lib/costs.ts';
 
 const day = (d: string) => startOfDay(d);
 
@@ -52,4 +52,12 @@ test('통화가 섞이면 합치지 않는다, 항목이 없으면 (구분 없�
 test('날짜: YYYY-MM-DD → UTC 0시 Unix 초', () => {
   assert.equal(startOfDay('2026-10-01'), Date.UTC(2026, 9, 1) / 1000);
   assert.throws(() => startOfDay('2026/10/01'), /YYYY-MM-DD/);
+});
+
+test('.env에서 변수 읽기: 따옴표·공백·export, 없으면 null', () => {
+  const env = '# 주석\nOPENAI_API_KEY=sk-proj-aaa\nexport OPENAI_ADMIN_KEY = "sk-admin-bbb" \r\nEMPTY=\n';
+  assert.equal(readEnvValue(env, 'OPENAI_ADMIN_KEY'), 'sk-admin-bbb');
+  assert.equal(readEnvValue(env, 'OPENAI_API_KEY'), 'sk-proj-aaa');
+  assert.equal(readEnvValue(env, 'EMPTY'), null);
+  assert.equal(readEnvValue(env, 'MISSING'), null);
 });
