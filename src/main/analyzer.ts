@@ -1,5 +1,5 @@
 // 화별 사실 추출 실행 (M3-PLAN 1·4절). 작가가 버튼을 눌렀을 때만 실행한다.
-//   - 한 번에 한 화씩, 취소하면 다음 화를 보내지 않는다 (끝난 화는 저장돼 있다)
+//   - 두 화씩 동시에 보낸다 (M3 실측에서 한 화씩은 15화에 약 3분). 취소하면 다음 화를 보내지 않는다 (끝난 화는 저장돼 있다)
 //   - 키·모델·한도 문제는 나머지 화도 실패할 것이므로 멈추고, 그 밖의 실패는 그 화만 실패로 남긴다
 //   - 인용이 본문에 없는 사실은 버린다 (ADR 0001 결정 2)
 //   - 화 파일은 읽기만 한다
@@ -47,7 +47,6 @@ export async function estimate(root: string, files: string[], model: string): Pr
 export interface AnalyzeProgress {
   total: number;
   done: number;
-  current: string | null;
   failed: { file: string; message: string }[];
   costUsd: number;
   /** 키·모델·한도 문제로 멈췄거나 취소했으면 그 이유 */
@@ -66,26 +65,40 @@ export interface AnalyzeOptions {
 
 const STOP_KINDS = new Set<AiError['kind']>(['auth', 'model', 'rate-limit']);
 
+/** 동시에 보내는 화 수. 한도(429)에 걸리지 않도록 작게 둔다 */
+export const CONCURRENCY = 2;
+
 export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promise<AnalyzeProgress> {
   const now = o.now ?? (() => new Date());
-  const progress: AnalyzeProgress = { total: files.length, done: 0, current: null, failed: [], costUsd: 0, stopped: null };
+  const progress: AnalyzeProgress = { total: files.length, done: 0, failed: [], costUsd: 0, stopped: null };
   const report = () => o.onProgress?.({ ...progress, failed: [...progress.failed] });
-  const log = (file: string, ok: boolean, usage: Usage) => {
+  const log = (file: string, ok: boolean, usage: Usage, latencyMs: number) => {
     const cost = costUsd(o.model, usage);
     progress.costUsd += cost;
-    o.store.logCall({ at: now().toISOString(), file, model: o.model, ok, usage, costUsd: cost });
+    o.store.logCall({ at: now().toISOString(), file, model: o.model, ok, usage, costUsd: cost, latencyMs });
     return cost;
   };
+  /** 다음 화를 보내도 되는가. 취소했거나 멈췄으면 보내지 않는다 */
+  const mayContinue = () => {
+    if (o.signal.aborted) progress.stopped ??= '취소했습니다';
+    return progress.stopped === null;
+  };
 
-  for (const file of files) {
-    if (o.signal.aborted) {
-      progress.stopped = '취소했습니다';
-      break;
+  const queue = [...files];
+  const worker = async () => {
+    for (let file = queue.shift(); file !== undefined && mayContinue(); file = queue.shift()) {
+      await analyzeOne(file);
+      report();
     }
-    progress.current = file;
-    report();
+  };
+
+  const analyzeOne = async (file: string) => {
+    let started = performance.now();
     try {
       const { lines, hash } = await chapterLines(o.root, file);
+      // 화 파일을 읽는 동안 취소했거나 다른 화가 멈췄을 수 있다
+      if (!mayContinue()) return;
+      started = performance.now();
       const result = await o.client.json({
         model: o.model,
         system: EXTRACT_SYSTEM,
@@ -93,7 +106,7 @@ export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promi
         schema: EXTRACT_SCHEMA,
         signal: o.signal,
       });
-      const cost = log(file, true, result.usage);
+      const cost = log(file, true, result.usage, Math.round(performance.now() - started));
       const extraction = parseExtraction(result.data);
       const { facts, dropped } = checkQuotes(extraction, lines);
       o.store.saveAnalysis({
@@ -111,21 +124,23 @@ export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promi
       });
     } catch (e) {
       const usage = (e as { usage?: Usage }).usage;
-      if (usage) log(file, false, usage);
+      if (usage) log(file, false, usage, Math.round(performance.now() - started));
       if (o.signal.aborted) {
-        progress.stopped = '취소했습니다';
-        break;
+        progress.stopped ??= '취소했습니다';
+        return;
       }
       const error = toAiError(e);
       progress.failed.push({ file, message: error.message });
       if (STOP_KINDS.has(error.kind)) {
-        progress.stopped = error.message;
-        break;
+        progress.stopped ??= error.message;
+        return;
       }
     }
     progress.done++;
-  }
-  progress.current = null;
+  };
+
+  report();
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
   report();
   return progress;
 }

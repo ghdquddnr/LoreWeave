@@ -77,7 +77,6 @@ test('분석: 키를 붙여 요청하고, 인용이 있는 사실만 저장하�
     assert.deepEqual({ ...result.final, costUsd: result.final.costUsd.toFixed(4) }, {
       total: 2,
       done: 2,
-      current: null,
       failed: [],
       costUsd: '0.0010',
       stopped: null,

@@ -61,6 +61,8 @@ const MIGRATIONS: string[] = [
     cost_usd REAL NOT NULL
   );
   `,
+  // 2: 호출에 걸린 시간 (at은 호출이 끝난 시각). 이전 기록은 NULL
+  `ALTER TABLE calls ADD COLUMN latency_ms INTEGER;`,
 ];
 
 export interface StoredAnalysis {
@@ -188,14 +190,25 @@ export class AiStore {
   }
 
   /** 호출마다 남긴다. 실패한 호출도 사용량이 있으면 비용이 든 것이다 */
-  logCall(call: { at: string; file: string | null; model: string; ok: boolean; usage: Usage; costUsd: number }): void {
+  logCall(call: { at: string; file: string | null; model: string; ok: boolean; usage: Usage; costUsd: number; latencyMs: number }): void {
     const u = call.usage;
     this.db
       .prepare(
-        `INSERT INTO calls (at, file, model, ok, input_tokens, cached_tokens, cache_write_tokens, output_tokens, cost_usd)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO calls (at, file, model, ok, input_tokens, cached_tokens, cache_write_tokens, output_tokens, cost_usd, latency_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(call.at, call.file, call.model, call.ok ? 1 : 0, u.inputTokens, u.cachedTokens, u.cacheWriteTokens, u.outputTokens, call.costUsd);
+      .run(
+        call.at,
+        call.file,
+        call.model,
+        call.ok ? 1 : 0,
+        u.inputTokens,
+        u.cachedTokens,
+        u.cacheWriteTokens,
+        u.outputTokens,
+        call.costUsd,
+        call.latencyMs,
+      );
   }
 
   /** 이 프로젝트에서 지금까지 쓴 비용 (USD) */
