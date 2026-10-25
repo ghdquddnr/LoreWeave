@@ -9,7 +9,7 @@ import { afterEach, beforeEach, test } from 'node:test';
 import type { Extraction } from '../../src/core/ai/extraction.ts';
 import { AiError, type AiClient, type JsonCall } from '../../src/main/ai-client.ts';
 import { AiStore, NewerFormatError } from '../../src/main/ai-db.ts';
-import { analysisStates, analyzeChapters, estimate } from '../../src/main/analyzer.ts';
+import { analysisStates, analyzeChapters, CONCURRENCY, estimate } from '../../src/main/analyzer.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
 const usage = { inputTokens: 1200, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: 1000 };
@@ -59,7 +59,7 @@ test('분석: 인용이 본문에 있는 사실만 줄 주소와 함께 저장�
   const before = await readFile(join(root, 'chapters', '001.md'));
   const client = fakeClient(() => extraction('둘 다 스무 살이었다.'));
   const progress = await analyzeChapters(['001.md'], options(client));
-  assert.deepEqual({ ...progress, costUsd: progress.costUsd.toFixed(5) }, { total: 1, done: 1, current: null, failed: [], costUsd: '0.00062', stopped: null });
+  assert.deepEqual({ ...progress, costUsd: progress.costUsd.toFixed(5) }, { total: 1, done: 1, failed: [], costUsd: '0.00062', stopped: null });
   assert.match(client.calls[0]!.user, /^<chapter n="1">\n1화\. 입학\n/);
   const saved = store!.analysis('001.md')!;
   assert.equal(saved.droppedQuotes, 1);
@@ -89,8 +89,9 @@ test('키·모델·한도 문제는 멈추고, 그 밖의 실패는 그 화만 �
   assert.equal(stopped.stopped, 'API 키가 올바르지 않습니다.');
   assert.equal(stop.calls.length, 2);
 
-  const skip = fakeClient((_c, n) => {
-    if (n === 1) throw Object.assign(new AiError('응답이 끝나지 않았습니다', 'incomplete'), { usage });
+  // 두 화를 동시에 보내므로 몇 번째 호출인지가 아니라 어느 화인지로 고른다
+  const skip = fakeClient((c) => {
+    if (c.user.includes('n="1"')) throw Object.assign(new AiError('응답이 끝나지 않았습니다', 'incomplete'), { usage });
     return extraction('x');
   });
   const before = store!.totalCost();
@@ -100,6 +101,29 @@ test('키·모델·한도 문제는 멈추고, 그 밖의 실패는 그 화만 �
   assert.equal(skipped.stopped, null);
   // 실패한 호출도 사용량이 있으면 비용에 넣는다
   assert.equal((store!.totalCost() - before).toFixed(5), '0.00124');
+});
+
+test('두 화씩 동시에 보내고, 호출마다 걸린 시간을 남긴다', async () => {
+  let inFlight = 0;
+  let most = 0;
+  const client = fakeClient(async () => {
+    most = Math.max(most, ++inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    inFlight--;
+    return extraction('x');
+  });
+  const progress = await analyzeChapters(['001.md', '002.md', '003.md'], options(client));
+  assert.equal(CONCURRENCY, 2);
+  assert.equal(most, 2);
+  assert.equal(progress.done, 3);
+  assert.deepEqual(Object.keys(await analysisStates(root, store!)).filter((f) => store!.analysis(f)), ['001.md', '002.md', '003.md']);
+  store!.close();
+  store = null;
+  const raw = new DatabaseSync(join(root, '.loreweave', 'ai.db'));
+  const latencies = raw.prepare('SELECT latency_ms FROM calls').all().map((r) => Number(r['latency_ms']));
+  raw.close();
+  assert.equal(latencies.length, 3);
+  for (const ms of latencies) assert.ok(ms >= 15, `latency ${ms}`);
 });
 
 test('형식이 다른 응답은 저장하지 않는다', async () => {
@@ -117,7 +141,8 @@ test('취소: 다음 화를 보내지 않고, 끝난 화는 남는다', async ()
   const result = await analyzeChapters(['001.md', '002.md', '003.md'], options(client, controller.signal));
   assert.equal(client.calls.length, 1);
   assert.equal(result.stopped, '취소했습니다');
-  assert.ok(store!.analysis('001.md'));
+  // 두 화를 동시에 읽으므로 먼저 보낸 화가 001이 아닐 수 있다
+  assert.equal(['001.md', '002.md', '003.md'].filter((f) => store!.analysis(f)).length, 1);
 });
 
 test('다시 분석하면 그 화의 이전 결과를 바꾼다', async () => {
@@ -145,7 +170,20 @@ test('저장소: 다시 열어도 결과가 남고, 깨진 파일은 옮겨 두�
   store.close();
   store = null;
 
+  // 형식 1(M3 첫 배포) 파일은 결과를 둔 채 형식 2로 올린다
   const path = join(root, '.loreweave', 'ai.db');
+  const v1 = new DatabaseSync(path);
+  v1.exec('ALTER TABLE calls DROP COLUMN latency_ms; PRAGMA user_version = 1');
+  v1.close();
+  store = AiStore.open(root);
+  assert.ok(store.analysis('001.md'));
+  store.close();
+  store = null;
+  const v2 = new DatabaseSync(path);
+  assert.equal((v2.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 2);
+  assert.deepEqual(v2.prepare('SELECT latency_ms FROM calls').all().map((r) => r['latency_ms']), [null]);
+  v2.close();
+
   for (const suffix of ['-wal', '-shm']) await rm(path + suffix, { force: true });
   await writeFile(path, '깨진 파일');
   store = AiStore.open(root, () => new Date('2026-10-25T01:02:03Z'));
