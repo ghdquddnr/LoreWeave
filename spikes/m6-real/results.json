@@ -1,0 +1,273 @@
+{
+ "note": "M6 실제 장편 측정 집계. 작품 이름·원문·인물 이름은 넣지 않는다. 원문과 인용이 든 판정표는 저장소 밖에 있다.",
+ "model": "gpt-6-luna",
+ "chapters": 265,
+ "sample": [
+  2,
+  16,
+  30,
+  44,
+  57,
+  71,
+  85,
+  99,
+  113,
+  127,
+  140,
+  154,
+  168,
+  182,
+  196,
+  210,
+  223,
+  237,
+  251,
+  265
+ ],
+ "analysis": {
+  "done": 265,
+  "failed": 0,
+  "costUsd": 0.340010475,
+  "seconds": 952
+ },
+ "extraction": {
+  "facts": 3876,
+  "droppedQuotes": 346,
+  "retention": 0.9180483183325439,
+  "factsPerChapter": 14.626415094339622
+ },
+ "checks": [
+  {
+   "chapter": 2,
+   "facts": 16,
+   "batches": 1,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.0007178,
+   "seconds": 4.493
+  },
+  {
+   "chapter": 16,
+   "facts": 134,
+   "batches": 1,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.00169105,
+   "seconds": 5.068
+  },
+  {
+   "chapter": 30,
+   "facts": 297,
+   "batches": 1,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.0032620500000000003,
+   "seconds": 9.886
+  },
+  {
+   "chapter": 44,
+   "facts": 426,
+   "batches": 2,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.004186975,
+   "seconds": 4.384
+  },
+  {
+   "chapter": 57,
+   "facts": 535,
+   "batches": 2,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.00538285,
+   "seconds": 1.64
+  },
+  {
+   "chapter": 71,
+   "facts": 700,
+   "batches": 2,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.00683835,
+   "seconds": 4.665
+  },
+  {
+   "chapter": 85,
+   "facts": 744,
+   "batches": 2,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.007168975,
+   "seconds": 6.274
+  },
+  {
+   "chapter": 99,
+   "facts": 836,
+   "batches": 3,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.008995025,
+   "seconds": 10.008
+  },
+  {
+   "chapter": 113,
+   "facts": 867,
+   "batches": 3,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.008794900000000001,
+   "seconds": 5.235
+  },
+  {
+   "chapter": 127,
+   "facts": 956,
+   "batches": 3,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.009668275,
+   "seconds": 9.922
+  },
+  {
+   "chapter": 140,
+   "facts": 1086,
+   "batches": 3,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.01085365,
+   "seconds": 13.434
+  },
+  {
+   "chapter": 154,
+   "facts": 1114,
+   "batches": 3,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.010891025000000002,
+   "seconds": 6.018
+  },
+  {
+   "chapter": 168,
+   "facts": 1143,
+   "batches": 3,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.010887025,
+   "seconds": 3.947
+  },
+  {
+   "chapter": 182,
+   "facts": 1294,
+   "batches": 4,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.013200075,
+   "seconds": 12.508
+  },
+  {
+   "chapter": 196,
+   "facts": 1349,
+   "batches": 4,
+   "findings": 2,
+   "dropped": 2,
+   "costUsd": 0.0133112,
+   "seconds": 6.102
+  },
+  {
+   "chapter": 210,
+   "facts": 1489,
+   "batches": 4,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.01485595,
+   "seconds": 13.592
+  },
+  {
+   "chapter": 223,
+   "facts": 1701,
+   "batches": 5,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.01713125,
+   "seconds": 16.325
+  },
+  {
+   "chapter": 237,
+   "facts": 1610,
+   "batches": 5,
+   "findings": 0,
+   "dropped": 0,
+   "costUsd": 0.016453125000000002,
+   "seconds": 11.287
+  },
+  {
+   "chapter": 251,
+   "facts": 1857,
+   "batches": 5,
+   "findings": 1,
+   "dropped": 0,
+   "costUsd": 0.0180695,
+   "seconds": 10.468
+  },
+  {
+   "chapter": 265,
+   "facts": 2141,
+   "batches": 6,
+   "findings": 1,
+   "dropped": 1,
+   "costUsd": 0.020509425,
+   "seconds": 18.143
+  }
+ ],
+ "totalCostUsd": 0.5428789499999999,
+ "findings": [
+  {
+   "id": "140-0",
+   "category": "number",
+   "confidence": 0.72,
+   "verdict": "잘못 읽음",
+   "cause": "현실 시각과 게임 시간 배속 설정을 잘못 엮음"
+  },
+  {
+   "id": "182-0",
+   "category": "occupation",
+   "confidence": 0.78,
+   "verdict": "정당한 변화",
+   "cause": "작중 인물이 실력을 숨긴다고 같은 화에서 밝힘"
+  },
+  {
+   "id": "196-0",
+   "category": "number",
+   "confidence": 0.0,
+   "verdict": "잘못 읽음",
+   "cause": "설명 스스로 모순이 아니라고 씀 (확신 0.00)"
+  },
+  {
+   "id": "196-1",
+   "category": "number",
+   "confidence": 0.96,
+   "verdict": "잘못 읽음",
+   "cause": "서로 다른 사건(전쟁)의 숫자를 같은 것으로 봄"
+  },
+  {
+   "id": "210-0",
+   "category": "relationship",
+   "confidence": 0.99,
+   "verdict": "정당한 변화",
+   "cause": "먼 앞 화(29화)에서 설명된 능력이 검사 입력에 없었음 (작가 확인)"
+  },
+  {
+   "id": "251-0",
+   "category": "habit",
+   "confidence": 0.93,
+   "verdict": "잘못 읽음",
+   "cause": "인물의 말(관찰)을 서술된 설정으로 봄"
+  },
+  {
+   "id": "265-0",
+   "category": "first_meeting",
+   "confidence": 0.1,
+   "verdict": "잘못 읽음",
+   "cause": "설명 스스로 근거가 없다고 씀 (확신 0.10)"
+  }
+ ]
+}
