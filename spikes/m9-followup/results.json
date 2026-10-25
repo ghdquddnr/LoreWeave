@@ -79,7 +79,11 @@
     "m4-3": false
    },
    "sourceFactsExtracted": false,
-   "cause": "source-not-extracted-inferred-from-other-facts"
+   "cause": "designated-source-not-extracted; substitute-evidence-in-input; found-in-d1-and-m4-2",
+   "designatedSourceExtracted": false,
+   "substituteEvidenceInInput": true,
+   "inputChangeRequired": false,
+   "causalNote": "찾은 회와 놓친 회의 차이 원인은 확인 안 됨 (가설만)"
   },
   "E20": {
    "category": "date_order",
@@ -97,7 +101,8 @@
     "m4-3": true
    },
    "sourceFactsExtracted": true,
-   "cause": "evidence-present-run-variance"
+   "cause": "designated-source-in-input-run-variance",
+   "designatedSourceExtracted": true
   },
   "E23": {
    "category": "number",
@@ -115,8 +120,11 @@
     "m4-3": false
    },
    "sourceFactsExtracted": "content-equivalent fact from another sentence of the same chapter; designated sentence not extracted",
-   "cause": "selection-miss-non-person-entity",
-   "selectedIntoInput": false
+   "cause": "content-equivalent-fact-excluded-by-name-selection",
+   "selectedIntoInput": false,
+   "designatedSourceExtracted": false,
+   "substituteEvidenceInInput": false,
+   "sufficientCauseVerified": false
   },
   "E26": {
    "category": "location",
@@ -134,7 +142,8 @@
     "m4-3": true
    },
    "sourceFactsExtracted": true,
-   "cause": "evidence-indirect-implication"
+   "cause": "designated-source-in-input-indirect-implication",
+   "designatedSourceExtracted": true
   },
   "E30": {
    "category": "habit",
@@ -152,7 +161,8 @@
     "m4-3": true
    },
    "sourceFactsExtracted": true,
-   "cause": "evidence-present-run-variance"
+   "cause": "designated-source-in-input-run-variance",
+   "designatedSourceExtracted": true
   }
  },
  "outsideGroundTruth": [
@@ -161,14 +171,18 @@
    "chapter": 3,
    "confidence": 0.73,
    "verdict": "confirmed-false-positive",
-   "cause": "habit-condition-read-as-necessary"
+   "cause": "habit-condition-read-as-necessary",
+   "confidenceUsedForVerdict": false,
+   "uncertainty": "low: 원문 논리만으로 판단됨"
   },
   {
    "run": "m4-3",
    "chapter": 13,
    "confidence": 0.96,
    "verdict": "false-positive-echo-like",
-   "cause": "evidence-cites-inserted-error-E22-plus-correct-sentence; evaluator echo rule requires all evidence on inserted errors"
+   "cause": "evidence-cites-inserted-error-E22-plus-correct-sentence; evaluator echo rule requires all evidence on inserted errors",
+   "confidenceUsedForVerdict": false,
+   "uncertainty": "medium: 정답표 기준 오탐, 평가기 echo 규칙에 따라 분류가 달라짐; 규칙 나와의 관련 미확인"
   }
  ],
  "hypothesis": {
@@ -191,7 +205,107 @@
      "contentOnly": [
       "E23: 같은 화 다른 문장의 3억 원 사실이 입력에 들어감, 평가기 기준으로는 여전히 미검색"
      ]
-    }
+    },
+    "perChapter": [
+     {
+      "chapter": 2,
+      "base": 14,
+      "added": 0,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 3,
+      "base": 29,
+      "added": 0,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 4,
+      "base": 38,
+      "added": 0,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 5,
+      "base": 47,
+      "added": 0,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 6,
+      "base": 59,
+      "added": 0,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 7,
+      "base": 85,
+      "added": 0,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 8,
+      "base": 75,
+      "added": 1,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 9,
+      "base": 94,
+      "added": 1,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 10,
+      "base": 94,
+      "added": 1,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 11,
+      "base": 101,
+      "added": 2,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 12,
+      "base": 131,
+      "added": 2,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 13,
+      "base": 130,
+      "added": 3,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 14,
+      "base": 147,
+      "added": 3,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 15,
+      "base": 163,
+      "added": 2,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     }
+    ]
    },
    "real": {
     "base": {
@@ -206,7 +320,156 @@
      "newlyRetrieved": [
       "S09"
      ]
-    }
+    },
+    "perChapter": [
+     {
+      "chapter": 2,
+      "base": 25,
+      "added": 0,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 16,
+      "base": 293,
+      "added": 13,
+      "batchesBase": 1,
+      "batchesPlus": 1
+     },
+     {
+      "chapter": 30,
+      "base": 594,
+      "added": 15,
+      "batchesBase": 2,
+      "batchesPlus": 2
+     },
+     {
+      "chapter": 44,
+      "base": 903,
+      "added": 25,
+      "batchesBase": 3,
+      "batchesPlus": 3
+     },
+     {
+      "chapter": 57,
+      "base": 1222,
+      "added": 34,
+      "batchesBase": 4,
+      "batchesPlus": 4
+     },
+     {
+      "chapter": 71,
+      "base": 1549,
+      "added": 18,
+      "batchesBase": 4,
+      "batchesPlus": 4
+     },
+     {
+      "chapter": 85,
+      "base": 1425,
+      "added": 30,
+      "batchesBase": 4,
+      "batchesPlus": 4
+     },
+     {
+      "chapter": 99,
+      "base": 1802,
+      "added": 32,
+      "batchesBase": 5,
+      "batchesPlus": 5
+     },
+     {
+      "chapter": 113,
+      "base": 1856,
+      "added": 55,
+      "batchesBase": 5,
+      "batchesPlus": 5
+     },
+     {
+      "chapter": 127,
+      "base": 1975,
+      "added": 37,
+      "batchesBase": 5,
+      "batchesPlus": 6
+     },
+     {
+      "chapter": 140,
+      "base": 2541,
+      "added": 69,
+      "batchesBase": 7,
+      "batchesPlus": 7
+     },
+     {
+      "chapter": 154,
+      "base": 2772,
+      "added": 87,
+      "batchesBase": 7,
+      "batchesPlus": 8
+     },
+     {
+      "chapter": 168,
+      "base": 2979,
+      "added": 63,
+      "batchesBase": 8,
+      "batchesPlus": 8
+     },
+     {
+      "chapter": 182,
+      "base": 3432,
+      "added": 42,
+      "batchesBase": 9,
+      "batchesPlus": 9
+     },
+     {
+      "chapter": 196,
+      "base": 3511,
+      "added": 135,
+      "batchesBase": 9,
+      "batchesPlus": 10
+     },
+     {
+      "chapter": 210,
+      "base": 3272,
+      "added": 188,
+      "batchesBase": 9,
+      "batchesPlus": 9
+     },
+     {
+      "chapter": 223,
+      "base": 4032,
+      "added": 158,
+      "batchesBase": 11,
+      "batchesPlus": 11
+     },
+     {
+      "chapter": 237,
+      "base": 4063,
+      "added": 133,
+      "batchesBase": 11,
+      "batchesPlus": 11
+     },
+     {
+      "chapter": 251,
+      "base": 4279,
+      "added": 49,
+      "batchesBase": 11,
+      "batchesPlus": 11
+     },
+     {
+      "chapter": 265,
+      "base": 4513,
+      "added": 132,
+      "batchesBase": 12,
+      "batchesPlus": 12
+     }
+    ]
+   },
+   "reproduce": {
+    "script": "scripts/m9-predicate-retrieval.ts",
+    "m4": "pnpm tsx scripts/m9-predicate-retrieval.ts <M9 M4 작업 폴더>/snapshot spikes/m0a-ai-feasibility/benchmark",
+    "real": "pnpm tsx scripts/m9-predicate-retrieval.ts <M9 실제 원고 작업 폴더>/snapshot <M8 복사본>",
+    "inputs": "M9 실행 때 만든 기준 스냅숏(M4 시험 원고·M8 복사본의 복사본)의 저장된 분석과 검사 기록. 읽기 전용, 호출 0",
+    "retrievalBasis": "M0-A 평가기의 지정 근거 문장 위치 기준"
    }
   },
   "targets": [
@@ -222,6 +485,28 @@
    "m4x3": 0.05,
    "realx2": 1.0,
    "note": "토큰 어림, 실비 아님. 새 단계 장부·새 승인 필요"
+  },
+  "futurePaidPlan": {
+   "approval": "향후 별도 감독 승인 대상 (이번 PR은 요청·실행 안 함)",
+   "prompt": "detect-1 고정, 사실 고르기만 변경",
+   "order": "M4 3회 → 기준 8을 세 회 모두 통과하면 실제 원고 20화 2회 → 하나라도 미달이면 실제 원고 호출 없이 중단",
+   "goal": {
+    "realRetrieval": "12 → 13/20, 줄면 실패",
+    "E23": "내용 기준 근거 유입과 발견을 사람이 따로 판정"
+   },
+   "commonSafety": [
+    "기준 1 Recall ≥ 10/20",
+    "기준 2 기존 9개 중 ≥ 8",
+    "기준 4 확정 오탐 ≤ 9",
+    "기준 5 확정 오탐+판단 어려움 ≤ 12",
+    "기준 7 맞는 결과 중 확신도 0.7 미만 0",
+    "기준 8 M4 (분모 14화)"
+   ],
+   "judge": {
+    "regression": "기존 고정 12개 중 찾은 수 ≥ 6/12",
+    "recordOnly": "새 입력 전체 13개 분모의 judge (기준 아님)"
+   },
+   "criterion6": "detect-2 설명 처리 가설용. 이번 가설의 목표 아님, 기록만"
   }
  },
  "costs": {
@@ -231,5 +516,21 @@
   "costsApiBefore": 6.86149227,
   "reflectedSoFar": 0.01497676,
   "note": "장부 값보다 작아 반영 중. 이번 작업에서 재조회 안 함"
+ },
+ "observationGroups": {
+  "designatedSourceNotExtracted": [
+   "E02",
+   "E23"
+  ],
+  "designatedSourceInInputButMissed": [
+   "E20",
+   "E26",
+   "E30"
+  ],
+  "runToRunVariance": [
+   "E02",
+   "E20",
+   "E30"
+  ]
  }
 }
