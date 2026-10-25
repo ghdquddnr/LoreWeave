@@ -7,16 +7,19 @@ import { test } from 'node:test';
 import { BudgetExceeded, withBudget } from '../../scripts/lib/budget.ts';
 import {
   canonOnly,
+  fillerDate,
   fillerFileText,
   fillerInput,
   fillerPositions,
   gapOf,
   isOriginalPosition,
   originalPosition,
+  packChapters,
   parseFiller,
   parsePlot,
   renumberGroundTruth,
   renumberHeading,
+  unpackChapters,
 } from '../../scripts/lib/long-benchmark.ts';
 import { parseC3 } from '../../src/core/manuscript/c3.ts';
 import { splitEnvelope } from '../../src/core/manuscript/envelope.ts';
@@ -25,6 +28,17 @@ import type { AiClient } from '../../src/main/ai-client.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark');
 const read = (name: string) => readFileSync(join(M0A, name), 'utf8');
+
+test('중간 화 날짜: 앞뒤 원래 화 사이를 나눈 자리이고, 차례대로 늘어난다', () => {
+  const plot = parsePlot(read('plot.md'));
+  assert.equal(fillerDate(2, plot), '2007년 3월 6일');
+  assert.equal(fillerDate(10, plot), '2007년 4월 12일');
+  // 10화 날짜가 "2008-07"(달만)이어도 읽는다
+  assert.match(fillerDate(92, plot), /^2008년 7월/);
+  assert.match(fillerDate(150, plot), /^2009년 3월/);
+  const dates = fillerPositions().map((n) => fillerDate(n, plot));
+  assert.equal(new Set(dates).size, dates.length);
+});
 
 test('배치: 원래 화 k는 10k−9번째, 중간 화는 135개이고 자리를 안다', () => {
   assert.deepEqual([1, 2, 15].map(originalPosition), [1, 11, 141]);
@@ -53,6 +67,7 @@ test('생성 입력: 오류 계획과 평가용 안내는 빼고 설정은 남�
   const input = fillerInput(23, { worldBible: bible, plot }, parsePlot(read('plot.md')), [{ n: 22, summary: '민수가 시험을 본다.' }]);
   assert.match(input, /# 쓸 화: 전체 23화\n원작 3화 「MT」\(2007-05-25\) 뒤, 원작 4화 「설립」\(2007-08-21\) 앞\. 그 사이에 들어가는 중간 화 9개 중 2번째\./);
   assert.match(input, /- 22화: 민수가 시험을 본다\./);
+  assert.match(input, /이 화의 날짜: 2007년 6월 \d+일 무렵/);
   assert.match(fillerInput(150, { worldBible: bible, plot }, parsePlot(read('plot.md')), []), /원작 마지막 화인 15화/);
 });
 
@@ -106,4 +121,11 @@ test('비용 한도: 한도에 닿으면 다음 호출을 보내지 않는다 (�
   assert.equal(ai.spent().toFixed(4), '0.0090');
   await assert.rejects(ai.json(call), BudgetExceeded);
   assert.equal(calls, 3);
+});
+
+test('묶기: 150화가 다 있어야 하나로 묶고, 풀면 그대로다', () => {
+  const files = Object.fromEntries(Array.from({ length: 150 }, (_, i) => [`${String(i + 1).padStart(3, '0')}.md`, `# ${i + 1}화. 제목\n\n본문 "따옴표"\n`]));
+  assert.deepEqual(unpackChapters(packChapters(files)), files);
+  const { ['150.md']: _, ...missing } = files;
+  assert.throws(() => packChapters(missing), /150개가 모두 있어야/);
 });

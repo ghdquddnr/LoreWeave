@@ -1,0 +1,802 @@
+{
+  "version": 2,
+  "changelog": [
+    "v2 (2026-10-24, review queue adjudication after first runs): E15 target widened to the whole phone-call scene (ch8), E30 target widened to the rooftop sentence (ch14). Both are the same error, quoted from a different sentence of the same scene. No error/trap added or removed."
+  ],
+  "notes": "target/source quotes are verbatim substrings of benchmark/chapters/chNN.md. distance = target - nearest source chapter. See error-plan.md for definitions and the echo rule. | M5: 원래 화 k를 150화 중 10k−9번째에 두고 화 번호만 바꿈. 중간 화(그 밖의 번호)는 정답이 없음.",
+  "errors": [
+    {
+      "id": "E01",
+      "category": "first_meeting",
+      "split": "dev",
+      "explicitness": "L1",
+      "distance": 70,
+      "target": {
+        "chapter": 81,
+        "quotes": [
+          "민수가 지현을 처음 본 건 작년 여름, 법인 설립 서류 때문에 찾아간 세무사 사무실에서였다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 11,
+          "quotes": [
+            "처음 보는 사람이었지만, 말 한마디 한마디에 군더더기가 없었다."
+          ]
+        }
+      ],
+      "description": "민수와 지현은 2화(2007-04-17) 설명회에서 처음 만났다. 9화는 첫 만남을 2007년 여름 세무사 사무실로 서술."
+    },
+    {
+      "id": "E02",
+      "category": "first_meeting",
+      "split": "test",
+      "explicitness": "L2",
+      "distance": 20,
+      "target": {
+        "chapter": 61,
+        "quotes": [
+          "처음 뵙겠습니다. 한빛벤처스 이사 오태식입니다.",
+          "민수는 낯선 얼굴을 바라보며 명함을 받았다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 41,
+          "quotes": [
+            "처음 뵙겠습니다. 한빛벤처스 오태식입니다. 어디 한번 들어 봅시다."
+          ]
+        }
+      ],
+      "description": "민수와 오태식은 5화 IR에서 이미 만났다. 7화에서 처음 만나는 것처럼 묘사."
+    },
+    {
+      "id": "E03",
+      "category": "first_meeting",
+      "split": "test",
+      "explicitness": "L2",
+      "distance": 90,
+      "target": {
+        "chapter": 111,
+        "quotes": [
+          "성진이 지현을 처음 만난 건 회사를 세우던 날이었다.",
+          "그날 선배 처음 봤잖아요."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 21,
+          "quotes": [
+            "처음 뵙겠습니다! 컴퓨터공학과 07학번 박성진입니다."
+          ]
+        }
+      ],
+      "description": "성진과 지현은 3화 MT(2007-05-25)에서 처음 만났다. 12화는 설립일(4화)에 처음 만났다고 서술."
+    },
+    {
+      "id": "E04",
+      "category": "age",
+      "split": "dev",
+      "explicitness": "L1",
+      "distance": 10,
+      "target": {
+        "chapter": 21,
+        "quotes": [
+          "스물두 살입니다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 1,
+          "quotes": [
+            "둘 다 스무 살이었다."
+          ]
+        },
+        {
+          "chapter": 11,
+          "quotes": [
+            "그럼 스무 살? 나보다 한 살 어리네."
+          ]
+        }
+      ],
+      "description": "2007년 민수는 20세."
+    },
+    {
+      "id": "E05",
+      "category": "age",
+      "split": "test",
+      "explicitness": "L2",
+      "distance": 80,
+      "target": {
+        "chapter": 121,
+        "quotes": [
+          "쉰을 훌쩍 넘긴 나이답지 않게"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 41,
+          "quotes": [
+            "올해 마흔다섯이라는 그는"
+          ]
+        }
+      ],
+      "description": "오태식은 2007년 45세, 2008년 46세."
+    },
+    {
+      "id": "E06",
+      "category": "age",
+      "split": "test",
+      "explicitness": "L3",
+      "distance": 80,
+      "target": {
+        "chapter": 91,
+        "quotes": [
+          "민수보다 두 살 어린 지현이었지만"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 11,
+          "quotes": [
+            "그럼 스무 살? 나보다 한 살 어리네. 난 스물한 살."
+          ]
+        }
+      ],
+      "description": "지현이 민수보다 한 살 많다."
+    },
+    {
+      "id": "E07",
+      "category": "occupation",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 50,
+      "target": {
+        "chapter": 51,
+        "quotes": [
+          "평생 공무원으로 일해 온 아버지는"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 1,
+          "quotes": [
+            "김정호는 수원에서 '대성정밀'이라는 자동차 부품 공장을 25년째 운영하고 있었다."
+          ]
+        }
+      ],
+      "description": "민수 아버지는 공장을 운영하는 사장."
+    },
+    {
+      "id": "E08",
+      "category": "occupation",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 40,
+      "target": {
+        "chapter": 101,
+        "quotes": [
+          "은행 지점장인 오태식의 동생답게"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 41,
+          "quotes": [
+            "한빛벤처스의 오태식 이사였다"
+          ]
+        },
+        {
+          "chapter": 61,
+          "quotes": [
+            "한빛벤처스 이사 오태식입니다."
+          ]
+        }
+      ],
+      "description": "오태식은 벤처캐피털 한빛벤처스의 이사."
+    },
+    {
+      "id": "E09",
+      "category": "occupation",
+      "split": "dev",
+      "explicitness": "L2",
+      "distance": 20,
+      "target": {
+        "chapter": 31,
+        "quotes": [
+          "그리고 홈페이지는 내가 전산학과 동기들한테 부탁해 놨어."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 11,
+          "quotes": [
+            "저는 경영학과 06학번 이지현입니다."
+          ]
+        }
+      ],
+      "description": "지현은 경영학과. '전산학과 동기들'은 지현이 전산학과라는 함의."
+    },
+    {
+      "id": "E10",
+      "category": "name",
+      "split": "dev",
+      "explicitness": "L1",
+      "distance": 30,
+      "target": {
+        "chapter": 41,
+        "quotes": [
+          "재무 담당인 이지연 씨가 설명드리겠습니다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 11,
+          "quotes": [
+            "저는 경영학과 06학번 이지현입니다."
+          ]
+        }
+      ],
+      "description": "이지현을 이지연으로 표기."
+    },
+    {
+      "id": "E11",
+      "category": "name",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 60,
+      "target": {
+        "chapter": 121,
+        "quotes": [
+          "한별벤처스 입장에서 말씀드리겠습니다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 61,
+          "quotes": [
+            "한빛벤처스 이사 오태식입니다."
+          ]
+        }
+      ],
+      "description": "투자사 이름 한빛벤처스를 한별벤처스로 표기."
+    },
+    {
+      "id": "E12",
+      "category": "name",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 10,
+      "target": {
+        "chapter": 61,
+        "quotes": [
+          "'한도현 교수님. 저희 투자 받았습니다.'"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 21,
+          "quotes": [
+            "전자공학과 한도윤 교수였다."
+          ]
+        },
+        {
+          "chapter": 51,
+          "quotes": [
+            "故 한도윤."
+          ]
+        }
+      ],
+      "description": "한도윤 교수를 한도현으로 표기."
+    },
+    {
+      "id": "E13",
+      "category": "dead_character",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 20,
+      "target": {
+        "chapter": 71,
+        "quotes": [
+          "한 교수는 책상에 앉아 논문을 읽고 있다가 민수를 보고 안경을 벗었다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 51,
+          "quotes": [
+            "한도윤 교수는 그날 새벽 연구실에서 쓰러졌다.",
+            "심근경색이었다."
+          ]
+        }
+      ],
+      "description": "한 교수는 2007-10-09 사망. 8화(2008-03)에서 살아서 등장."
+    },
+    {
+      "id": "E14",
+      "category": "dead_character",
+      "split": "dev",
+      "explicitness": "L3",
+      "distance": 60,
+      "target": {
+        "chapter": 111,
+        "quotes": [
+          "지난달 한 교수님이 직접 써 주신 추천서가 결정적이었다"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 51,
+          "quotes": [
+            "한도윤 교수는 그날 새벽 연구실에서 쓰러졌다."
+          ]
+        }
+      ],
+      "description": "12화는 2008-10. '지난달'(2008-09) 추천서 작성은 사망(2007-10) 이후."
+    },
+    {
+      "id": "E15",
+      "category": "dead_character",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 70,
+      "target": {
+        "chapter": 71,
+        "quotes": [
+          "화면에 '할머니'라는 글자가 떠 있었다.",
+          "\"민수야, 밥은 먹었니?\"",
+          "\"네, 할머니. 먹었어요.\"",
+          "\"알았어요. 할머니도 감기 조심하세요.\"",
+          "전화를 끊고 민수는 혼자 웃었다. 할머니의 \"밥은 먹었니?\"는 어릴 때부터 변함이 없었다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 1,
+          "quotes": [
+            "3년 전 돌아가신 할머니는"
+          ]
+        }
+      ],
+      "description": "할머니는 이야기 시작 3년 전에 별세. 8화에서 전화 통화."
+    },
+    {
+      "id": "E16",
+      "category": "relationship",
+      "split": "test",
+      "explicitness": "L2",
+      "distance": 90,
+      "target": {
+        "chapter": 91,
+        "quotes": [
+          "군대에서 처음 알게 된 이후로 성진은"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 1,
+          "quotes": [
+            "수원 한결고에서 3년 내내 같은 반이었던 녀석이다."
+          ]
+        }
+      ],
+      "description": "민수와 성진은 고교 동창."
+    },
+    {
+      "id": "E17",
+      "category": "relationship",
+      "split": "dev",
+      "explicitness": "L1",
+      "distance": 70,
+      "target": {
+        "chapter": 101,
+        "quotes": [
+          "지현의 남동생 준호는",
+          "준호 걔는 누나 일에 왜 이렇게 관심이 많은지."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 31,
+          "quotes": [
+            "법인 설립 서류는 지현의 오빠 이준호가 도와주었다."
+          ]
+        }
+      ],
+      "description": "준호는 지현의 오빠(28세 세무사)."
+    },
+    {
+      "id": "E18",
+      "category": "relationship",
+      "split": "test",
+      "explicitness": "L2",
+      "distance": 30,
+      "target": {
+        "chapter": 131,
+        "quotes": [
+          "아직 지현에게 마음을 전하지 못한 민수에게"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 101,
+          "quotes": [
+            "저, 선배 좋아해요.",
+            "그날 밤, 두 사람은 연인이 되었다."
+          ]
+        }
+      ],
+      "description": "민수는 11화에서 고백했고 둘은 연인."
+    },
+    {
+      "id": "E19",
+      "category": "date_order",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 80,
+      "target": {
+        "chapter": 111,
+        "quotes": [
+          "2007년 12월, 신림동 반지하에서 회사를 세웠을 때만 해도"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 31,
+          "quotes": [
+            "2007년 8월 21일. 주식회사 미래전자가 세워졌다."
+          ]
+        }
+      ],
+      "description": "설립일은 2007-08-21."
+    },
+    {
+      "id": "E20",
+      "category": "date_order",
+      "split": "test",
+      "explicitness": "L3",
+      "distance": 20,
+      "target": {
+        "chapter": 81,
+        "quotes": [
+          "교수님 장례를 치른 건 투자 계약을 맺기 꼭 일주일 전이었다.",
+          "일주일 뒤에 계약서에 서명했다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 51,
+          "quotes": [
+            "10월 11일, 발인 날 아침에는 비가 내렸다."
+          ]
+        },
+        {
+          "chapter": 61,
+          "quotes": [
+            "2008년 2월 11일. 계약은 한빛벤처스 회의실에서 진행되었다.",
+            "교수님이 돌아가신 지 넉 달."
+          ]
+        }
+      ],
+      "description": "장례 2007-10, 투자 2008-02-11. 간격은 약 4개월."
+    },
+    {
+      "id": "E21",
+      "category": "date_order",
+      "split": "dev",
+      "explicitness": "L2",
+      "distance": 20,
+      "target": {
+        "chapter": 141,
+        "quotes": [
+          "성진이 회사를 떠난 건 10월 중순이었다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 121,
+          "quotes": [
+            "2008년 11월 17일 월요일 아침. 성진의 자리가 비어 있었다."
+          ]
+        }
+      ],
+      "description": "성진이 떠난 날은 2008-11-17."
+    },
+    {
+      "id": "E22",
+      "category": "number",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 30,
+      "target": {
+        "chapter": 101,
+        "quotes": [
+          "지분 10퍼센트를 가진 박성진 이사님"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 71,
+          "quotes": [
+            "민수 42.5퍼센트, 성진이 25.5퍼센트, 저 17퍼센트, 투자사 15퍼센트."
+          ]
+        }
+      ],
+      "description": "투자 후 성진 지분은 25.5%."
+    },
+    {
+      "id": "E23",
+      "category": "number",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 30,
+      "target": {
+        "chapter": 91,
+        "quotes": [
+          "투자사에서 받은 5억 원의 투자금은"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 61,
+          "quotes": [
+            "투자금 3억 원. 지분 15퍼센트."
+          ]
+        }
+      ],
+      "description": "투자금은 3억 원."
+    },
+    {
+      "id": "E24",
+      "category": "number",
+      "split": "dev",
+      "explicitness": "L3",
+      "distance": 60,
+      "target": {
+        "chapter": 121,
+        "quotes": [
+          "기업가치 10억 원을 인정받아 3억 원을 투자받았던 게"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 61,
+          "quotes": [
+            "3억 원, 지분 15퍼센트."
+          ]
+        }
+      ],
+      "description": "3억 원에 15%면 투자 후 기업가치 20억 원. 10억이면 30%가 되어야 함."
+    },
+    {
+      "id": "E25",
+      "category": "location",
+      "split": "dev",
+      "explicitness": "L1",
+      "distance": 40,
+      "target": {
+        "chapter": 71,
+        "quotes": [
+          "장소는 역삼동 사무실."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 31,
+          "quotes": [
+            "사무실은 신림동 골목 안쪽의 반지하였다."
+          ]
+        }
+      ],
+      "description": "판교 이전(2008-10-06) 전까지 사무실은 신림동. 이사한 적 없음."
+    },
+    {
+      "id": "E26",
+      "category": "location",
+      "split": "test",
+      "explicitness": "L1",
+      "distance": 140,
+      "target": {
+        "chapter": 141,
+        "quotes": [
+          "성진은 주말마다 고향 광주로 내려간다는 소문만 들려왔다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 1,
+          "quotes": [
+            "중학교 2학년 때 아버지 전근으로 부산에서 수원으로 올라왔다는 성진은"
+          ]
+        }
+      ],
+      "description": "성진의 고향은 부산."
+    },
+    {
+      "id": "E27",
+      "category": "location",
+      "split": "test",
+      "explicitness": "L2",
+      "distance": 130,
+      "target": {
+        "chapter": 131,
+        "quotes": [
+          "인천에 있는 아버지의 공장은"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 1,
+          "quotes": [
+            "김정호는 수원에서 '대성정밀'이라는 자동차 부품 공장을 25년째 운영하고 있었다."
+          ]
+        }
+      ],
+      "description": "아버지의 공장은 수원."
+    },
+    {
+      "id": "E28",
+      "category": "habit",
+      "split": "dev",
+      "explicitness": "L1",
+      "distance": 70,
+      "target": {
+        "chapter": 81,
+        "quotes": [
+          "민수는 습관처럼 에스프레소 두 잔을 연달아 비웠다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 11,
+          "quotes": [
+            "커피 마시면 심장이 뛰어서요. 카페인에 좀 예민해요."
+          ]
+        }
+      ],
+      "description": "민수는 커피를 마시지 못한다."
+    },
+    {
+      "id": "E29",
+      "category": "habit",
+      "split": "test",
+      "explicitness": "L2",
+      "distance": 120,
+      "target": {
+        "chapter": 141,
+        "quotes": [
+          "주로 쓰는 오른손으로 서명란에 이름을 적은 지현이"
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 21,
+          "quotes": [
+            "지현은 왼손으로 빠르게 메모를 했다.",
+            "선배님, 왼손잡이세요?"
+          ]
+        }
+      ],
+      "description": "지현은 왼손잡이."
+    },
+    {
+      "id": "E30",
+      "category": "habit",
+      "split": "test",
+      "explicitness": "L2",
+      "distance": 90,
+      "target": {
+        "chapter": 131,
+        "quotes": [
+          "그날 저녁, 민수는 혼자 판교 창업지원센터 옥상으로 올라갔다.",
+          "옥상 난간에 팔을 걸치고 한참 동안 아래를 내려다보았다.",
+          "높은 곳에 서 있으니 마음이 조금 가라앉았다."
+        ]
+      },
+      "sources": [
+        {
+          "chapter": 41,
+          "quotes": [
+            "고소공포증이에요?",
+            "옥상도 못 가."
+          ]
+        }
+      ],
+      "description": "민수는 고소공포증이 있다."
+    }
+  ],
+  "traps": [
+    {
+      "id": "T01",
+      "split": "dev",
+      "chapter": 71,
+      "quotes": [
+        "스물한 살이 된 민수는"
+      ],
+      "reason": "2008년 새해, 세는 나이로 20 → 21."
+    },
+    {
+      "id": "T02",
+      "split": "test",
+      "chapter": 91,
+      "quotes": [
+        "김 대표님, 결정하시죠.",
+        "민수 씨, 아니 김 대표님.",
+        "박 이사님도 수고했어요."
+      ],
+      "reason": "호칭 변형. 이름 불일치가 아님."
+    },
+    {
+      "id": "T03",
+      "split": "test",
+      "chapter": 71,
+      "quotes": [
+        "민수 42.5퍼센트, 성진이 25.5퍼센트, 저 17퍼센트, 투자사 15퍼센트."
+      ],
+      "reason": "투자로 인한 정당한 지분 희석 (4화 50/30/20 → 85% × 각 지분)."
+    },
+    {
+      "id": "T04",
+      "split": "test",
+      "chapter": 71,
+      "quotes": [
+        "지현이 CFO, 재무 담당 이사로 정식 선임되었다."
+      ],
+      "reason": "직책 변화(승진)."
+    },
+    {
+      "id": "T05",
+      "split": "dev",
+      "chapter": 81,
+      "quotes": [
+        "봉투 겉면에는 낯익은 필체로 '김민수 군에게'라고 적혀 있었다."
+      ],
+      "reason": "사망 전에 쓴 유품 편지. 사망과 모순 아님."
+    },
+    {
+      "id": "T06",
+      "split": "test",
+      "chapter": 101,
+      "quotes": [
+        "처음 뵙겠습니다. 오태준입니다. 오태식 이사가 제 형님입니다."
+      ],
+      "reason": "오태식이 아닌 동생 오태준과의 첫 만남."
+    },
+    {
+      "id": "T07",
+      "split": "dev",
+      "chapter": 111,
+      "quotes": [
+        "2008년 10월 6일. 미래전자는 판교로 사무실을 옮겼다."
+      ],
+      "reason": "본문에 서술된 사무실 이전."
+    },
+    {
+      "id": "T08",
+      "split": "test",
+      "chapter": 131,
+      "quotes": [
+        "[K테크, 신임 CTO에 박성진 씨 선임]"
+      ],
+      "reason": "퇴사 후 이직. 직업 변화."
+    },
+    {
+      "id": "T09",
+      "split": "test",
+      "chapter": 121,
+      "quotes": [
+        "네. 지분은 하나도 없습니다. 다 넘기고 나왔습니다."
+      ],
+      "reason": "인물의 거짓말. 본문이 거짓말임을 명시."
+    },
+    {
+      "id": "T10",
+      "split": "test",
+      "chapter": 141,
+      "quotes": [
+        "2007년 4월 17일 저녁, 학생회관 3층 세미나실."
+      ],
+      "reason": "회상 장면. 서사 순서 ≠ 스토리 시간."
+    }
+  ]
+}
