@@ -131,6 +131,45 @@ export function candidateFacts(targetEntities: Entity[], priors: PriorAnalysis[]
   return out;
 }
 
+/**
+ * 고른 사실을 다시 줄이는 방법 (M5-PLAN 1절). 화가 늘어도 검사 입력이 커지지 않게 한다.
+ *   - all: 줄이지 않는다 (M4까지의 방식)
+ *   - first-latest: 같은 인물·같은 속성의 사실은 처음 것과 가장 최근 것만
+ *   - recent: 가장 최근 화의 사실부터 limit개
+ *   - first-latest-recent: first-latest로 줄인 뒤, limit을 넘으면 가장 최근에 언급된 속성부터 남긴다
+ */
+export const SELECTIONS = ['all', 'first-latest', 'recent', 'first-latest-recent'] as const;
+export type Selection = (typeof SELECTIONS)[number];
+
+/** 사실 수 상한. 사실 한 줄이 약 55토큰이라 400개면 약 2만 2천 토큰 */
+export const FACT_LIMIT = 400;
+
+/** 같은 속성으로 볼 키: 인물 이름 + 속성 이름(괄호 안 내용과 공백을 뺌, 예: "나이 (2008년)" → "나이") */
+export function attributeKey(f: { entity: string; predicate: string }): string {
+  const predicate = f.predicate.normalize('NFC').replace(/\([^)]*\)/g, '').replace(/\s+/g, '');
+  return `${f.entity.normalize('NFC').replace(/\s+/g, '')}|${predicate}`;
+}
+
+/** 화 순서(candidateFacts의 순서)를 지킨 채로 줄인다 */
+export function selectFacts(facts: PriorFact[], selection: Selection, limit = FACT_LIMIT): PriorFact[] {
+  if (selection === 'all') return facts;
+  if (selection === 'recent') return facts.slice(Math.max(0, facts.length - limit));
+  const first = new Map<string, number>();
+  const last = new Map<string, number>();
+  facts.forEach((f, i) => {
+    const key = attributeKey(f);
+    if (!first.has(key)) first.set(key, i);
+    last.set(key, i);
+  });
+  let keys = [...first.keys()];
+  if (selection === 'first-latest-recent') {
+    // 속성마다 최대 2개라 limit/2개 속성을 최근 언급 순으로 남긴다
+    keys = keys.sort((a, b) => last.get(b)! - last.get(a)!).slice(0, Math.floor(limit / 2));
+  }
+  const keep = new Set(keys.flatMap((k) => [first.get(k)!, last.get(k)!]));
+  return facts.filter((_, i) => keep.has(i));
+}
+
 function factBlocks(facts: PriorFact[]): string {
   const byChapter = new Map<number, string[]>();
   for (const f of facts) {

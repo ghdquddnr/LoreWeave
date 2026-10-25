@@ -1,0 +1,2982 @@
+[
+ {
+  "n": 2,
+  "priorFacts": 20,
+  "all": {
+   "facts": 18,
+   "inputChars": 3746
+  },
+  "first-latest": {
+   "facts": 18,
+   "inputChars": 3746
+  },
+  "recent": {
+   "facts": 18,
+   "inputChars": 3746
+  },
+  "first-latest-recent": {
+   "facts": 18,
+   "inputChars": 3746
+  }
+ },
+ {
+  "n": 3,
+  "priorFacts": 32,
+  "all": {
+   "facts": 27,
+   "inputChars": 4941
+  },
+  "first-latest": {
+   "facts": 27,
+   "inputChars": 4941
+  },
+  "recent": {
+   "facts": 27,
+   "inputChars": 4941
+  },
+  "first-latest-recent": {
+   "facts": 27,
+   "inputChars": 4941
+  }
+ },
+ {
+  "n": 4,
+  "priorFacts": 43,
+  "all": {
+   "facts": 38,
+   "inputChars": 5670
+  },
+  "first-latest": {
+   "facts": 38,
+   "inputChars": 5670
+  },
+  "recent": {
+   "facts": 38,
+   "inputChars": 5670
+  },
+  "first-latest-recent": {
+   "facts": 38,
+   "inputChars": 5670
+  }
+ },
+ {
+  "n": 5,
+  "priorFacts": 51,
+  "all": {
+   "facts": 41,
+   "inputChars": 6030
+  },
+  "first-latest": {
+   "facts": 40,
+   "inputChars": 5933
+  },
+  "recent": {
+   "facts": 41,
+   "inputChars": 6030
+  },
+  "first-latest-recent": {
+   "facts": 40,
+   "inputChars": 5933
+  }
+ },
+ {
+  "n": 6,
+  "priorFacts": 58,
+  "all": {
+   "facts": 53,
+   "inputChars": 6247
+  },
+  "first-latest": {
+   "facts": 52,
+   "inputChars": 6150
+  },
+  "recent": {
+   "facts": 53,
+   "inputChars": 6247
+  },
+  "first-latest-recent": {
+   "facts": 52,
+   "inputChars": 6150
+  }
+ },
+ {
+  "n": 7,
+  "priorFacts": 64,
+  "all": {
+   "facts": 54,
+   "inputChars": 6735
+  },
+  "first-latest": {
+   "facts": 53,
+   "inputChars": 6638
+  },
+  "recent": {
+   "facts": 54,
+   "inputChars": 6735
+  },
+  "first-latest-recent": {
+   "facts": 53,
+   "inputChars": 6638
+  }
+ },
+ {
+  "n": 8,
+  "priorFacts": 76,
+  "all": {
+   "facts": 65,
+   "inputChars": 7990
+  },
+  "first-latest": {
+   "facts": 64,
+   "inputChars": 7893
+  },
+  "recent": {
+   "facts": 65,
+   "inputChars": 7990
+  },
+  "first-latest-recent": {
+   "facts": 64,
+   "inputChars": 7893
+  }
+ },
+ {
+  "n": 9,
+  "priorFacts": 85,
+  "all": {
+   "facts": 76,
+   "inputChars": 8989
+  },
+  "first-latest": {
+   "facts": 75,
+   "inputChars": 8892
+  },
+  "recent": {
+   "facts": 76,
+   "inputChars": 8989
+  },
+  "first-latest-recent": {
+   "facts": 75,
+   "inputChars": 8892
+  }
+ },
+ {
+  "n": 10,
+  "priorFacts": 99,
+  "all": {
+   "facts": 88,
+   "inputChars": 9857
+  },
+  "first-latest": {
+   "facts": 87,
+   "inputChars": 9760
+  },
+  "recent": {
+   "facts": 88,
+   "inputChars": 9857
+  },
+  "first-latest-recent": {
+   "facts": 87,
+   "inputChars": 9760
+  }
+ },
+ {
+  "n": 11,
+  "priorFacts": 107,
+  "all": {
+   "facts": 86,
+   "inputChars": 9084
+  },
+  "first-latest": {
+   "facts": 85,
+   "inputChars": 8987
+  },
+  "recent": {
+   "facts": 86,
+   "inputChars": 9084
+  },
+  "first-latest-recent": {
+   "facts": 85,
+   "inputChars": 8987
+  }
+ },
+ {
+  "n": 12,
+  "priorFacts": 124,
+  "all": {
+   "facts": 97,
+   "inputChars": 10879
+  },
+  "first-latest": {
+   "facts": 96,
+   "inputChars": 10782
+  },
+  "recent": {
+   "facts": 97,
+   "inputChars": 10879
+  },
+  "first-latest-recent": {
+   "facts": 96,
+   "inputChars": 10782
+  }
+ },
+ {
+  "n": 13,
+  "priorFacts": 131,
+  "all": {
+   "facts": 103,
+   "inputChars": 11878
+  },
+  "first-latest": {
+   "facts": 102,
+   "inputChars": 11781
+  },
+  "recent": {
+   "facts": 103,
+   "inputChars": 11878
+  },
+  "first-latest-recent": {
+   "facts": 102,
+   "inputChars": 11781
+  }
+ },
+ {
+  "n": 14,
+  "priorFacts": 137,
+  "all": {
+   "facts": 119,
+   "inputChars": 13541
+  },
+  "first-latest": {
+   "facts": 118,
+   "inputChars": 13444
+  },
+  "recent": {
+   "facts": 119,
+   "inputChars": 13541
+  },
+  "first-latest-recent": {
+   "facts": 118,
+   "inputChars": 13444
+  }
+ },
+ {
+  "n": 15,
+  "priorFacts": 145,
+  "all": {
+   "facts": 125,
+   "inputChars": 14139
+  },
+  "first-latest": {
+   "facts": 124,
+   "inputChars": 14042
+  },
+  "recent": {
+   "facts": 125,
+   "inputChars": 14139
+  },
+  "first-latest-recent": {
+   "facts": 124,
+   "inputChars": 14042
+  }
+ },
+ {
+  "n": 16,
+  "priorFacts": 158,
+  "all": {
+   "facts": 125,
+   "inputChars": 14399
+  },
+  "first-latest": {
+   "facts": 124,
+   "inputChars": 14302
+  },
+  "recent": {
+   "facts": 125,
+   "inputChars": 14399
+  },
+  "first-latest-recent": {
+   "facts": 124,
+   "inputChars": 14302
+  }
+ },
+ {
+  "n": 17,
+  "priorFacts": 165,
+  "all": {
+   "facts": 124,
+   "inputChars": 14721
+  },
+  "first-latest": {
+   "facts": 122,
+   "inputChars": 14560
+  },
+  "recent": {
+   "facts": 124,
+   "inputChars": 14721
+  },
+  "first-latest-recent": {
+   "facts": 122,
+   "inputChars": 14560
+  }
+ },
+ {
+  "n": 18,
+  "priorFacts": 170,
+  "all": {
+   "facts": 144,
+   "inputChars": 16611
+  },
+  "first-latest": {
+   "facts": 142,
+   "inputChars": 16450
+  },
+  "recent": {
+   "facts": 144,
+   "inputChars": 16611
+  },
+  "first-latest-recent": {
+   "facts": 142,
+   "inputChars": 16450
+  }
+ },
+ {
+  "n": 19,
+  "priorFacts": 177,
+  "all": {
+   "facts": 142,
+   "inputChars": 16537
+  },
+  "first-latest": {
+   "facts": 140,
+   "inputChars": 16376
+  },
+  "recent": {
+   "facts": 142,
+   "inputChars": 16537
+  },
+  "first-latest-recent": {
+   "facts": 140,
+   "inputChars": 16376
+  }
+ },
+ {
+  "n": 20,
+  "priorFacts": 184,
+  "all": {
+   "facts": 139,
+   "inputChars": 15684
+  },
+  "first-latest": {
+   "facts": 137,
+   "inputChars": 15523
+  },
+  "recent": {
+   "facts": 139,
+   "inputChars": 15684
+  },
+  "first-latest-recent": {
+   "facts": 137,
+   "inputChars": 15523
+  }
+ },
+ {
+  "n": 21,
+  "priorFacts": 192,
+  "all": {
+   "facts": 156,
+   "inputChars": 16947
+  },
+  "first-latest": {
+   "facts": 154,
+   "inputChars": 16786
+  },
+  "recent": {
+   "facts": 156,
+   "inputChars": 16947
+  },
+  "first-latest-recent": {
+   "facts": 154,
+   "inputChars": 16786
+  }
+ },
+ {
+  "n": 22,
+  "priorFacts": 206,
+  "all": {
+   "facts": 166,
+   "inputChars": 18662
+  },
+  "first-latest": {
+   "facts": 164,
+   "inputChars": 18501
+  },
+  "recent": {
+   "facts": 166,
+   "inputChars": 18662
+  },
+  "first-latest-recent": {
+   "facts": 164,
+   "inputChars": 18501
+  }
+ },
+ {
+  "n": 23,
+  "priorFacts": 215,
+  "all": {
+   "facts": 179,
+   "inputChars": 19775
+  },
+  "first-latest": {
+   "facts": 177,
+   "inputChars": 19614
+  },
+  "recent": {
+   "facts": 179,
+   "inputChars": 19775
+  },
+  "first-latest-recent": {
+   "facts": 177,
+   "inputChars": 19614
+  }
+ },
+ {
+  "n": 24,
+  "priorFacts": 226,
+  "all": {
+   "facts": 185,
+   "inputChars": 20320
+  },
+  "first-latest": {
+   "facts": 183,
+   "inputChars": 20159
+  },
+  "recent": {
+   "facts": 185,
+   "inputChars": 20320
+  },
+  "first-latest-recent": {
+   "facts": 183,
+   "inputChars": 20159
+  }
+ },
+ {
+  "n": 25,
+  "priorFacts": 233,
+  "all": {
+   "facts": 196,
+   "inputChars": 21728
+  },
+  "first-latest": {
+   "facts": 194,
+   "inputChars": 21567
+  },
+  "recent": {
+   "facts": 196,
+   "inputChars": 21728
+  },
+  "first-latest-recent": {
+   "facts": 194,
+   "inputChars": 21567
+  }
+ },
+ {
+  "n": 26,
+  "priorFacts": 239,
+  "all": {
+   "facts": 189,
+   "inputChars": 20948
+  },
+  "first-latest": {
+   "facts": 187,
+   "inputChars": 20787
+  },
+  "recent": {
+   "facts": 189,
+   "inputChars": 20948
+  },
+  "first-latest-recent": {
+   "facts": 187,
+   "inputChars": 20787
+  }
+ },
+ {
+  "n": 27,
+  "priorFacts": 244,
+  "all": {
+   "facts": 206,
+   "inputChars": 22871
+  },
+  "first-latest": {
+   "facts": 204,
+   "inputChars": 22710
+  },
+  "recent": {
+   "facts": 206,
+   "inputChars": 22871
+  },
+  "first-latest-recent": {
+   "facts": 204,
+   "inputChars": 22710
+  }
+ },
+ {
+  "n": 28,
+  "priorFacts": 254,
+  "all": {
+   "facts": 213,
+   "inputChars": 23702
+  },
+  "first-latest": {
+   "facts": 210,
+   "inputChars": 23475
+  },
+  "recent": {
+   "facts": 213,
+   "inputChars": 23702
+  },
+  "first-latest-recent": {
+   "facts": 210,
+   "inputChars": 23475
+  }
+ },
+ {
+  "n": 29,
+  "priorFacts": 260,
+  "all": {
+   "facts": 218,
+   "inputChars": 24601
+  },
+  "first-latest": {
+   "facts": 216,
+   "inputChars": 24440
+  },
+  "recent": {
+   "facts": 218,
+   "inputChars": 24601
+  },
+  "first-latest-recent": {
+   "facts": 211,
+   "inputChars": 24100
+  }
+ },
+ {
+  "n": 30,
+  "priorFacts": 265,
+  "all": {
+   "facts": 228,
+   "inputChars": 25376
+  },
+  "first-latest": {
+   "facts": 224,
+   "inputChars": 25080
+  },
+  "recent": {
+   "facts": 228,
+   "inputChars": 25376
+  },
+  "first-latest-recent": {
+   "facts": 213,
+   "inputChars": 24139
+  }
+ },
+ {
+  "n": 31,
+  "priorFacts": 270,
+  "all": {
+   "facts": 221,
+   "inputChars": 24048
+  },
+  "first-latest": {
+   "facts": 219,
+   "inputChars": 23887
+  },
+  "recent": {
+   "facts": 221,
+   "inputChars": 24048
+  },
+  "first-latest-recent": {
+   "facts": 213,
+   "inputChars": 23413
+  }
+ },
+ {
+  "n": 32,
+  "priorFacts": 290,
+  "all": {
+   "facts": 234,
+   "inputChars": 25908
+  },
+  "first-latest": {
+   "facts": 232,
+   "inputChars": 25747
+  },
+  "recent": {
+   "facts": 234,
+   "inputChars": 25908
+  },
+  "first-latest-recent": {
+   "facts": 212,
+   "inputChars": 23902
+  }
+ },
+ {
+  "n": 33,
+  "priorFacts": 298,
+  "all": {
+   "facts": 241,
+   "inputChars": 26200
+  },
+  "first-latest": {
+   "facts": 239,
+   "inputChars": 26039
+  },
+  "recent": {
+   "facts": 241,
+   "inputChars": 26200
+  },
+  "first-latest-recent": {
+   "facts": 214,
+   "inputChars": 23839
+  }
+ },
+ {
+  "n": 34,
+  "priorFacts": 307,
+  "all": {
+   "facts": 241,
+   "inputChars": 26506
+  },
+  "first-latest": {
+   "facts": 239,
+   "inputChars": 26345
+  },
+  "recent": {
+   "facts": 241,
+   "inputChars": 26506
+  },
+  "first-latest-recent": {
+   "facts": 215,
+   "inputChars": 24202
+  }
+ },
+ {
+  "n": 35,
+  "priorFacts": 314,
+  "all": {
+   "facts": 258,
+   "inputChars": 28663
+  },
+  "first-latest": {
+   "facts": 256,
+   "inputChars": 28502
+  },
+  "recent": {
+   "facts": 258,
+   "inputChars": 28663
+  },
+  "first-latest-recent": {
+   "facts": 213,
+   "inputChars": 24825
+  }
+ },
+ {
+  "n": 36,
+  "priorFacts": 321,
+  "all": {
+   "facts": 254,
+   "inputChars": 28005
+  },
+  "first-latest": {
+   "facts": 252,
+   "inputChars": 27844
+  },
+  "recent": {
+   "facts": 254,
+   "inputChars": 28005
+  },
+  "first-latest-recent": {
+   "facts": 213,
+   "inputChars": 24466
+  }
+ },
+ {
+  "n": 37,
+  "priorFacts": 328,
+  "all": {
+   "facts": 263,
+   "inputChars": 28211
+  },
+  "first-latest": {
+   "facts": 261,
+   "inputChars": 28050
+  },
+  "recent": {
+   "facts": 263,
+   "inputChars": 28211
+  },
+  "first-latest-recent": {
+   "facts": 215,
+   "inputChars": 24108
+  }
+ },
+ {
+  "n": 38,
+  "priorFacts": 336,
+  "all": {
+   "facts": 276,
+   "inputChars": 30042
+  },
+  "first-latest": {
+   "facts": 273,
+   "inputChars": 29799
+  },
+  "recent": {
+   "facts": 276,
+   "inputChars": 30042
+  },
+  "first-latest-recent": {
+   "facts": 215,
+   "inputChars": 24679
+  }
+ },
+ {
+  "n": 39,
+  "priorFacts": 347,
+  "all": {
+   "facts": 277,
+   "inputChars": 29989
+  },
+  "first-latest": {
+   "facts": 275,
+   "inputChars": 29828
+  },
+  "recent": {
+   "facts": 277,
+   "inputChars": 29989
+  },
+  "first-latest-recent": {
+   "facts": 214,
+   "inputChars": 24396
+  }
+ },
+ {
+  "n": 40,
+  "priorFacts": 353,
+  "all": {
+   "facts": 283,
+   "inputChars": 30688
+  },
+  "first-latest": {
+   "facts": 278,
+   "inputChars": 30320
+  },
+  "recent": {
+   "facts": 283,
+   "inputChars": 30688
+  },
+  "first-latest-recent": {
+   "facts": 217,
+   "inputChars": 24888
+  }
+ },
+ {
+  "n": 41,
+  "priorFacts": 362,
+  "all": {
+   "facts": 281,
+   "inputChars": 29578
+  },
+  "first-latest": {
+   "facts": 275,
+   "inputChars": 29145
+  },
+  "recent": {
+   "facts": 281,
+   "inputChars": 29578
+  },
+  "first-latest-recent": {
+   "facts": 218,
+   "inputChars": 24037
+  }
+ },
+ {
+  "n": 42,
+  "priorFacts": 380,
+  "all": {
+   "facts": 286,
+   "inputChars": 30818
+  },
+  "first-latest": {
+   "facts": 279,
+   "inputChars": 30292
+  },
+  "recent": {
+   "facts": 286,
+   "inputChars": 30818
+  },
+  "first-latest-recent": {
+   "facts": 216,
+   "inputChars": 24678
+  }
+ },
+ {
+  "n": 43,
+  "priorFacts": 386,
+  "all": {
+   "facts": 308,
+   "inputChars": 32836
+  },
+  "first-latest": {
+   "facts": 298,
+   "inputChars": 32096
+  },
+  "recent": {
+   "facts": 308,
+   "inputChars": 32836
+  },
+  "first-latest-recent": {
+   "facts": 219,
+   "inputChars": 24850
+  }
+ },
+ {
+  "n": 44,
+  "priorFacts": 394,
+  "all": {
+   "facts": 297,
+   "inputChars": 31930
+  },
+  "first-latest": {
+   "facts": 287,
+   "inputChars": 31173
+  },
+  "recent": {
+   "facts": 297,
+   "inputChars": 31930
+  },
+  "first-latest-recent": {
+   "facts": 218,
+   "inputChars": 24956
+  }
+ },
+ {
+  "n": 45,
+  "priorFacts": 399,
+  "all": {
+   "facts": 302,
+   "inputChars": 32198
+  },
+  "first-latest": {
+   "facts": 292,
+   "inputChars": 31441
+  },
+  "recent": {
+   "facts": 302,
+   "inputChars": 32198
+  },
+  "first-latest-recent": {
+   "facts": 219,
+   "inputChars": 24825
+  }
+ },
+ {
+  "n": 46,
+  "priorFacts": 406,
+  "all": {
+   "facts": 309,
+   "inputChars": 33191
+  },
+  "first-latest": {
+   "facts": 299,
+   "inputChars": 32434
+  },
+  "recent": {
+   "facts": 309,
+   "inputChars": 33191
+  },
+  "first-latest-recent": {
+   "facts": 219,
+   "inputChars": 25202
+  }
+ },
+ {
+  "n": 47,
+  "priorFacts": 416,
+  "all": {
+   "facts": 334,
+   "inputChars": 35730
+  },
+  "first-latest": {
+   "facts": 324,
+   "inputChars": 34973
+  },
+  "recent": {
+   "facts": 334,
+   "inputChars": 35730
+  },
+  "first-latest-recent": {
+   "facts": 220,
+   "inputChars": 25572
+  }
+ },
+ {
+  "n": 48,
+  "priorFacts": 424,
+  "all": {
+   "facts": 340,
+   "inputChars": 35964
+  },
+  "first-latest": {
+   "facts": 330,
+   "inputChars": 35207
+  },
+  "recent": {
+   "facts": 340,
+   "inputChars": 35964
+  },
+  "first-latest-recent": {
+   "facts": 220,
+   "inputChars": 25013
+  }
+ },
+ {
+  "n": 49,
+  "priorFacts": 433,
+  "all": {
+   "facts": 353,
+   "inputChars": 36989
+  },
+  "first-latest": {
+   "facts": 341,
+   "inputChars": 36035
+  },
+  "recent": {
+   "facts": 353,
+   "inputChars": 36989
+  },
+  "first-latest-recent": {
+   "facts": 221,
+   "inputChars": 24560
+  }
+ },
+ {
+  "n": 50,
+  "priorFacts": 445,
+  "all": {
+   "facts": 372,
+   "inputChars": 38603
+  },
+  "first-latest": {
+   "facts": 361,
+   "inputChars": 37723
+  },
+  "recent": {
+   "facts": 372,
+   "inputChars": 38603
+  },
+  "first-latest-recent": {
+   "facts": 219,
+   "inputChars": 23716
+  }
+ },
+ {
+  "n": 51,
+  "priorFacts": 454,
+  "all": {
+   "facts": 371,
+   "inputChars": 37864
+  },
+  "first-latest": {
+   "facts": 363,
+   "inputChars": 37237
+  },
+  "recent": {
+   "facts": 371,
+   "inputChars": 37864
+  },
+  "first-latest-recent": {
+   "facts": 220,
+   "inputChars": 23185
+  }
+ },
+ {
+  "n": 52,
+  "priorFacts": 468,
+  "all": {
+   "facts": 372,
+   "inputChars": 39047
+  },
+  "first-latest": {
+   "facts": 361,
+   "inputChars": 38167
+  },
+  "recent": {
+   "facts": 372,
+   "inputChars": 39047
+  },
+  "first-latest-recent": {
+   "facts": 221,
+   "inputChars": 24169
+  }
+ },
+ {
+  "n": 53,
+  "priorFacts": 477,
+  "all": {
+   "facts": 382,
+   "inputChars": 40326
+  },
+  "first-latest": {
+   "facts": 370,
+   "inputChars": 39367
+  },
+  "recent": {
+   "facts": 382,
+   "inputChars": 40326
+  },
+  "first-latest-recent": {
+   "facts": 222,
+   "inputChars": 24490
+  }
+ },
+ {
+  "n": 54,
+  "priorFacts": 491,
+  "all": {
+   "facts": 393,
+   "inputChars": 41089
+  },
+  "first-latest": {
+   "facts": 381,
+   "inputChars": 40130
+  },
+  "recent": {
+   "facts": 393,
+   "inputChars": 41089
+  },
+  "first-latest-recent": {
+   "facts": 223,
+   "inputChars": 24417
+  }
+ },
+ {
+  "n": 55,
+  "priorFacts": 499,
+  "all": {
+   "facts": 420,
+   "inputChars": 43939
+  },
+  "first-latest": {
+   "facts": 406,
+   "inputChars": 42839
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42295
+  },
+  "first-latest-recent": {
+   "facts": 223,
+   "inputChars": 24434
+  }
+ },
+ {
+  "n": 56,
+  "priorFacts": 506,
+  "all": {
+   "facts": 409,
+   "inputChars": 43572
+  },
+  "first-latest": {
+   "facts": 395,
+   "inputChars": 42459
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42868
+  },
+  "first-latest-recent": {
+   "facts": 223,
+   "inputChars": 25463
+  }
+ },
+ {
+  "n": 57,
+  "priorFacts": 518,
+  "all": {
+   "facts": 421,
+   "inputChars": 44112
+  },
+  "first-latest": {
+   "facts": 406,
+   "inputChars": 42938
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42376
+  },
+  "first-latest-recent": {
+   "facts": 225,
+   "inputChars": 24910
+  }
+ },
+ {
+  "n": 58,
+  "priorFacts": 529,
+  "all": {
+   "facts": 416,
+   "inputChars": 43439
+  },
+  "first-latest": {
+   "facts": 400,
+   "inputChars": 42199
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42074
+  },
+  "first-latest-recent": {
+   "facts": 225,
+   "inputChars": 24754
+  }
+ },
+ {
+  "n": 59,
+  "priorFacts": 537,
+  "all": {
+   "facts": 457,
+   "inputChars": 47250
+  },
+  "first-latest": {
+   "facts": 437,
+   "inputChars": 45684
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42198
+  },
+  "first-latest-recent": {
+   "facts": 226,
+   "inputChars": 24341
+  }
+ },
+ {
+  "n": 60,
+  "priorFacts": 545,
+  "all": {
+   "facts": 461,
+   "inputChars": 47974
+  },
+  "first-latest": {
+   "facts": 440,
+   "inputChars": 46325
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42569
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 25060
+  }
+ },
+ {
+  "n": 61,
+  "priorFacts": 553,
+  "all": {
+   "facts": 487,
+   "inputChars": 48787
+  },
+  "first-latest": {
+   "facts": 467,
+   "inputChars": 47225
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40850
+  },
+  "first-latest-recent": {
+   "facts": 225,
+   "inputChars": 23381
+  }
+ },
+ {
+  "n": 62,
+  "priorFacts": 565,
+  "all": {
+   "facts": 443,
+   "inputChars": 45180
+  },
+  "first-latest": {
+   "facts": 423,
+   "inputChars": 43599
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41467
+  },
+  "first-latest-recent": {
+   "facts": 226,
+   "inputChars": 23408
+  }
+ },
+ {
+  "n": 63,
+  "priorFacts": 573,
+  "all": {
+   "facts": 471,
+   "inputChars": 48232
+  },
+  "first-latest": {
+   "facts": 447,
+   "inputChars": 46313
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41884
+  },
+  "first-latest-recent": {
+   "facts": 226,
+   "inputChars": 24184
+  }
+ },
+ {
+  "n": 64,
+  "priorFacts": 578,
+  "all": {
+   "facts": 467,
+   "inputChars": 47837
+  },
+  "first-latest": {
+   "facts": 444,
+   "inputChars": 45982
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41874
+  },
+  "first-latest-recent": {
+   "facts": 224,
+   "inputChars": 23986
+  }
+ },
+ {
+  "n": 65,
+  "priorFacts": 585,
+  "all": {
+   "facts": 474,
+   "inputChars": 48917
+  },
+  "first-latest": {
+   "facts": 450,
+   "inputChars": 46956
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42288
+  },
+  "first-latest-recent": {
+   "facts": 224,
+   "inputChars": 24453
+  }
+ },
+ {
+  "n": 66,
+  "priorFacts": 589,
+  "all": {
+   "facts": 484,
+   "inputChars": 49627
+  },
+  "first-latest": {
+   "facts": 457,
+   "inputChars": 47399
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42027
+  },
+  "first-latest-recent": {
+   "facts": 224,
+   "inputChars": 24294
+  }
+ },
+ {
+  "n": 67,
+  "priorFacts": 601,
+  "all": {
+   "facts": 496,
+   "inputChars": 51442
+  },
+  "first-latest": {
+   "facts": 467,
+   "inputChars": 49052
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42683
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 25145
+  }
+ },
+ {
+  "n": 68,
+  "priorFacts": 608,
+  "all": {
+   "facts": 480,
+   "inputChars": 49029
+  },
+  "first-latest": {
+   "facts": 451,
+   "inputChars": 46589
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41766
+  },
+  "first-latest-recent": {
+   "facts": 229,
+   "inputChars": 24259
+  }
+ },
+ {
+  "n": 69,
+  "priorFacts": 616,
+  "all": {
+   "facts": 511,
+   "inputChars": 52564
+  },
+  "first-latest": {
+   "facts": 479,
+   "inputChars": 49903
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42333
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 24569
+  }
+ },
+ {
+  "n": 70,
+  "priorFacts": 623,
+  "all": {
+   "facts": 490,
+   "inputChars": 49952
+  },
+  "first-latest": {
+   "facts": 460,
+   "inputChars": 47444
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41721
+  },
+  "first-latest-recent": {
+   "facts": 227,
+   "inputChars": 24059
+  }
+ },
+ {
+  "n": 71,
+  "priorFacts": 631,
+  "all": {
+   "facts": 527,
+   "inputChars": 52977
+  },
+  "first-latest": {
+   "facts": 497,
+   "inputChars": 50469
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40792
+  },
+  "first-latest-recent": {
+   "facts": 222,
+   "inputChars": 23045
+  }
+ },
+ {
+  "n": 72,
+  "priorFacts": 648,
+  "all": {
+   "facts": 513,
+   "inputChars": 53369
+  },
+  "first-latest": {
+   "facts": 482,
+   "inputChars": 50774
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42857
+  },
+  "first-latest-recent": {
+   "facts": 225,
+   "inputChars": 24823
+  }
+ },
+ {
+  "n": 73,
+  "priorFacts": 656,
+  "all": {
+   "facts": 546,
+   "inputChars": 55970
+  },
+  "first-latest": {
+   "facts": 510,
+   "inputChars": 52985
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41396
+  },
+  "first-latest-recent": {
+   "facts": 226,
+   "inputChars": 24055
+  }
+ },
+ {
+  "n": 74,
+  "priorFacts": 667,
+  "all": {
+   "facts": 586,
+   "inputChars": 59214
+  },
+  "first-latest": {
+   "facts": 549,
+   "inputChars": 56158
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40932
+  },
+  "first-latest-recent": {
+   "facts": 225,
+   "inputChars": 23772
+  }
+ },
+ {
+  "n": 75,
+  "priorFacts": 676,
+  "all": {
+   "facts": 564,
+   "inputChars": 57602
+  },
+  "first-latest": {
+   "facts": 526,
+   "inputChars": 54473
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41327
+  },
+  "first-latest-recent": {
+   "facts": 226,
+   "inputChars": 24046
+  }
+ },
+ {
+  "n": 76,
+  "priorFacts": 685,
+  "all": {
+   "facts": 560,
+   "inputChars": 56748
+  },
+  "first-latest": {
+   "facts": 526,
+   "inputChars": 53921
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40840
+  },
+  "first-latest-recent": {
+   "facts": 225,
+   "inputChars": 23733
+  }
+ },
+ {
+  "n": 77,
+  "priorFacts": 695,
+  "all": {
+   "facts": 592,
+   "inputChars": 60338
+  },
+  "first-latest": {
+   "facts": 553,
+   "inputChars": 57118
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41377
+  },
+  "first-latest-recent": {
+   "facts": 227,
+   "inputChars": 24325
+  }
+ },
+ {
+  "n": 78,
+  "priorFacts": 702,
+  "all": {
+   "facts": 572,
+   "inputChars": 58920
+  },
+  "first-latest": {
+   "facts": 535,
+   "inputChars": 55869
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41745
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 24492
+  }
+ },
+ {
+  "n": 79,
+  "priorFacts": 713,
+  "all": {
+   "facts": 566,
+   "inputChars": 58114
+  },
+  "first-latest": {
+   "facts": 529,
+   "inputChars": 55063
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41640
+  },
+  "first-latest-recent": {
+   "facts": 229,
+   "inputChars": 24581
+  }
+ },
+ {
+  "n": 80,
+  "priorFacts": 721,
+  "all": {
+   "facts": 574,
+   "inputChars": 58547
+  },
+  "first-latest": {
+   "facts": 536,
+   "inputChars": 55401
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41313
+  },
+  "first-latest-recent": {
+   "facts": 229,
+   "inputChars": 24259
+  }
+ },
+ {
+  "n": 81,
+  "priorFacts": 729,
+  "all": {
+   "facts": 632,
+   "inputChars": 63810
+  },
+  "first-latest": {
+   "facts": 590,
+   "inputChars": 60347
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 39948
+  },
+  "first-latest-recent": {
+   "facts": 227,
+   "inputChars": 23521
+  }
+ },
+ {
+  "n": 82,
+  "priorFacts": 741,
+  "all": {
+   "facts": 609,
+   "inputChars": 62538
+  },
+  "first-latest": {
+   "facts": 569,
+   "inputChars": 59175
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41163
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 24900
+  }
+ },
+ {
+  "n": 83,
+  "priorFacts": 752,
+  "all": {
+   "facts": 629,
+   "inputChars": 63842
+  },
+  "first-latest": {
+   "facts": 583,
+   "inputChars": 60017
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40546
+  },
+  "first-latest-recent": {
+   "facts": 232,
+   "inputChars": 24561
+  }
+ },
+ {
+  "n": 84,
+  "priorFacts": 758,
+  "all": {
+   "facts": 635,
+   "inputChars": 64944
+  },
+  "first-latest": {
+   "facts": 588,
+   "inputChars": 61035
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41089
+  },
+  "first-latest-recent": {
+   "facts": 232,
+   "inputChars": 24830
+  }
+ },
+ {
+  "n": 85,
+  "priorFacts": 767,
+  "all": {
+   "facts": 644,
+   "inputChars": 65514
+  },
+  "first-latest": {
+   "facts": 595,
+   "inputChars": 61439
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40892
+  },
+  "first-latest-recent": {
+   "facts": 231,
+   "inputChars": 24552
+  }
+ },
+ {
+  "n": 86,
+  "priorFacts": 777,
+  "all": {
+   "facts": 678,
+   "inputChars": 69339
+  },
+  "first-latest": {
+   "facts": 629,
+   "inputChars": 65264
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41641
+  },
+  "first-latest-recent": {
+   "facts": 229,
+   "inputChars": 25084
+  }
+ },
+ {
+  "n": 87,
+  "priorFacts": 784,
+  "all": {
+   "facts": 642,
+   "inputChars": 65280
+  },
+  "first-latest": {
+   "facts": 597,
+   "inputChars": 61476
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40802
+  },
+  "first-latest-recent": {
+   "facts": 229,
+   "inputChars": 24649
+  }
+ },
+ {
+  "n": 88,
+  "priorFacts": 789,
+  "all": {
+   "facts": 665,
+   "inputChars": 68509
+  },
+  "first-latest": {
+   "facts": 615,
+   "inputChars": 64387
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42159
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 25532
+  }
+ },
+ {
+  "n": 89,
+  "priorFacts": 799,
+  "all": {
+   "facts": 675,
+   "inputChars": 69164
+  },
+  "first-latest": {
+   "facts": 624,
+   "inputChars": 64939
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41685
+  },
+  "first-latest-recent": {
+   "facts": 227,
+   "inputChars": 25228
+  }
+ },
+ {
+  "n": 90,
+  "priorFacts": 807,
+  "all": {
+   "facts": 683,
+   "inputChars": 70384
+  },
+  "first-latest": {
+   "facts": 629,
+   "inputChars": 65870
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42122
+  },
+  "first-latest-recent": {
+   "facts": 230,
+   "inputChars": 26151
+  }
+ },
+ {
+  "n": 91,
+  "priorFacts": 817,
+  "all": {
+   "facts": 649,
+   "inputChars": 66046
+  },
+  "first-latest": {
+   "facts": 614,
+   "inputChars": 63199
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41076
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 24794
+  }
+ },
+ {
+  "n": 92,
+  "priorFacts": 827,
+  "all": {
+   "facts": 660,
+   "inputChars": 67729
+  },
+  "first-latest": {
+   "facts": 609,
+   "inputChars": 63397
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41785
+  },
+  "first-latest-recent": {
+   "facts": 230,
+   "inputChars": 25763
+  }
+ },
+ {
+  "n": 93,
+  "priorFacts": 836,
+  "all": {
+   "facts": 609,
+   "inputChars": 63103
+  },
+  "first-latest": {
+   "facts": 577,
+   "inputChars": 60491
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41544
+  },
+  "first-latest-recent": {
+   "facts": 227,
+   "inputChars": 25289
+  }
+ },
+ {
+  "n": 94,
+  "priorFacts": 841,
+  "all": {
+   "facts": 711,
+   "inputChars": 72816
+  },
+  "first-latest": {
+   "facts": 654,
+   "inputChars": 68090
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41805
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 25757
+  }
+ },
+ {
+  "n": 95,
+  "priorFacts": 847,
+  "all": {
+   "facts": 717,
+   "inputChars": 73808
+  },
+  "first-latest": {
+   "facts": 659,
+   "inputChars": 68966
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42104
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 26323
+  }
+ },
+ {
+  "n": 96,
+  "priorFacts": 855,
+  "all": {
+   "facts": 698,
+   "inputChars": 71518
+  },
+  "first-latest": {
+   "facts": 641,
+   "inputChars": 66641
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41929
+  },
+  "first-latest-recent": {
+   "facts": 231,
+   "inputChars": 26158
+  }
+ },
+ {
+  "n": 97,
+  "priorFacts": 864,
+  "all": {
+   "facts": 694,
+   "inputChars": 71101
+  },
+  "first-latest": {
+   "facts": 636,
+   "inputChars": 66072
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41814
+  },
+  "first-latest-recent": {
+   "facts": 228,
+   "inputChars": 25957
+  }
+ },
+ {
+  "n": 98,
+  "priorFacts": 872,
+  "all": {
+   "facts": 741,
+   "inputChars": 75765
+  },
+  "first-latest": {
+   "facts": 679,
+   "inputChars": 70465
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41651
+  },
+  "first-latest-recent": {
+   "facts": 232,
+   "inputChars": 26153
+  }
+ },
+ {
+  "n": 99,
+  "priorFacts": 882,
+  "all": {
+   "facts": 743,
+   "inputChars": 75383
+  },
+  "first-latest": {
+   "facts": 682,
+   "inputChars": 70111
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41444
+  },
+  "first-latest-recent": {
+   "facts": 233,
+   "inputChars": 26165
+  }
+ },
+ {
+  "n": 100,
+  "priorFacts": 892,
+  "all": {
+   "facts": 758,
+   "inputChars": 76852
+  },
+  "first-latest": {
+   "facts": 696,
+   "inputChars": 71507
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41574
+  },
+  "first-latest-recent": {
+   "facts": 235,
+   "inputChars": 26311
+  }
+ },
+ {
+  "n": 101,
+  "priorFacts": 903,
+  "all": {
+   "facts": 677,
+   "inputChars": 68986
+  },
+  "first-latest": {
+   "facts": 637,
+   "inputChars": 65630
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41251
+  },
+  "first-latest-recent": {
+   "facts": 232,
+   "inputChars": 25442
+  }
+ },
+ {
+  "n": 102,
+  "priorFacts": 918,
+  "all": {
+   "facts": 776,
+   "inputChars": 78232
+  },
+  "first-latest": {
+   "facts": 713,
+   "inputChars": 72823
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41190
+  },
+  "first-latest-recent": {
+   "facts": 237,
+   "inputChars": 26479
+  }
+ },
+ {
+  "n": 103,
+  "priorFacts": 926,
+  "all": {
+   "facts": 748,
+   "inputChars": 76380
+  },
+  "first-latest": {
+   "facts": 684,
+   "inputChars": 70830
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41602
+  },
+  "first-latest-recent": {
+   "facts": 237,
+   "inputChars": 26864
+  }
+ },
+ {
+  "n": 104,
+  "priorFacts": 939,
+  "all": {
+   "facts": 761,
+   "inputChars": 77642
+  },
+  "first-latest": {
+   "facts": 695,
+   "inputChars": 71912
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41708
+  },
+  "first-latest-recent": {
+   "facts": 237,
+   "inputChars": 26688
+  }
+ },
+ {
+  "n": 105,
+  "priorFacts": 944,
+  "all": {
+   "facts": 766,
+   "inputChars": 77628
+  },
+  "first-latest": {
+   "facts": 699,
+   "inputChars": 71828
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41182
+  },
+  "first-latest-recent": {
+   "facts": 238,
+   "inputChars": 26142
+  }
+ },
+ {
+  "n": 106,
+  "priorFacts": 954,
+  "all": {
+   "facts": 812,
+   "inputChars": 82193
+  },
+  "first-latest": {
+   "facts": 743,
+   "inputChars": 76282
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41699
+  },
+  "first-latest-recent": {
+   "facts": 239,
+   "inputChars": 26971
+  }
+ },
+ {
+  "n": 107,
+  "priorFacts": 966,
+  "all": {
+   "facts": 849,
+   "inputChars": 85474
+  },
+  "first-latest": {
+   "facts": 775,
+   "inputChars": 79166
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41131
+  },
+  "first-latest-recent": {
+   "facts": 239,
+   "inputChars": 26203
+  }
+ },
+ {
+  "n": 108,
+  "priorFacts": 976,
+  "all": {
+   "facts": 841,
+   "inputChars": 84717
+  },
+  "first-latest": {
+   "facts": 765,
+   "inputChars": 78294
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40980
+  },
+  "first-latest-recent": {
+   "facts": 239,
+   "inputChars": 26086
+  }
+ },
+ {
+  "n": 109,
+  "priorFacts": 983,
+  "all": {
+   "facts": 803,
+   "inputChars": 81534
+  },
+  "first-latest": {
+   "facts": 730,
+   "inputChars": 75286
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41325
+  },
+  "first-latest-recent": {
+   "facts": 240,
+   "inputChars": 26771
+  }
+ },
+ {
+  "n": 110,
+  "priorFacts": 991,
+  "all": {
+   "facts": 855,
+   "inputChars": 86646
+  },
+  "first-latest": {
+   "facts": 777,
+   "inputChars": 80036
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41666
+  },
+  "first-latest-recent": {
+   "facts": 238,
+   "inputChars": 26480
+  }
+ },
+ {
+  "n": 111,
+  "priorFacts": 1000,
+  "all": {
+   "facts": 855,
+   "inputChars": 85119
+  },
+  "first-latest": {
+   "facts": 781,
+   "inputChars": 78780
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40360
+  },
+  "first-latest-recent": {
+   "facts": 237,
+   "inputChars": 25333
+  }
+ },
+ {
+  "n": 112,
+  "priorFacts": 1012,
+  "all": {
+   "facts": 862,
+   "inputChars": 87134
+  },
+  "first-latest": {
+   "facts": 783,
+   "inputChars": 80433
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41528
+  },
+  "first-latest-recent": {
+   "facts": 236,
+   "inputChars": 25816
+  }
+ },
+ {
+  "n": 113,
+  "priorFacts": 1022,
+  "all": {
+   "facts": 833,
+   "inputChars": 84628
+  },
+  "first-latest": {
+   "facts": 758,
+   "inputChars": 78198
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41790
+  },
+  "first-latest-recent": {
+   "facts": 238,
+   "inputChars": 26524
+  }
+ },
+ {
+  "n": 114,
+  "priorFacts": 1028,
+  "all": {
+   "facts": 807,
+   "inputChars": 81971
+  },
+  "first-latest": {
+   "facts": 754,
+   "inputChars": 77684
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41321
+  },
+  "first-latest-recent": {
+   "facts": 235,
+   "inputChars": 25812
+  }
+ },
+ {
+  "n": 115,
+  "priorFacts": 1034,
+  "all": {
+   "facts": 892,
+   "inputChars": 90555
+  },
+  "first-latest": {
+   "facts": 811,
+   "inputChars": 83703
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42077
+  },
+  "first-latest-recent": {
+   "facts": 241,
+   "inputChars": 26621
+  }
+ },
+ {
+  "n": 116,
+  "priorFacts": 1042,
+  "all": {
+   "facts": 771,
+   "inputChars": 78150
+  },
+  "first-latest": {
+   "facts": 721,
+   "inputChars": 74061
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40802
+  },
+  "first-latest-recent": {
+   "facts": 236,
+   "inputChars": 25614
+  }
+ },
+ {
+  "n": 117,
+  "priorFacts": 1050,
+  "all": {
+   "facts": 859,
+   "inputChars": 86451
+  },
+  "first-latest": {
+   "facts": 781,
+   "inputChars": 79797
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41215
+  },
+  "first-latest-recent": {
+   "facts": 241,
+   "inputChars": 25813
+  }
+ },
+ {
+  "n": 118,
+  "priorFacts": 1059,
+  "all": {
+   "facts": 893,
+   "inputChars": 90242
+  },
+  "first-latest": {
+   "facts": 818,
+   "inputChars": 84036
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41817
+  },
+  "first-latest-recent": {
+   "facts": 240,
+   "inputChars": 26167
+  }
+ },
+ {
+  "n": 119,
+  "priorFacts": 1068,
+  "all": {
+   "facts": 864,
+   "inputChars": 87509
+  },
+  "first-latest": {
+   "facts": 784,
+   "inputChars": 80772
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41915
+  },
+  "first-latest-recent": {
+   "facts": 241,
+   "inputChars": 26445
+  }
+ },
+ {
+  "n": 120,
+  "priorFacts": 1078,
+  "all": {
+   "facts": 853,
+   "inputChars": 86999
+  },
+  "first-latest": {
+   "facts": 794,
+   "inputChars": 82246
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41999
+  },
+  "first-latest-recent": {
+   "facts": 242,
+   "inputChars": 26626
+  }
+ },
+ {
+  "n": 121,
+  "priorFacts": 1086,
+  "all": {
+   "facts": 951,
+   "inputChars": 94495
+  },
+  "first-latest": {
+   "facts": 872,
+   "inputChars": 87988
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40629
+  },
+  "first-latest-recent": {
+   "facts": 244,
+   "inputChars": 25401
+  }
+ },
+ {
+  "n": 122,
+  "priorFacts": 1105,
+  "all": {
+   "facts": 888,
+   "inputChars": 89084
+  },
+  "first-latest": {
+   "facts": 805,
+   "inputChars": 82104
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40995
+  },
+  "first-latest-recent": {
+   "facts": 245,
+   "inputChars": 26049
+  }
+ },
+ {
+  "n": 123,
+  "priorFacts": 1114,
+  "all": {
+   "facts": 915,
+   "inputChars": 91832
+  },
+  "first-latest": {
+   "facts": 829,
+   "inputChars": 84665
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41253
+  },
+  "first-latest-recent": {
+   "facts": 248,
+   "inputChars": 26618
+  }
+ },
+ {
+  "n": 124,
+  "priorFacts": 1118,
+  "all": {
+   "facts": 964,
+   "inputChars": 97139
+  },
+  "first-latest": {
+   "facts": 871,
+   "inputChars": 89363
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41564
+  },
+  "first-latest-recent": {
+   "facts": 247,
+   "inputChars": 26386
+  }
+ },
+ {
+  "n": 125,
+  "priorFacts": 1127,
+  "all": {
+   "facts": 966,
+   "inputChars": 97362
+  },
+  "first-latest": {
+   "facts": 871,
+   "inputChars": 89329
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41575
+  },
+  "first-latest-recent": {
+   "facts": 249,
+   "inputChars": 26577
+  }
+ },
+ {
+  "n": 126,
+  "priorFacts": 1133,
+  "all": {
+   "facts": 968,
+   "inputChars": 97152
+  },
+  "first-latest": {
+   "facts": 872,
+   "inputChars": 89122
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41105
+  },
+  "first-latest-recent": {
+   "facts": 248,
+   "inputChars": 26189
+  }
+ },
+ {
+  "n": 127,
+  "priorFacts": 1141,
+  "all": {
+   "facts": 632,
+   "inputChars": 64633
+  },
+  "first-latest": {
+   "facts": 572,
+   "inputChars": 59864
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41137
+  },
+  "first-latest-recent": {
+   "facts": 241,
+   "inputChars": 26657
+  }
+ },
+ {
+  "n": 128,
+  "priorFacts": 1146,
+  "all": {
+   "facts": 981,
+   "inputChars": 98781
+  },
+  "first-latest": {
+   "facts": 882,
+   "inputChars": 90530
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41590
+  },
+  "first-latest-recent": {
+   "facts": 245,
+   "inputChars": 26475
+  }
+ },
+ {
+  "n": 129,
+  "priorFacts": 1154,
+  "all": {
+   "facts": 760,
+   "inputChars": 77499
+  },
+  "first-latest": {
+   "facts": 674,
+   "inputChars": 70479
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41817
+  },
+  "first-latest-recent": {
+   "facts": 247,
+   "inputChars": 27503
+  }
+ },
+ {
+  "n": 130,
+  "priorFacts": 1161,
+  "all": {
+   "facts": 940,
+   "inputChars": 94236
+  },
+  "first-latest": {
+   "facts": 842,
+   "inputChars": 85951
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40931
+  },
+  "first-latest-recent": {
+   "facts": 244,
+   "inputChars": 25894
+  }
+ },
+ {
+  "n": 131,
+  "priorFacts": 1170,
+  "all": {
+   "facts": 894,
+   "inputChars": 89483
+  },
+  "first-latest": {
+   "facts": 821,
+   "inputChars": 83372
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40592
+  },
+  "first-latest-recent": {
+   "facts": 244,
+   "inputChars": 25160
+  }
+ },
+ {
+  "n": 132,
+  "priorFacts": 1180,
+  "all": {
+   "facts": 889,
+   "inputChars": 90048
+  },
+  "first-latest": {
+   "facts": 812,
+   "inputChars": 83659
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41657
+  },
+  "first-latest-recent": {
+   "facts": 242,
+   "inputChars": 26154
+  }
+ },
+ {
+  "n": 133,
+  "priorFacts": 1188,
+  "all": {
+   "facts": 1010,
+   "inputChars": 100628
+  },
+  "first-latest": {
+   "facts": 904,
+   "inputChars": 91585
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41012
+  },
+  "first-latest-recent": {
+   "facts": 244,
+   "inputChars": 26386
+  }
+ },
+ {
+  "n": 134,
+  "priorFacts": 1195,
+  "all": {
+   "facts": 971,
+   "inputChars": 97830
+  },
+  "first-latest": {
+   "facts": 867,
+   "inputChars": 89026
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41565
+  },
+  "first-latest-recent": {
+   "facts": 245,
+   "inputChars": 26868
+  }
+ },
+ {
+  "n": 135,
+  "priorFacts": 1202,
+  "all": {
+   "facts": 1014,
+   "inputChars": 101161
+  },
+  "first-latest": {
+   "facts": 910,
+   "inputChars": 92388
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41204
+  },
+  "first-latest-recent": {
+   "facts": 244,
+   "inputChars": 26501
+  }
+ },
+ {
+  "n": 136,
+  "priorFacts": 1212,
+  "all": {
+   "facts": 781,
+   "inputChars": 78742
+  },
+  "first-latest": {
+   "facts": 687,
+   "inputChars": 70726
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41613
+  },
+  "first-latest-recent": {
+   "facts": 249,
+   "inputChars": 27078
+  }
+ },
+ {
+  "n": 137,
+  "priorFacts": 1221,
+  "all": {
+   "facts": 1019,
+   "inputChars": 101942
+  },
+  "first-latest": {
+   "facts": 912,
+   "inputChars": 92820
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41255
+  },
+  "first-latest-recent": {
+   "facts": 245,
+   "inputChars": 26718
+  }
+ },
+ {
+  "n": 138,
+  "priorFacts": 1231,
+  "all": {
+   "facts": 910,
+   "inputChars": 92015
+  },
+  "first-latest": {
+   "facts": 834,
+   "inputChars": 85580
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41379
+  },
+  "first-latest-recent": {
+   "facts": 243,
+   "inputChars": 26212
+  }
+ },
+ {
+  "n": 139,
+  "priorFacts": 1236,
+  "all": {
+   "facts": 745,
+   "inputChars": 76421
+  },
+  "first-latest": {
+   "facts": 675,
+   "inputChars": 70668
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 42017
+  },
+  "first-latest-recent": {
+   "facts": 241,
+   "inputChars": 26439
+  }
+ },
+ {
+  "n": 140,
+  "priorFacts": 1241,
+  "all": {
+   "facts": 1058,
+   "inputChars": 105330
+  },
+  "first-latest": {
+   "facts": 949,
+   "inputChars": 95981
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40744
+  },
+  "first-latest-recent": {
+   "facts": 244,
+   "inputChars": 26611
+  }
+ },
+ {
+  "n": 141,
+  "priorFacts": 1249,
+  "all": {
+   "facts": 1074,
+   "inputChars": 107044
+  },
+  "first-latest": {
+   "facts": 986,
+   "inputChars": 99683
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40111
+  },
+  "first-latest-recent": {
+   "facts": 241,
+   "inputChars": 25627
+  }
+ },
+ {
+  "n": 142,
+  "priorFacts": 1265,
+  "all": {
+   "facts": 728,
+   "inputChars": 74050
+  },
+  "first-latest": {
+   "facts": 653,
+   "inputChars": 67864
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41391
+  },
+  "first-latest-recent": {
+   "facts": 241,
+   "inputChars": 26237
+  }
+ },
+ {
+  "n": 143,
+  "priorFacts": 1275,
+  "all": {
+   "facts": 869,
+   "inputChars": 87371
+  },
+  "first-latest": {
+   "facts": 761,
+   "inputChars": 78319
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41162
+  },
+  "first-latest-recent": {
+   "facts": 244,
+   "inputChars": 26726
+  }
+ },
+ {
+  "n": 144,
+  "priorFacts": 1282,
+  "all": {
+   "facts": 1033,
+   "inputChars": 103846
+  },
+  "first-latest": {
+   "facts": 941,
+   "inputChars": 96195
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40458
+  },
+  "first-latest-recent": {
+   "facts": 244,
+   "inputChars": 26426
+  }
+ },
+ {
+  "n": 145,
+  "priorFacts": 1292,
+  "all": {
+   "facts": 824,
+   "inputChars": 82865
+  },
+  "first-latest": {
+   "facts": 718,
+   "inputChars": 73981
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41084
+  },
+  "first-latest-recent": {
+   "facts": 245,
+   "inputChars": 26802
+  }
+ },
+ {
+  "n": 146,
+  "priorFacts": 1300,
+  "all": {
+   "facts": 829,
+   "inputChars": 83090
+  },
+  "first-latest": {
+   "facts": 722,
+   "inputChars": 74128
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40820
+  },
+  "first-latest-recent": {
+   "facts": 245,
+   "inputChars": 26442
+  }
+ },
+ {
+  "n": 147,
+  "priorFacts": 1306,
+  "all": {
+   "facts": 838,
+   "inputChars": 84112
+  },
+  "first-latest": {
+   "facts": 729,
+   "inputChars": 75034
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40922
+  },
+  "first-latest-recent": {
+   "facts": 243,
+   "inputChars": 26424
+  }
+ },
+ {
+  "n": 148,
+  "priorFacts": 1314,
+  "all": {
+   "facts": 837,
+   "inputChars": 83781
+  },
+  "first-latest": {
+   "facts": 727,
+   "inputChars": 74629
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40685
+  },
+  "first-latest-recent": {
+   "facts": 248,
+   "inputChars": 26823
+  }
+ },
+ {
+  "n": 149,
+  "priorFacts": 1319,
+  "all": {
+   "facts": 851,
+   "inputChars": 85091
+  },
+  "first-latest": {
+   "facts": 738,
+   "inputChars": 75760
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 40623
+  },
+  "first-latest-recent": {
+   "facts": 246,
+   "inputChars": 26550
+  }
+ },
+ {
+  "n": 150,
+  "priorFacts": 1331,
+  "all": {
+   "facts": 790,
+   "inputChars": 79923
+  },
+  "first-latest": {
+   "facts": 702,
+   "inputChars": 72836
+  },
+  "recent": {
+   "facts": 400,
+   "inputChars": 41010
+  },
+  "first-latest-recent": {
+   "facts": 247,
+   "inputChars": 26992
+  }
+ }
+]

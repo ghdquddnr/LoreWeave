@@ -8,7 +8,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { candidateFacts, type Category, type PriorAnalysis } from '../src/core/ai/detection.ts';
+import { candidateFacts, selectFacts, type Category, type PriorAnalysis, type Selection } from '../src/core/ai/detection.ts';
 import type { Entity } from '../src/core/ai/extraction.ts';
 import { chapterNumber } from '../src/core/project/chapters.ts';
 
@@ -56,9 +56,9 @@ function analysisOf(db: DatabaseSync, file: string): { entities: Entity[]; facts
 
 /**
  * 검사마다 결과와, 모델이 본 앞 화 사실(context, M0-A의 retrieval 지표용)을 만든다.
- * context는 지금 저장된 분석으로 다시 고른다. 검사 뒤 앞 화를 다시 분석하지 않았다면 검사 때와 같다.
+ * context는 지금 저장된 분석으로 다시 고른다 (검사 때와 같은 selection을 줘야 한다). 검사 뒤 앞 화를 다시 분석하지 않았다면 검사 때와 같다.
  */
-export function toPredictions(dbPath: string, runId: string): { predictions: Predictions; usage: CheckUsage } {
+export function toPredictions(dbPath: string, runId: string, selection: Selection = 'all'): { predictions: Predictions; usage: CheckUsage } {
   const db = new DatabaseSync(dbPath, { readOnly: true });
   try {
     const checks = rows(db, 'SELECT * FROM checks ORDER BY file');
@@ -74,7 +74,7 @@ export function toPredictions(dbPath: string, runId: string): { predictions: Pre
         const evidence = rows(db, 'SELECT finding_ord, chapter, quote FROM finding_evidence WHERE check_id = ? ORDER BY finding_ord, ord', id);
         return {
           target_chapter: chapterNumber(file)!,
-          context: candidateFacts(target?.entities ?? [], priors).map((f) => ({ chapter: f.chapter, text: f.quote })),
+          context: selectFacts(candidateFacts(target?.entities ?? [], priors), selection).map((f) => ({ chapter: f.chapter, text: f.quote })),
           findings: rows(db, 'SELECT * FROM findings WHERE check_id = ? ORDER BY ord', id).map((f) => ({
             category: String(f['category']) as Category,
             target_quote: String(f['target_quote']),

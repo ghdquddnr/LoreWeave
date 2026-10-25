@@ -40,3 +40,12 @@ corepack pnpm ai-script scripts/gen-long-benchmark.ts --budget 0.6
 ```bash
 corepack pnpm --dir spikes/m0a-ai-feasibility evaluate <predictions.json이 있는 폴더> <푼 폴더>
 ```
+
+## 측정
+
+```bash
+corepack pnpm ai-script scripts/measure-scale.ts --dry-run       # 예상 비용만
+corepack pnpm ai-script scripts/measure-scale.ts --budget 1.0
+```
+
+150화를 `out/m5-work/base`에 풀어 모두 분석하고, 사실 줄이기 방법마다 원래 화 14개를 검사한다. 결과는 [`results/summary.md`](results/summary.md).
