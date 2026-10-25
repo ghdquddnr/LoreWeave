@@ -68,7 +68,7 @@ export interface M9Result {
 }
 
 /** p가 root 안(같은 폴더 포함)에 있는가. 드라이브가 다르면 relative가 절대 경로를 돌려주므로 밖이다 */
-const inside = (root: string, p: string) => {
+export const inside = (root: string, p: string) => {
   const rel = relative(root, p);
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 };
@@ -119,13 +119,13 @@ export function optionsReason(runs: number): string | null {
 }
 
 /** 기준 폴더에서 복사할 파일: chapters/의 화 파일과 .loreweave/ai.db(와 WAL 파일) */
-function projectFiles(root: string): string[] {
+export function projectFiles(root: string): string[] {
   const chapters = readdirSync(join(root, 'chapters')).map((f) => join(root, 'chapters', f));
   const db = ['ai.db', 'ai.db-wal', 'ai.db-shm'].map((f) => join(root, '.loreweave', f)).filter((p) => existsSync(p));
   return [...chapters.sort(), ...db];
 }
 
-function copyProject(from: string, to: string) {
+export function copyProject(from: string, to: string) {
   mkdirSync(to, { recursive: true });
   cpSync(join(from, 'chapters'), join(to, 'chapters'), { recursive: true });
   mkdirSync(join(to, '.loreweave'), { recursive: true });

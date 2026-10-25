@@ -1,0 +1,857 @@
+{
+ "note": "M9 후속 실험(같은 속성 이름 사실 더하기)의 호출 0 대조 결과와 실행 계획. 실제 원고 원문·인물명·fingerprint 없음.",
+ "experiment": {
+  "stageId": "m9p-predicate",
+  "limitUsd": 1.2,
+  "approvalRequired": true,
+  "prompt": "detect-1 (제품 그대로, 검사 버전 표시만 detect-1+predicate-match)",
+  "model": "gpt-6-luna",
+  "batchConcurrency": 2,
+  "maxOutputTokensInclReasoning": 16000,
+  "retriesPerRequest": 1,
+  "order": "M4 3회(회마다 기준 8 자동 채점) → 모두 통과 시 실제 원고 2회",
+  "restart": "시작한 회차는 다시 하지 않음",
+  "m9LedgerReuse": "불가 (단계 ID 다름)",
+  "sharedHalt": "묶음 하나의 확정 실패(재시도 소진, 인증·모델·한도, 응답 형식, 예산 거절)나 외부 취소 뒤 새 묶음·재시도·다음 화·다음 회차 전송 0. 진행 중 요청은 정산, 그 화는 저장 안 함"
+ },
+ "preflight": {
+  "stage": "preflight-ok",
+  "connected": false,
+  "paidCalls": 0,
+  "runs": [
+   {
+    "run": "m4-1",
+    "base": {
+     "ok": true,
+     "passed": 14,
+     "chapters": 14,
+     "batches": 14,
+     "failuresByItem": {},
+     "skipped": [
+      "order"
+     ]
+    },
+    "addition": {
+     "passed": 14,
+     "chapters": 14,
+     "facts": {
+      "base": 1207,
+      "added": 15
+     },
+     "batches": {
+      "base": 14,
+      "plus": 14
+     },
+     "perChapter": [
+      {
+       "chapter": 2,
+       "baseFacts": 14,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 3,
+       "baseFacts": 29,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 4,
+       "baseFacts": 38,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 5,
+       "baseFacts": 47,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 6,
+       "baseFacts": 59,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 7,
+       "baseFacts": 85,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 8,
+       "baseFacts": 75,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 9,
+       "baseFacts": 94,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 10,
+       "baseFacts": 94,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 11,
+       "baseFacts": 101,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 12,
+       "baseFacts": 131,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 13,
+       "baseFacts": 130,
+       "added": 3,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 14,
+       "baseFacts": 147,
+       "added": 3,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 15,
+       "baseFacts": 163,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      }
+     ]
+    }
+   },
+   {
+    "run": "m4-2",
+    "base": {
+     "ok": true,
+     "passed": 14,
+     "chapters": 14,
+     "batches": 14,
+     "failuresByItem": {},
+     "skipped": [
+      "order"
+     ]
+    },
+    "addition": {
+     "passed": 14,
+     "chapters": 14,
+     "facts": {
+      "base": 1207,
+      "added": 15
+     },
+     "batches": {
+      "base": 14,
+      "plus": 14
+     },
+     "perChapter": [
+      {
+       "chapter": 2,
+       "baseFacts": 14,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 3,
+       "baseFacts": 29,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 4,
+       "baseFacts": 38,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 5,
+       "baseFacts": 47,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 6,
+       "baseFacts": 59,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 7,
+       "baseFacts": 85,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 8,
+       "baseFacts": 75,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 9,
+       "baseFacts": 94,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 10,
+       "baseFacts": 94,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 11,
+       "baseFacts": 101,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 12,
+       "baseFacts": 131,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 13,
+       "baseFacts": 130,
+       "added": 3,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 14,
+       "baseFacts": 147,
+       "added": 3,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 15,
+       "baseFacts": 163,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      }
+     ]
+    }
+   },
+   {
+    "run": "m4-3",
+    "base": {
+     "ok": true,
+     "passed": 14,
+     "chapters": 14,
+     "batches": 14,
+     "failuresByItem": {},
+     "skipped": [
+      "order"
+     ]
+    },
+    "addition": {
+     "passed": 14,
+     "chapters": 14,
+     "facts": {
+      "base": 1207,
+      "added": 15
+     },
+     "batches": {
+      "base": 14,
+      "plus": 14
+     },
+     "perChapter": [
+      {
+       "chapter": 2,
+       "baseFacts": 14,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 3,
+       "baseFacts": 29,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 4,
+       "baseFacts": 38,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 5,
+       "baseFacts": 47,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 6,
+       "baseFacts": 59,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 7,
+       "baseFacts": 85,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 8,
+       "baseFacts": 75,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 9,
+       "baseFacts": 94,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 10,
+       "baseFacts": 94,
+       "added": 1,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 11,
+       "baseFacts": 101,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 12,
+       "baseFacts": 131,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 13,
+       "baseFacts": 130,
+       "added": 3,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 14,
+       "baseFacts": 147,
+       "added": 3,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 15,
+       "baseFacts": 163,
+       "added": 2,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      }
+     ]
+    }
+   },
+   {
+    "run": "real-1",
+    "base": {
+     "ok": true,
+     "passed": 20,
+     "chapters": 20,
+     "batches": 128,
+     "failuresByItem": {},
+     "skipped": []
+    },
+    "addition": {
+     "passed": 20,
+     "chapters": 20,
+     "facts": {
+      "base": 47038,
+      "added": 1315
+     },
+     "batches": {
+      "base": 128,
+      "plus": 131
+     },
+     "perChapter": [
+      {
+       "chapter": 2,
+       "baseFacts": 25,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 16,
+       "baseFacts": 293,
+       "added": 13,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 30,
+       "baseFacts": 594,
+       "added": 15,
+       "batchesBase": 2,
+       "batchesPlus": 2,
+       "ok": true
+      },
+      {
+       "chapter": 44,
+       "baseFacts": 903,
+       "added": 25,
+       "batchesBase": 3,
+       "batchesPlus": 3,
+       "ok": true
+      },
+      {
+       "chapter": 57,
+       "baseFacts": 1222,
+       "added": 34,
+       "batchesBase": 4,
+       "batchesPlus": 4,
+       "ok": true
+      },
+      {
+       "chapter": 71,
+       "baseFacts": 1549,
+       "added": 18,
+       "batchesBase": 4,
+       "batchesPlus": 4,
+       "ok": true
+      },
+      {
+       "chapter": 85,
+       "baseFacts": 1425,
+       "added": 30,
+       "batchesBase": 4,
+       "batchesPlus": 4,
+       "ok": true
+      },
+      {
+       "chapter": 99,
+       "baseFacts": 1802,
+       "added": 32,
+       "batchesBase": 5,
+       "batchesPlus": 5,
+       "ok": true
+      },
+      {
+       "chapter": 113,
+       "baseFacts": 1856,
+       "added": 55,
+       "batchesBase": 5,
+       "batchesPlus": 5,
+       "ok": true
+      },
+      {
+       "chapter": 127,
+       "baseFacts": 1975,
+       "added": 37,
+       "batchesBase": 5,
+       "batchesPlus": 6,
+       "ok": true
+      },
+      {
+       "chapter": 140,
+       "baseFacts": 2541,
+       "added": 69,
+       "batchesBase": 7,
+       "batchesPlus": 7,
+       "ok": true
+      },
+      {
+       "chapter": 154,
+       "baseFacts": 2772,
+       "added": 87,
+       "batchesBase": 7,
+       "batchesPlus": 8,
+       "ok": true
+      },
+      {
+       "chapter": 168,
+       "baseFacts": 2979,
+       "added": 63,
+       "batchesBase": 8,
+       "batchesPlus": 8,
+       "ok": true
+      },
+      {
+       "chapter": 182,
+       "baseFacts": 3432,
+       "added": 42,
+       "batchesBase": 9,
+       "batchesPlus": 9,
+       "ok": true
+      },
+      {
+       "chapter": 196,
+       "baseFacts": 3511,
+       "added": 135,
+       "batchesBase": 9,
+       "batchesPlus": 10,
+       "ok": true
+      },
+      {
+       "chapter": 210,
+       "baseFacts": 3272,
+       "added": 188,
+       "batchesBase": 9,
+       "batchesPlus": 9,
+       "ok": true
+      },
+      {
+       "chapter": 223,
+       "baseFacts": 4032,
+       "added": 158,
+       "batchesBase": 11,
+       "batchesPlus": 11,
+       "ok": true
+      },
+      {
+       "chapter": 237,
+       "baseFacts": 4063,
+       "added": 133,
+       "batchesBase": 11,
+       "batchesPlus": 11,
+       "ok": true
+      },
+      {
+       "chapter": 251,
+       "baseFacts": 4279,
+       "added": 49,
+       "batchesBase": 11,
+       "batchesPlus": 11,
+       "ok": true
+      },
+      {
+       "chapter": 265,
+       "baseFacts": 4513,
+       "added": 132,
+       "batchesBase": 12,
+       "batchesPlus": 12,
+       "ok": true
+      }
+     ]
+    }
+   },
+   {
+    "run": "real-2",
+    "base": {
+     "ok": true,
+     "passed": 20,
+     "chapters": 20,
+     "batches": 128,
+     "failuresByItem": {},
+     "skipped": []
+    },
+    "addition": {
+     "passed": 20,
+     "chapters": 20,
+     "facts": {
+      "base": 47038,
+      "added": 1315
+     },
+     "batches": {
+      "base": 128,
+      "plus": 131
+     },
+     "perChapter": [
+      {
+       "chapter": 2,
+       "baseFacts": 25,
+       "added": 0,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 16,
+       "baseFacts": 293,
+       "added": 13,
+       "batchesBase": 1,
+       "batchesPlus": 1,
+       "ok": true
+      },
+      {
+       "chapter": 30,
+       "baseFacts": 594,
+       "added": 15,
+       "batchesBase": 2,
+       "batchesPlus": 2,
+       "ok": true
+      },
+      {
+       "chapter": 44,
+       "baseFacts": 903,
+       "added": 25,
+       "batchesBase": 3,
+       "batchesPlus": 3,
+       "ok": true
+      },
+      {
+       "chapter": 57,
+       "baseFacts": 1222,
+       "added": 34,
+       "batchesBase": 4,
+       "batchesPlus": 4,
+       "ok": true
+      },
+      {
+       "chapter": 71,
+       "baseFacts": 1549,
+       "added": 18,
+       "batchesBase": 4,
+       "batchesPlus": 4,
+       "ok": true
+      },
+      {
+       "chapter": 85,
+       "baseFacts": 1425,
+       "added": 30,
+       "batchesBase": 4,
+       "batchesPlus": 4,
+       "ok": true
+      },
+      {
+       "chapter": 99,
+       "baseFacts": 1802,
+       "added": 32,
+       "batchesBase": 5,
+       "batchesPlus": 5,
+       "ok": true
+      },
+      {
+       "chapter": 113,
+       "baseFacts": 1856,
+       "added": 55,
+       "batchesBase": 5,
+       "batchesPlus": 5,
+       "ok": true
+      },
+      {
+       "chapter": 127,
+       "baseFacts": 1975,
+       "added": 37,
+       "batchesBase": 5,
+       "batchesPlus": 6,
+       "ok": true
+      },
+      {
+       "chapter": 140,
+       "baseFacts": 2541,
+       "added": 69,
+       "batchesBase": 7,
+       "batchesPlus": 7,
+       "ok": true
+      },
+      {
+       "chapter": 154,
+       "baseFacts": 2772,
+       "added": 87,
+       "batchesBase": 7,
+       "batchesPlus": 8,
+       "ok": true
+      },
+      {
+       "chapter": 168,
+       "baseFacts": 2979,
+       "added": 63,
+       "batchesBase": 8,
+       "batchesPlus": 8,
+       "ok": true
+      },
+      {
+       "chapter": 182,
+       "baseFacts": 3432,
+       "added": 42,
+       "batchesBase": 9,
+       "batchesPlus": 9,
+       "ok": true
+      },
+      {
+       "chapter": 196,
+       "baseFacts": 3511,
+       "added": 135,
+       "batchesBase": 9,
+       "batchesPlus": 10,
+       "ok": true
+      },
+      {
+       "chapter": 210,
+       "baseFacts": 3272,
+       "added": 188,
+       "batchesBase": 9,
+       "batchesPlus": 9,
+       "ok": true
+      },
+      {
+       "chapter": 223,
+       "baseFacts": 4032,
+       "added": 158,
+       "batchesBase": 11,
+       "batchesPlus": 11,
+       "ok": true
+      },
+      {
+       "chapter": 237,
+       "baseFacts": 4063,
+       "added": 133,
+       "batchesBase": 11,
+       "batchesPlus": 11,
+       "ok": true
+      },
+      {
+       "chapter": 251,
+       "baseFacts": 4279,
+       "added": 49,
+       "batchesBase": 11,
+       "batchesPlus": 11,
+       "ok": true
+      },
+      {
+       "chapter": 265,
+       "baseFacts": 4513,
+       "added": 132,
+       "batchesBase": 12,
+       "batchesPlus": 12,
+       "ok": true
+      }
+     ]
+    }
+   }
+  ],
+  "sourcesUnchanged": true,
+  "closedM9LedgerUnchanged": true,
+  "unknown": [
+   "M8·M4 당시 실제 요청 바이트 (기록 없음)"
+  ],
+  "m4OrderCheck": "생략 (당시 평가기 출력 없음)"
+ },
+ "plan": {
+  "baseCalls": {
+   "m4": {
+    "perRun": 14,
+    "runs": 3,
+    "total": 42
+   },
+   "real": {
+    "perRun": 131,
+    "runs": 2,
+    "total": 262
+   },
+   "total": 304
+  },
+  "maxAttempts": 608,
+  "maxCallBoundUsd": {
+   "m4": 0.0126,
+   "real": 0.023
+  },
+  "expectedUsd": {
+   "m4PerRun": 0.014,
+   "realPerRun": 0.481,
+   "total": 1.0,
+   "basis": "M4·M8 당시 detect-1 검사 실측 토큰 × 입력 바이트 증가율(M4 1.0082, 실제 1.0242). 어림이며 실비 아님",
+   "peakWithInFlight": 1.05,
+   "m4Note": "M9 detect-2 M4 3회 실제 장부값은 $0.0229 (첫 회 뒤 캐시). M4 3회는 $0.02~0.04로 봄"
+  },
+  "marginNote": "예상(약 $1.00)과 중단 상한의 차이는 약 $0.15. usage 불명 실패나 재시도가 여러 번 생기면 완주 전에 예약 거절로 멈출 수 있음",
+  "completionBoundUsd": {
+   "retries0": 5.9615,
+   "retriesMax1": 11.923,
+   "basis": "모든 요청의 callCostBound 합 (M4 회당 0.1519 × 3 + 실제 원고 회당 2.7529 × 2)"
+  },
+  "stageStopLimitUsd": {
+   "value": 1.2,
+   "meaning": "단계 장부의 중단 상한. 완주 상한이 아님. 확정 지출+진행 중 예약이 넘으면 보내지 않고 멈춤"
+  },
+  "maxConcurrentReservationUsd": 0.046,
+  "completionGuaranteed": false
+ }
+}

@@ -15,6 +15,8 @@ export const M9_STAGE = { id: 'm9-detect2', limitUsd: 1.2 } as const;
 export interface StageDef {
   id: string;
   limitUsd: number;
+  /** 이 장부를 쓰도록 승인한 감독 승인 ID. 장부를 처음 만들 때 남기고, 다시 열 때 다르면 열지 않는다 (M9 장부에는 없다) */
+  approval?: string;
 }
 
 type EntryState = 'reserved' | 'settled' | 'unknown';
@@ -32,6 +34,7 @@ interface StageFile {
   version: 1;
   stageId: string;
   limitUsd: number;
+  approval?: string;
   createdAt: string;
   runs: Record<string, { state: RunState; startedAt: string; endedAt: string | null; reason: string | null }>;
   entries: Entry[];
@@ -83,8 +86,9 @@ export class StageLedger implements Budget {
         data = JSON.parse(readFileSync(path, 'utf8')) as StageFile;
         if (data.version !== 1 || data.stageId !== stage.id || data.limitUsd !== stage.limitUsd)
           throw new StageLedgerError(`장부의 단계(${data.stageId}, $${data.limitUsd})가 이 실행의 단계(${stage.id}, $${stage.limitUsd})와 다릅니다`);
+        if ((data.approval ?? null) !== (stage.approval ?? null)) throw new StageLedgerError('장부의 승인 ID가 이 실행의 승인 ID와 다릅니다');
       } else {
-        data = { version: 1, stageId: stage.id, limitUsd: stage.limitUsd, createdAt: now().toISOString(), runs: {}, entries: [] };
+        data = { version: 1, stageId: stage.id, limitUsd: stage.limitUsd, ...(stage.approval ? { approval: stage.approval } : {}), createdAt: now().toISOString(), runs: {}, entries: [] };
       }
       const ledger = new StageLedger(dir, data, now);
       // 지난 실행이 정산하지 못한 예약: 보냈는지 모르므로 예약액 전부를 지출로 남긴다

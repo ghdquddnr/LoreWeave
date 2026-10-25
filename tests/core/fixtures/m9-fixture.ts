@@ -22,7 +22,8 @@ export const MANY = 450;
 const minsu = { name: '김민수', aliases: ['민수'] };
 /** 1화 본문에 있는 문장. 사실마다 돌려 써서 순서를 바꾸면 화·인용 순서가 달라지게 한다 */
 const QUOTES = ['둘 다 스무 살이었다.', '생각이 많아질 때마다 나오는 버릇이었다.', '가슴에 단 이름표가 아직 어색했다.'];
-const extractionOf = (n: number): Extraction =>
+export type ExtractionOf = (n: number) => Extraction;
+export const extractionOf: ExtractionOf = (n) =>
   n === 1
     ? {
         summary: '입학',
@@ -35,6 +36,7 @@ const extractionOf = (n: number): Extraction =>
 export function fakeClient(
   detect: (call: JsonCall) => Promise<unknown> | unknown = () => ({ findings: [] }),
   use: Usage = usage,
+  extract: ExtractionOf = extractionOf,
 ): AiClient & { calls: JsonCall[] } {
   const calls: JsonCall[] = [];
   return {
@@ -43,14 +45,14 @@ export function fakeClient(
     async json(call) {
       calls.push(call);
       const n = Number(/<chapter n="(\d+)">/.exec(call.user)![1]);
-      const data = call.schema.name === 'chapter_extraction' ? extractionOf(n) : await detect(call);
+      const data = call.schema.name === 'chapter_extraction' ? extract(n) : await detect(call);
       return { data, usage: use, modelVersion: 'gpt-6-luna-test', latencyMs: 1 };
     },
   };
 }
 
 /** M8과 같은 모양의 기준 폴더: 분석 → 검사(detect-1) → 평가기 출력 */
-export async function makeBaseline(root: string) {
+export async function makeBaseline(root: string, extract: ExtractionOf = extractionOf) {
   await mkdir(join(root, 'chapters'), { recursive: true });
   for (const n of ['01', '02', '03']) await copyFile(join(M0A, `ch${n}.md`), join(root, 'chapters', `0${n}.md`));
   let tick = 0;
@@ -58,7 +60,7 @@ export async function makeBaseline(root: string) {
   const store = AiStore.open(root);
   try {
     for (const file of TARGETS) {
-      const outcome = await checkChapter(file, { root, store, client: fakeClient(), model: MODEL, signal: new AbortController().signal, now });
+      const outcome = await checkChapter(file, { root, store, client: fakeClient(undefined, usage, extract), model: MODEL, signal: new AbortController().signal, now });
       assert.equal(outcome.stopped, null);
     }
   } finally {
