@@ -1,0 +1,235 @@
+{
+ "note": "M9 후속 진단. M4 합성 원고(M0-A 벤치마크) 저장 결과만 다시 읽었다. 유료 호출 0. 실제 원고는 오프라인 retrieval 집계만.",
+ "runs": {
+  "d1-m4": {
+   "testTp07": 18,
+   "testFp07": 0,
+   "missedTest": [
+    "E23",
+    "E26"
+   ],
+   "labels": {
+    "tp": 24,
+    "echo": 2
+   }
+  },
+  "m4-1": {
+   "testTp07": 17,
+   "testFp07": 1,
+   "missedTest": [
+    "E02",
+    "E23",
+    "E26"
+   ],
+   "labels": {
+    "tp": 24,
+    "unlabeled": 1,
+    "echo": 2
+   }
+  },
+  "m4-2": {
+   "testTp07": 18,
+   "testFp07": 0,
+   "missedTest": [
+    "E23",
+    "E26"
+   ],
+   "labels": {
+    "tp": 25
+   }
+  },
+  "m4-3": {
+   "testTp07": 15,
+   "testFp07": 1,
+   "missedTest": [
+    "E02",
+    "E20",
+    "E23",
+    "E26",
+    "E30"
+   ],
+   "labels": {
+    "tp": 22,
+    "unlabeled": 1,
+    "echo": 1
+   }
+  }
+ },
+ "comparisonLimits": [
+  "detect-1은 M4 당시 1회뿐 (회 간 편차 모름)",
+  "모델 버전 기록은 둘 다 gpt-6-luna, 세부 버전은 모름",
+  "입력 동일성은 기록 항목 대조에 근거 (M4 order 대조 생략, 당시 요청 바이트 모름)",
+  "M0-A detect-1 값은 별도 추출본·입력 형식"
+ ],
+ "evaluatorMatchingErrors": 0,
+ "missed": {
+  "E02": {
+   "category": "first_meeting",
+   "split": "test",
+   "found": {
+    "d1-m4": true,
+    "m4-1": false,
+    "m4-2": true,
+    "m4-3": false
+   },
+   "retrievedByEvaluator": {
+    "d1-m4": false,
+    "m4-1": false,
+    "m4-2": false,
+    "m4-3": false
+   },
+   "sourceFactsExtracted": false,
+   "cause": "source-not-extracted-inferred-from-other-facts"
+  },
+  "E20": {
+   "category": "date_order",
+   "split": "test",
+   "found": {
+    "d1-m4": true,
+    "m4-1": true,
+    "m4-2": true,
+    "m4-3": false
+   },
+   "retrievedByEvaluator": {
+    "d1-m4": true,
+    "m4-1": true,
+    "m4-2": true,
+    "m4-3": true
+   },
+   "sourceFactsExtracted": true,
+   "cause": "evidence-present-run-variance"
+  },
+  "E23": {
+   "category": "number",
+   "split": "test",
+   "found": {
+    "d1-m4": false,
+    "m4-1": false,
+    "m4-2": false,
+    "m4-3": false
+   },
+   "retrievedByEvaluator": {
+    "d1-m4": false,
+    "m4-1": false,
+    "m4-2": false,
+    "m4-3": false
+   },
+   "sourceFactsExtracted": "content-equivalent fact from another sentence of the same chapter; designated sentence not extracted",
+   "cause": "selection-miss-non-person-entity",
+   "selectedIntoInput": false
+  },
+  "E26": {
+   "category": "location",
+   "split": "test",
+   "found": {
+    "d1-m4": false,
+    "m4-1": false,
+    "m4-2": false,
+    "m4-3": false
+   },
+   "retrievedByEvaluator": {
+    "d1-m4": true,
+    "m4-1": true,
+    "m4-2": true,
+    "m4-3": true
+   },
+   "sourceFactsExtracted": true,
+   "cause": "evidence-indirect-implication"
+  },
+  "E30": {
+   "category": "habit",
+   "split": "test",
+   "found": {
+    "d1-m4": true,
+    "m4-1": true,
+    "m4-2": true,
+    "m4-3": false
+   },
+   "retrievedByEvaluator": {
+    "d1-m4": true,
+    "m4-1": true,
+    "m4-2": true,
+    "m4-3": true
+   },
+   "sourceFactsExtracted": true,
+   "cause": "evidence-present-run-variance"
+  }
+ },
+ "outsideGroundTruth": [
+  {
+   "run": "m4-1",
+   "chapter": 3,
+   "confidence": 0.73,
+   "verdict": "confirmed-false-positive",
+   "cause": "habit-condition-read-as-necessary"
+  },
+  {
+   "run": "m4-3",
+   "chapter": 13,
+   "confidence": 0.96,
+   "verdict": "false-positive-echo-like",
+   "cause": "evidence-cites-inserted-error-E22-plus-correct-sentence; evaluator echo rule requires all evidence on inserted errors"
+  }
+ ],
+ "hypothesis": {
+  "name": "predicate-match-addition",
+  "description": "이 화 사실과 속성 이름이 같은 앞 화 사실을 더해 넘긴다 (빼지 않음)",
+  "offlineRetrieval": {
+   "m4": {
+    "base": {
+     "retrieved": "26/30",
+     "facts": 1207,
+     "batches": 14
+    },
+    "plus": {
+     "retrieved": "27/30",
+     "facts": 1222,
+     "batches": 14,
+     "newlyRetrieved": [
+      "E24"
+     ],
+     "contentOnly": [
+      "E23: 같은 화 다른 문장의 3억 원 사실이 입력에 들어감, 평가기 기준으로는 여전히 미검색"
+     ]
+    }
+   },
+   "real": {
+    "base": {
+     "retrieved": "12/20",
+     "facts": 47038,
+     "batches": 128
+    },
+    "plus": {
+     "retrieved": "13/20",
+     "facts": 48353,
+     "batches": 131,
+     "newlyRetrieved": [
+      "S09"
+     ]
+    }
+   }
+  },
+  "targets": [
+   "E23"
+  ],
+  "notAddressed": [
+   "E02",
+   "E20",
+   "E26",
+   "E30"
+  ],
+  "costEstimateUsd": {
+   "m4x3": 0.05,
+   "realx2": 1.0,
+   "note": "토큰 어림, 실비 아님. 새 단계 장부·새 승인 필요"
+  }
+ },
+ "costs": {
+  "thisStepPaidCalls": 0,
+  "stageLedgerUsd": 0.02292196,
+  "costsApiLatestBySupervisor": 6.87646903,
+  "costsApiBefore": 6.86149227,
+  "reflectedSoFar": 0.01497676,
+  "note": "장부 값보다 작아 반영 중. 이번 작업에서 재조회 안 함"
+ }
+}
