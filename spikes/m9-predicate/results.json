@@ -57,7 +57,9 @@
     "contentEvidenceInInput": true,
     "scorerFound": false,
     "foundByContent": false,
-    "note": "추가 입력에 같은 내용 사실이 들어갔으나 보고하지 않음"
+    "note": "추가 입력에 같은 내용 사실이 들어갔으나 보고하지 않음",
+    "observationOnly": true,
+    "inputEvidenceBasis": "재구성 (저장된 분석으로 buildPredicateCheck 재실행, fingerprint 재확인 일치). 보낸 요청 바이트 직접 관측 아님"
    },
    "outsideGroundTruthHuman": [],
    "ledgerSpentUsd": 0.013969825,
@@ -105,7 +107,9 @@
     "contentEvidenceInInput": true,
     "scorerFound": true,
     "foundByContent": true,
-    "note": "추가 입력에 7화의 같은 내용 사실(투자금 3억 원)이 들어감. 찾은 회는 그 사실의 원문을 근거로 듦"
+    "note": "추가 입력에 7화의 같은 내용 사실(투자금 3억 원)이 들어감. 찾은 회는 그 사실의 원문을 근거로 듦",
+    "observationOnly": true,
+    "inputEvidenceBasis": "재구성 (저장된 분석으로 buildPredicateCheck 재실행, fingerprint 재확인 일치). 보낸 요청 바이트 직접 관측 아님"
    },
    "outsideGroundTruthHuman": [],
    "ledgerSpentUsd": 0.00445275,
@@ -156,7 +160,9 @@
     "contentEvidenceInInput": true,
     "scorerFound": true,
     "foundByContent": true,
-    "note": "추가 입력에 7화의 같은 내용 사실(투자금 3억 원)이 들어감. 찾은 회는 그 사실의 원문을 근거로 듦"
+    "note": "추가 입력에 7화의 같은 내용 사실(투자금 3억 원)이 들어감. 찾은 회는 그 사실의 원문을 근거로 듦",
+    "observationOnly": true,
+    "inputEvidenceBasis": "재구성 (저장된 분석으로 buildPredicateCheck 재실행, fingerprint 재확인 일치). 보낸 요청 바이트 직접 관측 아님"
    },
    "outsideGroundTruthHuman": [
     {
@@ -175,11 +181,21 @@
    "ledgerSpentUsd": 0.00378525,
    "attempts": 14,
    "humanAdjusted": {
-    "tp": 16,
+    "method": "중복 2개를 오탐에서 제거 (TP로 재분류하지 않음, 평가기 duplicate 처리와 같음)",
+    "formula": "precision = testTp / (testTp + fp)",
+    "testTp": 16,
     "fp": 0,
     "precision": 1.0,
-    "fpPerChapter": 0,
-    "note": "사람 판정 참고값. 관문(기준 8)은 자동 채점으로 고정이며 바뀌지 않음. Recall은 그대로"
+    "fpPerChapter": 0.0,
+    "denominatorChapters": 14,
+    "automatic": {
+     "testTp": 16,
+     "fp": 2,
+     "precision": 0.8888888888888888,
+     "fpPerChapter": 0.14285714285714285
+    },
+    "gateUnchanged": true,
+    "evidenceBasis": "저장된 결과의 대상·근거 문장과 원고 본문 직접 대조"
    }
   }
  },
@@ -217,13 +233,14 @@
   "e23": {
    "d1": "놓침 (근거 사실 입력에 없음)",
    "detect2": "3회 놓침 (입력에 없음)",
-   "this": "3회 모두 같은 내용 근거 입력에 있음, 2회 찾음"
+   "this": "3회 모두 같은 내용 근거 입력에 있음(재구성 판정), 2회 찾음 — 관찰"
   },
   "limits": [
    "detect-1 기준은 1회뿐",
    "회 간 편차가 큼 (같은 입력에서 E20·E29·E30·E06이 회마다 갈림)",
    "세부 모델 버전·당시 요청 바이트 모름"
-  ]
+  ],
+  "causalClaims": "없음. E23 발견과 회 간 편차는 관찰이며 원인(입력 구성·모델 변동 등)은 식별하지 않음"
  },
  "exportNote": "run의 predictions.json context는 export-predictions가 제품 이름 기준 고르기로 다시 만든 것이라 추가 사실이 빠져 있다. 평가기 retrieval(86.7%)은 기준 입력 값이다. 추가 입력의 retrieval은 오프라인 계산(27/30)을 쓴다. E23 입력 판정은 runner와 같은 함수로 실제 요청을 다시 만들어 확인했다",
  "stageLedger": {
@@ -243,15 +260,23 @@
  "costsApi": {
   "before": {
    "total": 6.8844,
-   "at": "2026-10-26T02:12+09:00"
+   "at": "2026-10-26T02:12+09:00",
+   "precision": "CLI 표시 소수 넷째 자리",
+   "supervisorExact": 6.88441423
   },
   "after": {
    "total": 6.8967,
    "at": "2026-10-26T02:20+09:00",
    "reflected": 0.0123,
-   "note": "장부 $0.022208보다 작아 반영 중"
+   "note": "장부 $0.022208보다 작아 반영 중",
+   "precision": "CLI 표시 소수 넷째 자리, 반올림 전 값 기록 없음",
+   "reflectedRoundingError": 0.0001
   },
-  "conservativeRemainingTotalUsd": 3.0934
+  "conservativeRemainingTotalUsd": 3.0934,
+  "queryRange": "2026-10-01부터 조회 시점까지 (UTC 날짜 합계)",
+  "attributionAssumption": "실행 전후 차이를 전부 이번 실행으로 귀속. 같은 조직의 다른 지출이나 이전 실행의 늦은 반영은 구분 불가",
+  "conservativeRemainingFormula": "10 - afterTotal - max(0, ledgerSpent - reflected) = 10 - 6.8967 - (0.022208 - 0.0123)",
+  "requeriedInThisRevision": false
  },
  "costNote": "실행 비용은 장부 값. 복사본 ai.db calls의 과거 호출은 섞지 않음",
  "sources": "원본 두 곳과 종료된 M9 장부 해시 292개 실행 전후 동일",
