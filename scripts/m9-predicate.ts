@@ -42,7 +42,14 @@ runWithLazyKey(async ({ connect, args }) => {
   const ledgerDir = option(args, '--ledger');
   const realGt = loadGroundTruth(realBase);
   const realChapters = loadChapters(realBase);
+  // Ctrl+C는 프로세스를 끝내지 않고 취소 신호만 보낸다: 진행 중 요청을 끊고, 새 요청을 보내지 않고, 장부를 정리한 뒤 끝난다
+  const cancel = new AbortController();
+  process.on('SIGINT', () => {
+    console.log('취소합니다. 진행 중 요청을 끊고 장부를 정리한 뒤 끝냅니다');
+    cancel.abort();
+  });
   const result = await runPredicate({
+    signal: cancel.signal,
     m4: { baseline: m4Base, predictions: null, targets: checkedFiles(m4Base) },
     real: { baseline: realBase, predictions: resolve(option(args, '--predictions') ?? join(real, 'review', 'eval', 'predictions.json')), targets: checkedFiles(realBase) },
     work: resolve(work),

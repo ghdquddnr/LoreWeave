@@ -260,3 +260,136 @@ test('실제 원고 집계: 기존 고정 12개 judge와 새 입력 기준 judge
   assert.deepEqual(s.outsideGroundTruth, [{ id: 'real-1-u1', chapter: 99, verdict: '' }]);
   assert.equal(s.humanJudgment, 'pending');
 });
+
+// ---- 공유 중단과 취소 (묶음 4개 이상)
+
+/** 1화 사실 1,250개: 2화·3화 검사가 4묶음씩 된다 */
+const big = (n: number): Extraction => {
+  const e = extract(n);
+  return n === 1 ? { ...e, facts: Array.from({ length: 1250 }, (_, i) => ({ ...e.facts[i % MANY]!, value: `값 ${i}` })) } : e;
+};
+
+/** 요청마다 직접 풀어 주는 가짜 클라이언트. signal이 끊기면 그 요청은 취소 오류로 끝난다 */
+function gatedClient() {
+  const pending: { call: JsonCall; resolve(data?: unknown): void; reject(e: unknown): void; settled: boolean }[] = [];
+  const client = {
+    calls: [] as JsonCall[],
+    check: async () => {},
+    json(call: JsonCall) {
+      client.calls.push(call);
+      return new Promise<{ data: unknown; usage: typeof usage; modelVersion: string; latencyMs: number }>((resolve, reject) => {
+        const p = {
+          call,
+          settled: false,
+          resolve: (data: unknown = { findings: [] }) => {
+            p.settled = true;
+            resolve({ data, usage, modelVersion: 'gpt-6-luna-test', latencyMs: 1 });
+          },
+          reject: (e: unknown) => {
+            p.settled = true;
+            reject(e);
+          },
+        };
+        call.signal?.addEventListener('abort', () => !p.settled && p.reject(new Error('aborted')), { once: true });
+        pending.push(p);
+      });
+    },
+  };
+  return { client, pending };
+}
+/** 대조(파일 복사·DB)가 끝나고 요청이 나갈 때까지 기다린다 (최대 30초) */
+const until = async (cond: () => boolean) => {
+  const end = Date.now() + 30_000;
+  while (!cond() && Date.now() < end) await new Promise((r) => setTimeout(r, 5));
+  assert.ok(cond(), '기다린 조건이 오지 않았습니다');
+};
+
+async function bigBaselines() {
+  await rm(m4, { recursive: true, force: true });
+  await rm(real, { recursive: true, force: true });
+  await makeBaseline(m4, big);
+  await makeBaseline(real, big);
+}
+
+/** 첫 묶음과 둘째 묶음이 동시에 나간 상태에서 첫 묶음을 fail로 끝내고, 둘째는 성공시킨다 */
+async function failFirst(fail: (p: ReturnType<typeof gatedClient>['pending'][number]) => void, expectedSends: number) {
+  await bigBaselines();
+  const { client, pending } = gatedClient();
+  const { o } = runOpts({ client });
+  const run = runPredicate(o);
+  await until(() => pending.length === 2);
+  fail(pending[0]!);
+  // 재시도가 있으면 그 시도도 기다렸다가 실패시킨다
+  for (let i = 2; i < expectedSends; i++) {
+    await until(() => pending.length === i + 1);
+    pending[i]!.reject(new AiError('연결 끊김', 'network'));
+  }
+  await new Promise((r) => setTimeout(r, 20));
+  pending[1]!.resolve();
+  const r = await run;
+  return { r, client, pending, o };
+}
+
+async function assertHaltedAfterFirstChapter(r: Awaited<ReturnType<typeof runPredicate>>, o: Parameters<typeof runPredicate>[0], sends: number, client: { calls: JsonCall[] }) {
+  assert.equal(r.stage, 'stopped', r.reason ?? '');
+  assert.equal(client.calls.length, sends, `보낸 요청 ${client.calls.length}`);
+  assert.ok(client.calls.every((c) => c.user.includes('<chapter n="2">')));
+  assert.equal(r.ledger!.inFlight, 0);
+  assert.equal(r.ledger!.attempts, sends);
+  assert.deepEqual(Object.keys(r.stageSummary!.runs), ['m4-1']);
+  assert.equal(r.stageSummary!.runs['m4-1']!.state, 'stopped');
+  // 그 화는 저장하지 않았다 (복사본의 검사 기록은 기준의 detect-1 그대로)
+  const s = AiStore.open(join(o.work, 'm4', 'run-1'));
+  try {
+    assert.equal(s.check('002.md')!.promptVersion, 'detect-1');
+    assert.equal(s.check('003.md')!.promptVersion, 'detect-1');
+  } finally {
+    s.close();
+  }
+}
+
+for (const [name, kind] of [['인증(auth)', 'auth'], ['모델(model)', 'model']] as const) {
+  test(`공유 중단: 4묶음 중 첫 묶음이 ${name} 오류면, 이미 보낸 둘째만 정산하고 새 묶음·다음 화·실제 원고를 보내지 않는다`, { timeout: 60_000 }, async () => {
+    const { r, client, o } = await failFirst((p) => p.reject(new AiError('합성 오류', kind)), 2);
+    await assertHaltedAfterFirstChapter(r, o, 2, client);
+    assert.equal(r.ledger!.unknownUsage, 1);
+  });
+}
+
+test('공유 중단: 첫 묶음이 재시도까지 소진되면 새 묶음을 보내지 않는다 (보낸 것: 첫 묶음, 재시도, 둘째 묶음)', { timeout: 60_000 }, async () => {
+  const { r, client, o } = await failFirst((p) => p.reject(new AiError('연결 끊김', 'network')), 3);
+  await assertHaltedAfterFirstChapter(r, o, 3, client);
+  assert.equal(r.ledger!.unknownUsage, 2);
+});
+
+test('공유 중단: 첫 묶음의 응답 형식이 틀리면 새 묶음을 보내지 않고 그 화를 저장하지 않는다', { timeout: 60_000 }, async () => {
+  const { r, client, o } = await failFirst((p) => p.resolve({ findings: 'bad' }), 2);
+  await assertHaltedAfterFirstChapter(r, o, 2, client);
+  assert.equal(r.ledger!.unknownUsage, 0);
+  assert.match(r.reason!, /형식|findings/);
+});
+
+test('취소: 두 묶음이 나간 사이 밖에서 취소하면 진행 중 요청을 끊고, 예약액을 지출로 남기고, 새 요청·다음 회차를 보내지 않는다', { timeout: 60_000 }, async () => {
+  await bigBaselines();
+  const { client, pending } = gatedClient();
+  const cancel = new AbortController();
+  const { o } = runOpts({ client, signal: cancel.signal });
+  const run = runPredicate(o);
+  await until(() => pending.length === 2);
+  cancel.abort();
+  const r = await run;
+  await assertHaltedAfterFirstChapter(r, o, 2, client);
+  assert.equal(r.ledger!.unknownUsage, 2);
+  assert.match(r.reason!, /취소/);
+  // 장부는 닫혔고 잠금이 남지 않았다
+  assert.equal(existsSync(join(tmp, 'ledger', 'ledger.lock')), false);
+});
+
+test('취소: 연결 전에 이미 취소됐으면 연결하지 않는다', async () => {
+  const cancel = new AbortController();
+  cancel.abort();
+  const { o, connected } = runOpts({ signal: cancel.signal });
+  const r = await runPredicate(o);
+  assert.equal(r.stage, 'stopped');
+  assert.equal(connected.length, 0);
+});

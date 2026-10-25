@@ -11,7 +11,8 @@
   "retriesPerRequest": 1,
   "order": "M4 3회(회마다 기준 8 자동 채점) → 모두 통과 시 실제 원고 2회",
   "restart": "시작한 회차는 다시 하지 않음",
-  "m9LedgerReuse": "불가 (단계 ID 다름)"
+  "m9LedgerReuse": "불가 (단계 ID 다름)",
+  "sharedHalt": "묶음 하나의 확정 실패(재시도 소진, 인증·모델·한도, 응답 형식, 예산 거절)나 외부 취소 뒤 새 묶음·재시도·다음 화·다음 회차 전송 0. 진행 중 요청은 정산, 그 화는 저장 안 함"
  },
  "preflight": {
   "stage": "preflight-ok",
@@ -832,13 +833,6 @@
    "m4": 0.0126,
    "real": 0.023
   },
-  "maxInFlightUsd": 0.046,
-  "boundSumIfAllUsageUnknownUsd": {
-   "m4PerRun": 0.1519,
-   "realPerRun": 2.7529,
-   "note": "장부 한도 $1.2에서 예약 거절로 멈춤"
-  },
-  "stageMaxReservationUsd": 1.2,
   "expectedUsd": {
    "m4PerRun": 0.014,
    "realPerRun": 0.481,
@@ -847,6 +841,17 @@
    "peakWithInFlight": 1.05,
    "m4Note": "M9 detect-2 M4 3회 실제 장부값은 $0.0229 (첫 회 뒤 캐시). M4 3회는 $0.02~0.04로 봄"
   },
-  "marginNote": "한도까지 약 $0.15. usage 불명 실패는 건당 최대 $0.023을 지출로 남기므로 여러 번 생기면 완주 전에 거절로 멈출 수 있음"
+  "marginNote": "예상(약 $1.00)과 중단 상한의 차이는 약 $0.15. usage 불명 실패나 재시도가 여러 번 생기면 완주 전에 예약 거절로 멈출 수 있음",
+  "completionBoundUsd": {
+   "retries0": 5.9615,
+   "retriesMax1": 11.923,
+   "basis": "모든 요청의 callCostBound 합 (M4 회당 0.1519 × 3 + 실제 원고 회당 2.7529 × 2)"
+  },
+  "stageStopLimitUsd": {
+   "value": 1.2,
+   "meaning": "단계 장부의 중단 상한. 완주 상한이 아님. 확정 지출+진행 중 예약이 넘으면 보내지 않고 멈춤"
+  },
+  "maxConcurrentReservationUsd": 0.046,
+  "completionGuaranteed": false
  }
 }

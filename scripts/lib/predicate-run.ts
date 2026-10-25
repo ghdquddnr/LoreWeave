@@ -9,12 +9,15 @@
 //   5) M4 3회를 먼저 하고 회마다 기준 8로 자동 채점한다. 하나라도 미달이면 실제 원고 회차는 시작하지 않는다
 //   6) 실제 원고 2회 뒤에는 자동 집계(기존 12개 고정 judge, 새 입력 기준 judge 기록)와 사람 판정 틀만 만든다. 최종 판정은 사람이 한다
 // 중간 실패·취소는 그 회차를 멈추고 실험 전체를 끝낸다. 시작한 회차는 다시 하지 않는다 (재시작 중복 방지).
+// 공유 중단: 묶음 하나라도 실패가 확정되면(재시도까지 소진, 인증·모델·한도·응답 형식 오류, 예산 거절) 또는 밖에서 취소하면,
+//   그 뒤로는 새 묶음·재시도·다음 화·다음 회차를 보내지 않는다. 이미 보낸 요청은 끝까지 기다려 정산한다 (취소면 신호로 끊고, usage를 모르면 예약액을 지출로 남긴다).
+//   제품 checker는 묶음 하나가 실패해도 나머지 묶음을 보낸 뒤 실패를 돌려주므로, 이 게이트는 runner의 클라이언트에만 씌운다 (제품 동작은 그대로).
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CHECK_BATCH_SIZE, DETECT_SYSTEM, detectionInput, type PriorFact } from '../../src/core/ai/detection.ts';
+import { CHECK_BATCH_SIZE, DETECT_SYSTEM, detectionInput, parseDetection, type PriorFact } from '../../src/core/ai/detection.ts';
 import { chapterNumber } from '../../src/core/project/chapters.ts';
-import type { AiClient } from '../../src/main/ai-client.ts';
+import { AiError, type AiClient, type JsonCall, type JsonResult } from '../../src/main/ai-client.ts';
 import { AiStore } from '../../src/main/ai-db.ts';
 import { prepareCheck, runPreparedCheck, type PreparedCheck } from '../../src/main/checker.ts';
 import { toPredictions } from '../export-predictions.ts';
@@ -64,11 +67,68 @@ export interface PredicateOptions {
   /** 테스트용 단계 (기본 PREDICATE_STAGE). 승인 ID는 approval로 붙인다 */
   stage?: Omit<StageDef, 'approval'>;
   connect(): Promise<AiClient> | AiClient;
+  /** 밖에서 취소하는 신호 (CLI는 Ctrl+C). 취소하면 진행 중 요청을 끊고 새 요청을 보내지 않는다 */
+  signal?: AbortSignal;
   /** M4 한 회 채점 (기준 8). 기본은 m4-score.ts의 scoreM4 */
   scoreM4(label: string, predictions: Predictions, checkedChapters: number): M4Gate & Record<string, unknown>;
   /** 실제 원고 한 회 자동 집계 (사람 판정 전). 기본은 realSummary */
   scoreReal(label: string, predictions: Predictions): Record<string, unknown>;
   log?(line: string): void;
+}
+
+/**
+ * 공유 중단 뒤 보내지 않은 요청.
+ * 예약 장부 안쪽(inner)에서 던질 때만 usage 0을 붙여, 이미 잡은 예약을 비용 0으로 정산한다 (보내지 않았으므로 비용이 없다).
+ * checker까지 올라갈 때는 usage를 떼어, 보내지 않은 요청이 호출 기록에 남지 않게 한다
+ */
+export class Halted extends AiError {
+  readonly usage?: { inputTokens: number; cachedTokens: number; cacheWriteTokens: number; outputTokens: number };
+  constructor(
+    readonly reason: string,
+    settleAsNotSent = false,
+  ) {
+    super(`중단했습니다: ${reason}`, 'other');
+    if (settleAsNotSent) this.usage = { inputTokens: 0, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: 0 };
+  }
+}
+
+/**
+ * 공유 중단 게이트. inner는 예약 장부(withReservation) 안쪽에 씌워 재시도도 막고, outer는 바깥에 씌워 예약 전에 막는다.
+ * 실패가 확정되는 곳은 outer다 (재시도를 다 쓴 뒤의 오류, 예산 거절, 응답 형식 오류)
+ */
+export function haltGate(signal: AbortSignal) {
+  let reason: string | null = null;
+  const halted = () => reason ?? (signal.aborted ? '취소' : null);
+  const inner = (client: AiClient): AiClient => ({
+    check: (m) => client.check(m),
+    json(call: JsonCall): Promise<JsonResult> {
+      const why = halted();
+      return why ? Promise.reject(new Halted(why, true)) : client.json(call);
+    },
+  });
+  const outer = (client: AiClient): AiClient => ({
+    check: (m) => client.check(m),
+    async json(call: JsonCall): Promise<JsonResult> {
+      const why = halted();
+      if (why) throw new Halted(why);
+      let result: JsonResult;
+      try {
+        result = await client.json(call);
+      } catch (e) {
+        if (e instanceof Halted) throw new Halted(e.reason);
+        reason ??= e instanceof Error ? e.message : String(e);
+        throw e;
+      }
+      // 응답 형식이 틀리면 checker가 그 묶음을 실패로 돌려준다. 그 전에 다른 묶음을 더 보내지 않도록 여기서 멈춘다
+      try {
+        parseDetection(result.data);
+      } catch (e) {
+        reason ??= `응답 형식 오류: ${e instanceof Error ? e.message : String(e)}`;
+      }
+      return result;
+    },
+  });
+  return { inner, outer, halted };
 }
 
 export interface ChapterPlan {
@@ -188,6 +248,7 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
 
   const runs: RunCopy[] = [];
   let ledger: StageLedger | null = null;
+  let abortCleanup = () => {};
   try {
     // 1)·2) 데이터셋마다 스냅숏을 만들고, 회마다 복사본에서 기준·추가 요청을 대조한다
     for (const dataset of ['m4', 'real'] as const) {
@@ -248,8 +309,16 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
     if (used) return { ...done('refused', used), ledger: null };
     if (stageLedger.committed() >= stageLedger.limitUsd) return { ...done('refused', '단계 한도를 이미 다 썼습니다'), ledger: null };
 
-    const client = withReservation(await o.connect(), { model: M9_MODEL, budget: stageLedger, retries: 1 });
+    // 밖의 취소를 runner 안의 신호로 잇는다. 이 신호로 진행 중 요청을 끊고, 게이트가 새 요청을 막는다
+    const controller = new AbortController();
+    const onAbort = () => controller.abort();
+    if (o.signal?.aborted) return done('stopped', '취소했습니다');
+    o.signal?.addEventListener('abort', onAbort, { once: true });
+    abortCleanup = () => o.signal?.removeEventListener('abort', onAbort);
+    const gate = haltGate(controller.signal);
+    const raw = await o.connect();
     result.connected = true;
+    const client = gate.outer(withReservation(gate.inner(raw), { model: M9_MODEL, budget: stageLedger, retries: 1 }));
 
     /** 대조 때와 같은 분석·기준 요청·추가 요청인가. 같으면 추가 요청을 돌려준다 */
     const verify = async (run: RunCopy, file: string): Promise<PreparedCheck | string> => {
@@ -270,11 +339,19 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
         verified.set(`${run.label}|${file}`, v);
       }
 
-    const signal = new AbortController().signal;
+    const signal = controller.signal;
     /** 한 회차를 보낸다. 멈추면 그 이유 */
     const send = async (run: RunCopy): Promise<string | null> => {
+      const before = gate.halted();
+      if (before) return `${run.label}: ${before === '취소' ? '취소했습니다' : `중단했습니다 (${before})`}`;
       stageLedger.startRun(run.label);
       for (const file of o[run.dataset].targets) {
+        const why = gate.halted();
+        if (why) {
+          const reason = `${run.label} ${file}: ${why === '취소' ? '취소했습니다' : `중단했습니다 (${why})`}`;
+          stageLedger.finishRun(run.label, 'stopped', reason);
+          return reason;
+        }
         const again = await verify(run, file);
         if (typeof again === 'string') {
           stageLedger.finishRun(run.label, 'stopped', again);
@@ -282,8 +359,10 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
         }
         const outcome = await runPreparedCheck(verified.get(`${run.label}|${file}`)!, { root: run.root, store: run.store, client, model: M9_MODEL, signal, prompt: PREDICATE_PROMPT });
         log(`${run.label} ${file}: 결과 ${outcome.findings}개 (숨김 ${outcome.lowConfidence}) · 단계 누적 $${stageLedger.committed().toFixed(4)}`);
-        if (outcome.stopped) {
-          const reason = `${run.label} ${file}: ${outcome.stopped}`;
+        // 게이트가 멈췄으면 checker가 저장했더라도 실패로 본다 (응답 형식 오류는 checker도 저장하지 않는다)
+        const halted = gate.halted();
+        if (outcome.stopped || halted) {
+          const reason = `${run.label} ${file}: ${outcome.stopped ?? `중단했습니다 (${halted})`}`;
           stageLedger.finishRun(run.label, 'stopped', reason);
           return reason;
         }
@@ -320,6 +399,7 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
     }
     return done('done', null);
   } finally {
+    abortCleanup();
     for (const r of runs) r.store.close();
     ledger?.close();
   }
