@@ -12,7 +12,9 @@ import {
   DETECT_SYSTEM,
   detectionInput,
   parseDetection,
+  selectFacts,
   type PriorAnalysis,
+  type Selection,
 } from '../core/ai/detection.ts';
 import { quoteKey, verifyFindings, type PriorLines } from '../core/ai/verify.ts';
 import { chapterNumber } from '../core/project/chapters.ts';
@@ -100,6 +102,8 @@ export interface CheckOptions {
   signal: AbortSignal;
   onProgress?(progress: AnalyzeProgress): void;
   now?(): Date;
+  /** 앞 화 사실을 줄이는 방법 (M5 측정용, 기본은 줄이지 않음) */
+  selection?: Selection;
 }
 
 export async function checkChapter(file: string, o: CheckOptions): Promise<CheckOutcome> {
@@ -129,7 +133,7 @@ export async function checkChapter(file: string, o: CheckOptions): Promise<Check
     priorAnalyses.push({ chapter: chapterNumber(prior)!, entities: a.entities, facts: a.facts });
     inputs.push({ file: prior, contentHash: a.contentHash });
   }
-  const facts = candidateFacts(targetAnalysis.entities, priorAnalyses);
+  const facts = selectFacts(candidateFacts(targetAnalysis.entities, priorAnalyses), o.selection ?? 'all');
 
   const started = performance.now();
   let result;

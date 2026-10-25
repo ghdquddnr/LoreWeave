@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { costUsd, estimateCheckCost, estimateCheckTokens } from '../../src/core/ai/cost.ts';
 import {
+  attributeKey,
   candidateFacts,
   CATEGORIES,
   CATEGORY_LABELS,
@@ -13,6 +14,8 @@ import {
   entityNames,
   parseDetection,
   sameEntity,
+  selectFacts,
+  SELECTIONS,
   type Finding,
   type PriorAnalysis,
 } from '../../src/core/ai/detection.ts';
@@ -155,4 +158,29 @@ test('무시 키: 공백, 따옴표 모양, 감싼 따옴표는 같게 보고 �
   assert.equal(quoteKey('"스물두  살입니다."'), quoteKey('스물두 살입니다.'));
   assert.equal(quoteKey('“스물두 살입니다.”'), '스물두 살입니다.');
   assert.notEqual(quoteKey('스물두 살입니다.'), quoteKey('스물세 살입니다.'));
+});
+
+test('속성 키: 괄호 안 내용과 공백은 같게 본다', () => {
+  assert.equal(attributeKey({ entity: '김민수', predicate: '나이 (2008년)' }), attributeKey({ entity: '김민수', predicate: '나이' }));
+  assert.notEqual(attributeKey({ entity: '김민수', predicate: '나이' }), attributeKey({ entity: '이지현', predicate: '나이' }));
+});
+
+test('사실 줄이기: 전부 / 첫 값과 최신 값 / 최근 N개 / 둘을 합친 것 (화 순서는 지킨다)', () => {
+  const f = (chapter: number, entity: string, predicate: string, value: string) => ({ chapter, entity, predicate, value, quote: `${chapter}화 ${value}` });
+  const facts = [
+    f(1, '김민수', '나이', '20'),
+    f(1, '김민수', '학과', '전자공학과'),
+    f(2, '김민수', '나이 (2007)', '20'),
+    f(3, '이지현', '학과', '경영학과'),
+    f(4, '김민수', '나이', '21'),
+    f(5, '이지현', '습관', '왼손잡이'),
+  ];
+  const values = (xs: typeof facts) => xs.map((x) => `${x.chapter}:${x.value}`);
+  assert.equal(selectFacts(facts, 'all'), facts);
+  // 민수 나이는 1화(처음)와 4화(최신)만, 2화는 뺀다
+  assert.deepEqual(values(selectFacts(facts, 'first-latest')), ['1:20', '1:전자공학과', '3:경영학과', '4:21', '5:왼손잡이']);
+  assert.deepEqual(values(selectFacts(facts, 'recent', 2)), ['4:21', '5:왼손잡이']);
+  // 상한 4 → 속성 2개: 가장 최근에 언급된 지현 습관(5화)과 민수 나이(4화)
+  assert.deepEqual(values(selectFacts(facts, 'first-latest-recent', 4)), ['1:20', '4:21', '5:왼손잡이']);
+  for (const s of SELECTIONS) assert.ok(selectFacts(facts, s, 4).length <= (s === 'all' || s === 'first-latest' ? facts.length : 4));
 });
