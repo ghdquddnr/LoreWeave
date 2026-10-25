@@ -27,7 +27,8 @@ export async function analysisStates(root: string, store: AiStore): Promise<Reco
   return states;
 }
 
-async function chapterLines(root: string, file: string): Promise<{ lines: string[]; hash: string }> {
+/** 화의 보이는 본문 줄 (분석·검사 입력과 인용 위치의 기준)과 파일 해시 */
+export async function chapterLines(root: string, file: string): Promise<{ lines: string[]; hash: string }> {
   const { text, hash } = await readChapter(root, file);
   return { lines: visibleLines(parseC3(splitEnvelope(text).body)), hash };
 }

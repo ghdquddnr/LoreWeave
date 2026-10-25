@@ -10,6 +10,7 @@ import { CHANNELS, type AiStatus, type ProjectOpened } from '../preload/api.ts';
 import { createOpenAiClient, toAiError } from './ai-client.ts';
 import { AiStore } from './ai-db.ts';
 import { analysisStates, analyzeChapters, estimate } from './analyzer.ts';
+import { checkChapter, checkStates, planCheck } from './checker.ts';
 import { INDEX_DIR, ManuscriptIndex } from './index-db.ts';
 import { indexChapterText, reindexChapter, searchIndex, syncIndex } from './indexer.ts';
 import {
@@ -33,7 +34,7 @@ let indexReady: Promise<void> = Promise.resolve();
 let indexError: string | null = null;
 /** AI 분석 결과 저장소. 처음 분석할 때 만든다 (AI를 쓰지 않으면 ai.db가 생기지 않는다) */
 let aiStore: AiStore | null = null;
-/** 진행 중인 분석의 취소 장치. 분석은 한 번에 하나만 */
+/** 진행 중인 분석·검사의 취소 장치. 한 번에 하나만 */
 let analyzing: AbortController | null = null;
 
 function openAiStore(path: string, create: boolean): AiStore | null {
@@ -228,10 +229,12 @@ export function registerIpc(): void {
     const settings = await readSettings(userData());
     if (!store) {
       const files = await chapterFileNames(path);
-      return { states: Object.fromEntries(files.map((f) => [f, 'none'])), totalCostUsd: 0, recoveredFrom: null, consent: settings.aiSendConsent };
+      const none = Object.fromEntries(files.map((f) => [f, 'none' as const]));
+      return { states: none, checkStates: none, totalCostUsd: 0, recoveredFrom: null, consent: settings.aiSendConsent };
     }
     return {
       states: await analysisStates(path, store),
+      checkStates: await checkStates(path, store),
       totalCostUsd: store.totalCost(),
       recoveredFrom: store.recoveredFrom,
       consent: settings.aiSendConsent,
@@ -243,7 +246,11 @@ export function registerIpc(): void {
   });
   ipcMain.handle(CHANNELS.aiAnalysis, (_e, file: string) => openAiStore(requireRoot(), false)?.analysis(file) ?? null);
   ipcMain.handle(CHANNELS.aiCancel, () => analyzing?.abort());
-  ipcMain.handle(CHANNELS.aiAnalyze, async (event, files: string[]) => {
+  /** 분석·검사를 한 번에 하나만, 키와 전송 동의가 있을 때만 실행한다 */
+  const runAi = async <T>(
+    sender: Electron.WebContents,
+    work: (o: Parameters<typeof analyzeChapters>[1]) => Promise<T>,
+  ): Promise<T> => {
     const path = requireRoot();
     if (analyzing) throw new Error('이미 분석 중입니다');
     const settings = await readSettings(userData());
@@ -253,17 +260,30 @@ export function registerIpc(): void {
     const controller = new AbortController();
     analyzing = controller;
     try {
-      return await analyzeChapters(files, {
+      return await work({
         root: path,
         store: openAiStore(path, true)!,
         client: createOpenAiClient(key),
         model: settings.aiModel,
         signal: controller.signal,
-        onProgress: (p) => event.sender.send(CHANNELS.aiProgress, p),
+        onProgress: (p) => sender.send(CHANNELS.aiProgress, p),
       });
     } finally {
       analyzing = null;
     }
+  };
+  ipcMain.handle(CHANNELS.aiAnalyze, (event, files: string[]) => runAi(event.sender, (o) => analyzeChapters(files, o)));
+  ipcMain.handle(CHANNELS.aiPlanCheck, async (_e, file: string) => {
+    const path = requireRoot();
+    return planCheck(path, openAiStore(path, false), file, (await readSettings(userData())).aiModel);
+  });
+  ipcMain.handle(CHANNELS.aiRunCheck, (event, file: string) => runAi(event.sender, (o) => checkChapter(file, o)));
+  ipcMain.handle(CHANNELS.aiCheckResult, (_e, file: string) => openAiStore(requireRoot(), false)?.check(file) ?? null);
+  ipcMain.handle(CHANNELS.aiDismiss, (_e, file: string, ord: number) => {
+    const store = openAiStore(requireRoot(), false);
+    const finding = store?.check(file)?.findings.find((f) => f.ord === ord);
+    if (!store || !finding) throw new Error('무시할 검사 결과가 없습니다');
+    store.dismiss(file, finding.category, finding.key, new Date().toISOString());
   });
   ipcMain.handle(CHANNELS.chaptersSearch, async (_e, query: string) => {
     requireRoot();
