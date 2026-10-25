@@ -53,3 +53,14 @@ export function startOfDay(date: string): number {
   if (!m) throw new Error(`날짜는 YYYY-MM-DD 형식이어야 합니다: ${date}`);
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 1000;
 }
+
+/** .env 내용에서 변수 하나를 읽는다 (따옴표·앞뒤 공백 제거). 없으면 null */
+export function readEnvValue(text: string, name: string): string | null {
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!m || m[1] !== name) continue;
+    const value = m[2]!.trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+    return value || null;
+  }
+  return null;
+}

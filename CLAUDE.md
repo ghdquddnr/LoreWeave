@@ -72,3 +72,4 @@ Electron + TypeScript + electron-vite + React · TipTap(원고: 한 줄 = 한 �
 - 모든 작업은 브랜치에서 한다: `spike/*`, `feat/*`, `fix/*`, `docs/*`. main에 직접 작업하지 않는다.
 - spike 코드는 제품 코드로 승격하지 않는다. 결과(데이터, 보고서, 결정)만 남긴다.
 - 문서와 UI 문구는 한국어를 기본으로 한다.
+- OpenAI 비용은 추정하지 말고 Costs API로 확인한다: `corepack pnpm openai:costs --env-file spikes/m0a-ai-feasibility/.env` (Git이 무시하는 `.env`의 `OPENAI_ADMIN_KEY`, 키는 출력하지 않음). 비용이 드는 실행 전후에 확인하고, 토큰으로 계산한 값은 어림이라고 밝힌다.
