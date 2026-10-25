@@ -24,7 +24,7 @@ Possible continuity error
 - **M0-A** — AI가 연속성 오류를 얼마나 정확하게 찾을 수 있는가? → [보고서](docs/spikes/M0A-REPORT.md)
 - **M0-B** — 한글 입력과 Markdown 원고 보존이 가능한 에디터를 만들 수 있는가? → [보고서](docs/spikes/M0B-REPORT.md)
 
-앱 단계 M1·M2를 마쳤습니다. 원고 폴더를 열고, 화를 편집하고, 자동 저장하고, 원고 전체를 검색해 그 줄로 이동할 수 있습니다 (AI 기능 없음). → [M1 결과](docs/M1-REPORT.md), [M2 결과](docs/M2-REPORT.md)
+앱 단계 M1~M3를 마쳤습니다. 원고 폴더를 열고, 화를 편집하고, 자동 저장하고, 원고 전체를 검색해 그 줄로 이동할 수 있습니다. 자신의 OpenAI API 키를 넣으면, 버튼을 누른 화에서 인물과 사실을 원문 인용과 함께 뽑아 보여 줍니다 (원고는 버튼을 누를 때만 OpenAI로 전송). → [M1 결과](docs/M1-REPORT.md), [M2 결과](docs/M2-REPORT.md), [M3 결과](docs/M3-REPORT.md)
 
 개발 실행: `corepack pnpm install` → `corepack pnpm dev`. 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
 
