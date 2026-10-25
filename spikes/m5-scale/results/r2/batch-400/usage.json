@@ -1,0 +1,7 @@
+{
+  "checks": 27,
+  "costUsd": 0.010548640000000001,
+  "maxCostUsd": 0.0007315399999999999,
+  "maxLatencyMs": 10013,
+  "maxInputTokens": 25377
+}

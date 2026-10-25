@@ -174,3 +174,40 @@ test('취소하면 검사를 보내지 않는다', async () => {
   assert.equal(outcome.stopped, '취소했습니다');
   assert.ok(!client.calls.some((c) => c.schema.name === 'continuity_findings'));
 });
+
+test('나눠 검사: 사실이 batchSize보다 많으면 묶음마다 따로 묻고, 같은 결과는 하나로 합친다', async () => {
+  const many = (n: number): Extraction =>
+    n === 1
+      ? {
+          summary: '입학',
+          entities: [minsu],
+          facts: [
+            { entity: '김민수', predicate: '나이', value: '스무 살', quote: '둘 다 스무 살이었다.' },
+            { entity: '김민수', predicate: '첫날', value: '대학생이 된 첫날', quote: '대학생이 된 첫날이었다.' },
+            { entity: '김민수', predicate: '친구', value: '성진', quote: '성진은 민수 옆에 털썩 앉았다.' },
+          ],
+        }
+      : extractionOf(n);
+  const client = fakeClient(() => ({ findings: [ageFinding] }), (_c, n) => many(n));
+  const outcome = await checkChapter('003.md', { ...options(client), batchSize: 2 });
+  const detects = client.calls.filter((c) => c.schema.name === 'continuity_findings');
+  assert.equal(detects.length, 2);
+  assert.equal(detects.filter((c) => c.user.includes('둘 다 스무 살이었다.')).length, 1);
+  assert.equal(outcome.findings, 1);
+  const saved = store!.check('003.md')!;
+  assert.equal(saved.factCount, 3);
+  assert.equal(saved.findings.length, 1);
+  assert.equal(saved.costUsd.toFixed(5), ((2 * (2000 * 0.1 + 300 * 0.5)) / 1e6).toFixed(5));
+});
+
+test('나눠 검사: 묶음 하나라도 실패하면 저장하지 않는다', async () => {
+  let n = 0;
+  const client = fakeClient(() => {
+    if (++n === 2) throw new AiError('응답이 끝나지 않았습니다', 'incomplete');
+    return { findings: [ageFinding] };
+  }, (_c, k) => (k === 1 ? { ...extractionOf(1), facts: [...extractionOf(1).facts, ...extractionOf(1).facts] } : extractionOf(k)));
+  const outcome = await checkChapter('003.md', { ...options(client), batchSize: 1 });
+  assert.equal(outcome.checked, false);
+  assert.equal(outcome.stopped, '응답이 끝나지 않았습니다');
+  assert.equal(store!.check('003.md'), null);
+});

@@ -2,7 +2,7 @@
 //   pnpm ai-script scripts/measure-scale.ts --dry-run       (예상 비용만)
 //   pnpm ai-script scripts/measure-scale.ts --budget 0.8
 // 1) 150화를 작업 폴더에 풀고 모두 분석한다 (이미 분석한 화는 건너뛴다)
-// 2) 사실 줄이기 방법마다 분석 결과를 복사한 폴더에서 원래 화 14개(11, 21, …, 141번째)를 검사한다
+// 2) 사실 줄이기 방법(또는 batch-N: 줄이지 않고 N개씩 나눠 검사)마다 분석 결과를 복사한 폴더에서 원래 화 14개(11, 21, …, 141번째)를 검사한다
 // 3) 방법마다 predictions.json(M0-A 채점기 입력)과 사용량을, 모든 화에 대해 사실 수 증가표(growth.json)를 쓴다
 // 모델은 계획대로 gpt-6-luna로 고정한다. 작업 폴더(기본 out/m5-work)는 저장소에 넣지 않는다.
 
@@ -56,34 +56,44 @@ async function growth(root: string, store: AiStore): Promise<Record<string, unkn
   return rows;
 }
 
-async function measure(base: string, work: string, selection: Selection, ai: BudgetClient, signal: AbortSignal): Promise<string> {
-  const dir = join(work, selection);
+/** 측정 방법 이름: 사실 줄이기 방법(SELECTIONS) 또는 "batch-N"(줄이지 않고 N개씩 나눠 검사) */
+function parseMethod(name: string): { selection: Selection; batchSize?: number } {
+  const batch = /^batch-(\d+)$/.exec(name);
+  if (batch) return { selection: 'all', batchSize: Number(batch[1]) };
+  if (!(SELECTIONS as readonly string[]).includes(name)) throw new Error(`모르는 방법: ${name}`);
+  return { selection: name as Selection };
+}
+
+async function measure(base: string, work: string, name: string, ai: BudgetClient, signal: AbortSignal): Promise<string> {
+  const { selection, batchSize } = parseMethod(name);
+  const dir = join(work, name);
   rmSync(dir, { recursive: true, force: true });
   cpSync(base, dir, { recursive: true });
   const store = AiStore.open(dir);
   const lines: string[] = [];
   try {
     for (const file of targets()) {
-      const outcome = await checkChapter(file, { root: dir, store, client: ai, model: MODEL, signal, selection });
-      if (outcome.stopped) throw new Error(`${selection} ${file}: ${outcome.stopped}`);
+      const outcome = await checkChapter(file, { root: dir, store, client: ai, model: MODEL, signal, selection, batchSize });
+      if (outcome.stopped) throw new Error(`${name} ${file}: ${outcome.stopped}`);
       const check = store.check(file)!;
-      lines.push(`${selection} ${file}: 사실 ${check.factCount}개, 결과 ${outcome.findings}개(버림 ${outcome.dropped}) · $${outcome.costUsd.toFixed(4)}`);
+      lines.push(`${name} ${file}: 사실 ${check.factCount}개, 결과 ${outcome.findings}개(버림 ${outcome.dropped}) · $${outcome.costUsd.toFixed(4)}`);
       console.log(lines.at(-1));
     }
   } finally {
     store.close();
   }
-  const { predictions, usage } = toPredictions(join(dir, '.loreweave', 'ai.db'), `m5-${selection}`, selection);
+  const { predictions, usage } = toPredictions(join(dir, '.loreweave', 'ai.db'), `m5-${name}`, selection);
   mkdirSync(join(dir, 'eval'), { recursive: true });
   writeFileSync(join(dir, 'eval', 'predictions.json'), JSON.stringify(predictions, null, 2) + '\n');
   writeFileSync(join(dir, 'eval', 'usage.json'), JSON.stringify(usage, null, 2) + '\n');
-  return `${selection}: 검사 ${usage.checks}회 · $${usage.costUsd.toFixed(4)} · 최대 입력 ${usage.maxInputTokens}토큰 · 최대 ${usage.maxLatencyMs}ms`;
+  return `${name}: 검사 ${usage.checks}회 · $${usage.costUsd.toFixed(4)} · 최대 입력 ${usage.maxInputTokens}토큰 · 최대 ${usage.maxLatencyMs}ms`;
 }
 
 runWithStoredKey(async ({ client, args }) => {
   const work = resolve(option(args, '--work') ?? 'out/m5-work');
   const budget = Number(option(args, '--budget') ?? '0.8');
-  const selections = (option(args, '--selections')?.split(',') ?? [...SELECTIONS]) as Selection[];
+  const selections = option(args, '--selections')?.split(',') ?? [...SELECTIONS];
+  selections.forEach(parseMethod);
   const dryRun = args.includes('--dry-run');
   const base = join(work, 'base');
   if (!existsSync(join(base, 'chapters'))) unpackLongBenchmark(base);

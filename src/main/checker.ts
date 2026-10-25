@@ -13,10 +13,11 @@ import {
   detectionInput,
   parseDetection,
   selectFacts,
+  type Finding,
   type PriorAnalysis,
   type Selection,
 } from '../core/ai/detection.ts';
-import { quoteKey, verifyFindings, type PriorLines } from '../core/ai/verify.ts';
+import { mergeFindings, quoteKey, verifyFindings, type PriorLines } from '../core/ai/verify.ts';
 import { chapterNumber } from '../core/project/chapters.ts';
 import { toAiError, type AiClient } from './ai-client.ts';
 import type { AiStore } from './ai-db.ts';
@@ -104,7 +105,12 @@ export interface CheckOptions {
   now?(): Date;
   /** 앞 화 사실을 줄이는 방법 (M5 측정용, 기본은 줄이지 않음) */
   selection?: Selection;
+  /** 사실이 이보다 많으면 나눠 검사한다 (기본은 나누지 않음) */
+  batchSize?: number;
 }
+
+/** 나눈 묶음을 동시에 보내는 수 */
+const BATCH_CONCURRENCY = 2;
 
 export async function checkChapter(file: string, o: CheckOptions): Promise<CheckOutcome> {
   const now = o.now ?? (() => new Date());
@@ -134,55 +140,78 @@ export async function checkChapter(file: string, o: CheckOptions): Promise<Check
     inputs.push({ file: prior, contentHash: a.contentHash });
   }
   const facts = selectFacts(candidateFacts(targetAnalysis.entities, priorAnalyses), o.selection ?? 'all');
+  // 사실이 많으면 batchSize개씩 나눠 따로 검사하고 결과를 합친다 (M5: 입력이 길면 모델이 모순을 덜 알아본다)
+  const size = o.batchSize ?? Infinity;
+  const batches = facts.length > size ? Array.from({ length: Math.ceil(facts.length / size) }, (_, i) => facts.slice(i * size, (i + 1) * size)) : [facts];
 
-  const started = performance.now();
-  let result;
-  try {
-    result = await o.client.json({
-      model: o.model,
-      system: DETECT_SYSTEM,
-      user: detectionInput(file, target.lines, facts),
-      schema: DETECT_SCHEMA,
-      signal: o.signal,
-    });
-  } catch (e) {
-    const usage = (e as { usage?: Parameters<typeof costUsd>[1] }).usage;
-    if (usage) {
-      const cost = costUsd(o.model, usage);
+  /** 묶음 하나를 검사한다. 실패하면 그 이유를 돌려준다 */
+  const detect = async (batch: typeof facts): Promise<{ findings: Finding[]; modelVersion: string } | string> => {
+    const started = performance.now();
+    try {
+      const result = await o.client.json({
+        model: o.model,
+        system: DETECT_SYSTEM,
+        user: detectionInput(file, target.lines, batch),
+        schema: DETECT_SCHEMA,
+        signal: o.signal,
+      });
+      const cost = costUsd(o.model, result.usage);
       outcome.costUsd += cost;
-      o.store.logCall({ at: now().toISOString(), file, model: o.model, ok: false, usage, costUsd: cost, latencyMs: Math.round(performance.now() - started), kind: 'check' });
+      checkCost += cost;
+      o.store.logCall({ at: now().toISOString(), file, model: o.model, ok: true, usage: result.usage, costUsd: cost, latencyMs: Math.round(performance.now() - started), kind: 'check' });
+      try {
+        return { findings: parseDetection(result.data), modelVersion: result.modelVersion };
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    } catch (e) {
+      const usage = (e as { usage?: Parameters<typeof costUsd>[1] }).usage;
+      if (usage) {
+        const cost = costUsd(o.model, usage);
+        outcome.costUsd += cost;
+        checkCost += cost;
+        o.store.logCall({ at: now().toISOString(), file, model: o.model, ok: false, usage, costUsd: cost, latencyMs: Math.round(performance.now() - started), kind: 'check' });
+      }
+      return o.signal.aborted ? '취소했습니다' : toAiError(e).message;
     }
-    return stop(o.signal.aborted ? '취소했습니다' : toAiError(e).message);
-  }
-  const cost = costUsd(o.model, result.usage);
-  outcome.costUsd += cost;
-  o.store.logCall({ at: now().toISOString(), file, model: o.model, ok: true, usage: result.usage, costUsd: cost, latencyMs: Math.round(performance.now() - started), kind: 'check' });
+  };
+  let checkCost = 0;
+  const results: Awaited<ReturnType<typeof detect>>[] = [];
+  const queue = [...batches.entries()];
+  await Promise.all(
+    Array.from({ length: Math.min(BATCH_CONCURRENCY, queue.length) }, async () => {
+      for (let next = queue.shift(); next; next = queue.shift()) results[next[0]] = await detect(next[1]);
+    }),
+  );
+  const failed = results.find((r): r is string => typeof r === 'string');
+  if (failed) return stop(failed);
+  const done = results as { findings: Finding[]; modelVersion: string }[];
 
-  let parsed;
-  try {
-    parsed = parseDetection(result.data);
-  } catch (e) {
-    return stop(e instanceof Error ? e.message : String(e));
-  }
   // 근거로 들 수 있는 화는 사실을 넘긴 앞 화뿐이다
   const priorLines: PriorLines = new Map();
   for (const n of new Set(facts.map((f) => f.chapter))) {
     const prior = priors.find((f) => chapterNumber(f) === n)!;
     priorLines.set(n, { file: prior, lines: (await chapterLines(o.root, prior)).lines });
   }
-  const verified = verifyFindings(parsed, target.lines, priorLines);
+  const verified = verifyFindings(
+    done.flatMap((d) => d.findings),
+    target.lines,
+    priorLines,
+  );
+  const keyed = verified.findings.map((f) => ({ ...f, key: quoteKey(target.lines[f.target.line]!.slice(f.target.start, f.target.end)) }));
+  const findings = mergeFindings(keyed);
   o.store.saveCheck({
     file,
     contentHash: target.hash,
     model: o.model,
-    modelVersion: result.modelVersion,
+    modelVersion: done[0]!.modelVersion,
     promptVersion: DETECT_PROMPT_VERSION,
     factCount: facts.length,
     dropped: verified.dropped.length,
-    costUsd: cost,
+    costUsd: checkCost,
     createdAt: now().toISOString(),
     inputs,
-    findings: verified.findings.map((f) => ({ ...f, key: quoteKey(target.lines[f.target.line]!.slice(f.target.start, f.target.end)) })),
+    findings,
   });
-  return { ...outcome, checked: true, findings: verified.findings.length, dropped: verified.dropped.length };
+  return { ...outcome, checked: true, findings: findings.length, dropped: verified.dropped.length };
 }

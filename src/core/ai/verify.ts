@@ -64,3 +64,24 @@ export function verifyFindings(
   }
   return { findings: kept, dropped };
 }
+
+/**
+ * 나눠 검사한 결과를 합친다: 같은 종류·같은 이 화 문장(key)의 결과는 하나로, 근거는 겹치지 않게 모은다.
+ * 설명은 먼저 나온 결과의 것을, 확신도는 가장 높은 것을 쓴다.
+ */
+export function mergeFindings<T extends LocatedFinding & { key: string }>(findings: T[]): T[] {
+  const merged = new Map<string, T>();
+  for (const f of findings) {
+    const id = `${f.category}|${f.key}`;
+    const seen = merged.get(id);
+    if (!seen) {
+      merged.set(id, { ...f, evidence: [...f.evidence] });
+      continue;
+    }
+    for (const e of f.evidence) {
+      if (!seen.evidence.some((x) => x.chapter === e.chapter && x.line === e.line && x.start === e.start)) seen.evidence.push(e);
+    }
+    seen.confidence = Math.max(seen.confidence, f.confidence);
+  }
+  return [...merged.values()];
+}
