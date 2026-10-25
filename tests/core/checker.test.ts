@@ -225,3 +225,10 @@ test('계획: 앞 화 사실이 CHECK_BATCH_SIZE보다 많으면 나눠 검사�
   assert.equal(big.batches, 2);
   assert.ok(big.costUsd > small.costUsd);
 });
+
+test('확신도가 MIN_CONFIDENCE보다 낮은 결과는 저장하되 보이는 수에서 뺀다', async () => {
+  const low = { ...ageFinding, category: 'number', claim: '모순은 아니다', confidence: 0.1 };
+  const outcome = await checkChapter('003.md', options(fakeClient(() => ({ findings: [ageFinding, low] }))));
+  assert.deepEqual([outcome.findings, outcome.lowConfidence], [1, 1]);
+  assert.deepEqual(store!.check('003.md')!.findings.map((f) => f.confidence), [0.9, 0.1]);
+});

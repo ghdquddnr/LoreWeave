@@ -151,6 +151,14 @@ export const FACT_LIMIT = 400;
  */
 export const CHECK_BATCH_SIZE = 400;
 
+/**
+ * 이보다 확신도가 낮은 결과는 패널에서 숨긴다 (저장은 하고 [보기]로 볼 수 있다). M7-PLAN 1절.
+ * M4·M5 합성 원고 결과 9회분에서 맞는 지적 168개의 확신도는 모두 0.77 이상이었고, 0.7까지는 어느 실행에서도 Recall이 그대로였다.
+ * M6 실제 원고에서는 모델이 스스로 "모순이 아니다"라고 쓴 결과(확신 0.00, 0.10)가 여기에 걸린다.
+ * luna와 detect-1 프롬프트 기준이다. 모델이나 프롬프트를 바꾸면 다시 정한다.
+ */
+export const MIN_CONFIDENCE = 0.7;
+
 /** 같은 속성으로 볼 키: 인물 이름 + 속성 이름(괄호 안 내용과 공백을 뺌, 예: "나이 (2008년)" → "나이") */
 export function attributeKey(f: { entity: string; predicate: string }): string {
   const predicate = f.predicate.normalize('NFC').replace(/\([^)]*\)/g, '').replace(/\s+/g, '');

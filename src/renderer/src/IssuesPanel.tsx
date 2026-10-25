@@ -4,7 +4,7 @@
 //   - [무시]한 결과는 다시 검사해도 숨는다
 
 import { useEffect, useState } from 'react';
-import { CATEGORY_LABELS, CHECK_BATCH_SIZE } from '../../core/ai/detection.ts';
+import { CATEGORY_LABELS, CHECK_BATCH_SIZE, MIN_CONFIDENCE } from '../../core/ai/detection.ts';
 import { locateQuote, type QuoteLocation } from '../../core/ai/locate.ts';
 import type { CheckState, StoredCheck, StoredFinding } from '../../preload/api.ts';
 
@@ -27,6 +27,7 @@ interface Props {
 export function IssuesPanel({ file, state, version, currentLines, onJump, onOpenEvidence }: Props) {
   const [check, setCheck] = useState<StoredCheck | null | undefined>(undefined);
   const [showDismissed, setShowDismissed] = useState(false);
+  const [showLow, setShowLow] = useState(false);
   const [missing, setMissing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -40,7 +41,10 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
     };
   }, [file, version, reload]);
 
-  useEffect(() => setShowDismissed(false), [file]);
+  useEffect(() => {
+    setShowDismissed(false);
+    setShowLow(false);
+  }, [file]);
 
   const jump = (quote: string) => {
     const at = locateQuote(currentLines() ?? [], quote);
@@ -54,12 +58,16 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
       (e: Error) => setError(e.message),
     );
 
-  const shown = check?.findings.filter((f) => showDismissed || !f.dismissed) ?? [];
+  // 무시한 결과와 확신도가 낮은 결과는 숨긴다 (각각 [보기]로 볼 수 있다)
+  const low = (f: StoredFinding) => f.confidence < MIN_CONFIDENCE;
+  const shown = check?.findings.filter((f) => (showDismissed || !f.dismissed) && (showLow || !low(f))) ?? [];
   const dismissed = check?.findings.filter((f) => f.dismissed).length ?? 0;
+  const lowCount = check?.findings.filter((f) => !f.dismissed && low(f)).length ?? 0;
+  const visible = check?.findings.filter((f) => !f.dismissed && !low(f)).length ?? 0;
 
   return (
     <section className="issues" aria-label="문제 가능성">
-      <h2>문제 가능성{check && check.findings.length - dismissed > 0 ? ` (${check.findings.length - dismissed})` : ''}</h2>
+      <h2>문제 가능성{visible > 0 ? ` (${visible})` : ''}</h2>
       {check === undefined && <p className="muted">불러오는 중…</p>}
       {check === null && <p className="muted">아직 검사하지 않은 화입니다. 왼쪽의 [이 화 검사]를 누르면 앞 화들과 비교합니다.</p>}
       {check && (
@@ -73,10 +81,10 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
           {check.dropped > 0 && <p className="muted">원고에서 문장을 찾을 수 없어 버린 결과 {check.dropped}개</p>}
           {missing && <p className="warning">지금 본문에서 이 문장을 찾을 수 없습니다: {quoted(missing)}</p>}
           {error && <p className="error">{error}</p>}
-          {check.findings.length - dismissed === 0 && <p>찾은 문제 가능성이 없습니다.</p>}
+          {visible === 0 && <p>찾은 문제 가능성이 없습니다.</p>}
           <ul>
             {shown.map((f) => (
-              <li key={f.ord} className={f.dismissed ? 'issue dismissed' : 'issue'}>
+              <li key={f.ord} className={f.dismissed || low(f) ? 'issue dismissed' : 'issue'}>
                 <span className="issue-head">
                   <span className="category">{CATEGORY_LABELS[f.category]}</span>
                   <span className="muted" title="AI가 모순이라고 판단한 정도 (보조 정보)">
@@ -108,6 +116,11 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
               </li>
             ))}
           </ul>
+          {lowCount > 0 && (
+            <button type="button" className="link" onClick={() => setShowLow((v) => !v)}>
+              {showLow ? '확신이 낮은 결과 숨기기' : `확신이 낮아 숨긴 결과 ${lowCount}개 보기`}
+            </button>
+          )}
           {dismissed > 0 && (
             <button type="button" className="link" onClick={() => setShowDismissed((v) => !v)}>
               {showDismissed ? '무시한 결과 숨기기' : `무시한 결과 ${dismissed}개 보기`}
