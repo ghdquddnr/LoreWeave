@@ -40,7 +40,8 @@ test('키 없이, 동의 없이는 분석하지 않고, AI를 쓰기 전에는 a
     await page.getByRole('button', { name: '원고 폴더 열기' }).click();
     await page.locator('.ProseMirror').waitFor();
     const status = await page.evaluate(() => window.loreweave.ai.analysisStatus());
-    assert.deepEqual(status, { states: { '001.md': 'none', '002.md': 'none' }, totalCostUsd: 0, recoveredFrom: null, consent: false });
+    const none = { '001.md': 'none', '002.md': 'none' };
+    assert.deepEqual(status, { states: none, checkStates: none, totalCostUsd: 0, recoveredFrom: null, consent: false });
     const noConsent = await page.evaluate(() => window.loreweave.ai.analyze(['001.md']).then(() => '', (e: Error) => e.message));
     assert.match(noConsent, /원고 전송에 동의해야/);
     await page.evaluate(() => window.loreweave.ai.setConsent(true));

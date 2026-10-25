@@ -36,6 +36,10 @@ const api: LoreweaveApi = {
       return () => ipcRenderer.off(CHANNELS.aiProgress, handler);
     },
     analysis: (file) => ipcRenderer.invoke(CHANNELS.aiAnalysis, file),
+    planCheck: (file) => ipcRenderer.invoke(CHANNELS.aiPlanCheck, file),
+    runCheck: (file) => ipcRenderer.invoke(CHANNELS.aiRunCheck, file),
+    checkResult: (file) => ipcRenderer.invoke(CHANNELS.aiCheckResult, file),
+    dismiss: (file, ord) => ipcRenderer.invoke(CHANNELS.aiDismiss, file, ord),
   },
   app: {
     onBeforeClose(listener) {

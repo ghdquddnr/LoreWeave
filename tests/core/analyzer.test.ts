@@ -170,17 +170,20 @@ test('저장소: 다시 열어도 결과가 남고, 깨진 파일은 옮겨 두�
   store.close();
   store = null;
 
-  // 형식 1(M3 첫 배포) 파일은 결과를 둔 채 형식 2로 올린다
+  // 형식 1(M3 첫 배포) 파일은 결과를 둔 채 지금 형식(3)으로 올린다
   const path = join(root, '.loreweave', 'ai.db');
   const v1 = new DatabaseSync(path);
-  v1.exec('ALTER TABLE calls DROP COLUMN latency_ms; PRAGMA user_version = 1');
+  v1.exec(
+    `DROP TABLE dismissals; DROP TABLE finding_evidence; DROP TABLE findings; DROP TABLE check_inputs; DROP TABLE checks;
+     ALTER TABLE calls DROP COLUMN kind; ALTER TABLE calls DROP COLUMN latency_ms; PRAGMA user_version = 1`,
+  );
   v1.close();
   store = AiStore.open(root);
   assert.ok(store.analysis('001.md'));
   store.close();
   store = null;
   const v2 = new DatabaseSync(path);
-  assert.equal((v2.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 2);
+  assert.equal((v2.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 3);
   assert.deepEqual(v2.prepare('SELECT latency_ms FROM calls').all().map((r) => r['latency_ms']), [null]);
   v2.close();
 

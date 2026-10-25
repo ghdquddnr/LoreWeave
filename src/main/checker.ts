@@ -1,0 +1,184 @@
+// 연속성 검사 실행 (M4-PLAN 1·4절). 작가가 [이 화 검사]를 눌렀을 때만 실행한다.
+//   - 이 화와 앞 화(파일 이름 번호가 더 작은 화)가 모두 분석돼 있어야 한다. 아니면 먼저 분석한다 (M3)
+//   - 앞 화 분석이 하나라도 실패하면 검사하지 않는다 (빠진 사실로 검사하면 놓친 오류가 "문제 없음"처럼 보인다)
+//   - 이 화 문장과 근거 문장이 원고에 없는 결과는 저장하지 않는다 (ADR 0001 결정 2)
+//   - 화 파일은 읽기만 한다
+
+import { costUsd, estimateCheckCost, estimateExtractionTokens } from '../core/ai/cost.ts';
+import {
+  candidateFacts,
+  DETECT_PROMPT_VERSION,
+  DETECT_SCHEMA,
+  DETECT_SYSTEM,
+  detectionInput,
+  parseDetection,
+  type PriorAnalysis,
+} from '../core/ai/detection.ts';
+import { quoteKey, verifyFindings, type PriorLines } from '../core/ai/verify.ts';
+import { chapterNumber } from '../core/project/chapters.ts';
+import { toAiError, type AiClient } from './ai-client.ts';
+import type { AiStore } from './ai-db.ts';
+import { analysisStates, analyzeChapters, chapterLines, estimate, type AnalysisState, type AnalyzeProgress } from './analyzer.ts';
+import { chapterFileNames, chapterHash } from './project-files.ts';
+
+export type CheckState = AnalysisState;
+
+/** 화마다 검사 상태: 없음 / 검사 뒤 그대로 / 검사 뒤 바뀜 (이 화나 근거로 넘긴 앞 화의 본문이 바뀜) */
+export async function checkStates(root: string, store: AiStore): Promise<Record<string, CheckState>> {
+  const files = await chapterFileNames(root);
+  const hashes = new Map(await Promise.all(files.map(async (f) => [f, await chapterHash(root, f)] as const)));
+  const checked = store.checkedHashes();
+  const states: Record<string, CheckState> = {};
+  for (const file of files) {
+    const c = checked.get(file);
+    if (!c) states[file] = 'none';
+    else states[file] = [{ file, contentHash: c.contentHash }, ...c.inputs].every((i) => hashes.get(i.file) === i.contentHash) ? 'fresh' : 'stale';
+  }
+  return states;
+}
+
+/** 검사할 화의 앞 화들 (화 순서). 번호가 없거나, 앞 화가 없거나, 번호가 겹치면 검사할 수 없다 */
+async function priorFiles(root: string, file: string): Promise<string[]> {
+  const n = chapterNumber(file);
+  if (n === null) throw new Error('파일 이름에 화 번호가 없어 검사할 수 없습니다');
+  const files = (await chapterFileNames(root)).filter((f) => chapterNumber(f) !== null && chapterNumber(f)! <= n);
+  const byNumber = new Map<number, string[]>();
+  for (const f of files) byNumber.set(chapterNumber(f)!, [...(byNumber.get(chapterNumber(f)!) ?? []), f]);
+  const same = [...byNumber.values()].find((fs) => fs.length > 1);
+  if (same) throw new Error(`화 번호가 같은 파일이 있어 검사할 수 없습니다: ${same.join(', ')}`);
+  const priors = files.filter((f) => f !== file).sort((a, b) => chapterNumber(a)! - chapterNumber(b)!);
+  if (priors.length === 0) throw new Error('앞 화가 없어 검사할 수 없습니다');
+  return priors;
+}
+
+export interface CheckPlan {
+  /** 검사 전에 분석할 화 (분석 안 됨 또는 분석 뒤 바뀜) */
+  analyze: string[];
+  priors: number;
+  /** 분석과 검사를 합친 예상 비용 (상한) */
+  costUsd: number;
+}
+
+/** 앞 화 사실 한 줄이 입력에서 차지하는 글자 수 (detectionInput의 형식과 같게 센다) */
+const factChars = (f: { entity: string; predicate: string; value: string; quote: string }) =>
+  `- ${f.entity} | ${f.predicate} | ${f.value} | 원문: "${f.quote}"\n`.length;
+/** 화마다 붙는 <facts chapter="N"> 줄 */
+const FACT_BLOCK_CHARS = 40;
+
+export async function planCheck(root: string, store: AiStore | null, file: string, model: string): Promise<CheckPlan> {
+  const priors = await priorFiles(root, file);
+  const states = store ? await analysisStates(root, store) : {};
+  const analyze = [...priors, file].filter((f) => states[f] !== 'fresh');
+  const extraction = analyze.length ? (await estimate(root, analyze, model)).costUsd : 0;
+  // 검사 입력 상한: 이 화 본문 + 앞 화 사실 전부 (분석 전인 화는 추출 출력 상한만큼)
+  let chars = (await chapterLines(root, file)).lines.join('\n').length + 200;
+  for (const prior of priors) {
+    const a = analyze.includes(prior) ? null : store!.analysis(prior);
+    if (a) chars += FACT_BLOCK_CHARS + a.facts.reduce((n, f) => n + factChars(f), 0);
+    else chars += FACT_BLOCK_CHARS + estimateExtractionTokens((await chapterLines(root, prior)).lines.join('\n').length).output;
+  }
+  return { analyze, priors: priors.length, costUsd: extraction + estimateCheckCost(model, chars) };
+}
+
+export interface CheckOutcome {
+  /** 검사 전에 분석했으면 그 결과 */
+  analysis: AnalyzeProgress | null;
+  checked: boolean;
+  findings: number;
+  dropped: number;
+  /** 분석과 검사에 쓴 비용 */
+  costUsd: number;
+  /** 검사하지 못했으면 그 이유 */
+  stopped: string | null;
+}
+
+export interface CheckOptions {
+  root: string;
+  store: AiStore;
+  client: AiClient;
+  model: string;
+  signal: AbortSignal;
+  onProgress?(progress: AnalyzeProgress): void;
+  now?(): Date;
+}
+
+export async function checkChapter(file: string, o: CheckOptions): Promise<CheckOutcome> {
+  const now = o.now ?? (() => new Date());
+  const outcome: CheckOutcome = { analysis: null, checked: false, findings: 0, dropped: 0, costUsd: 0, stopped: null };
+  const stop = (reason: string) => ({ ...outcome, stopped: reason });
+
+  const plan = await planCheck(o.root, o.store, file, o.model);
+  if (plan.analyze.length) {
+    const progress = await analyzeChapters(plan.analyze, o);
+    outcome.analysis = progress;
+    outcome.costUsd += progress.costUsd;
+    if (progress.stopped) return stop(progress.stopped);
+    if (progress.failed.length) return stop(`분석하지 못한 화가 있어 검사하지 않았습니다: ${progress.failed.map((f) => f.file).join(', ')}`);
+  }
+  if (o.signal.aborted) return stop('취소했습니다');
+
+  const priors = await priorFiles(o.root, file);
+  const target = await chapterLines(o.root, file);
+  const targetAnalysis = o.store.analysis(file);
+  if (!targetAnalysis || targetAnalysis.contentHash !== target.hash) return stop('분석한 뒤 본문이 바뀌었습니다. 다시 검사하세요');
+  const priorAnalyses: PriorAnalysis[] = [];
+  const inputs: { file: string; contentHash: string }[] = [];
+  for (const prior of priors) {
+    const a = o.store.analysis(prior);
+    if (!a) return stop(`분석하지 않은 앞 화가 있습니다: ${prior}`);
+    priorAnalyses.push({ chapter: chapterNumber(prior)!, entities: a.entities, facts: a.facts });
+    inputs.push({ file: prior, contentHash: a.contentHash });
+  }
+  const facts = candidateFacts(targetAnalysis.entities, priorAnalyses);
+
+  const started = performance.now();
+  let result;
+  try {
+    result = await o.client.json({
+      model: o.model,
+      system: DETECT_SYSTEM,
+      user: detectionInput(file, target.lines, facts),
+      schema: DETECT_SCHEMA,
+      signal: o.signal,
+    });
+  } catch (e) {
+    const usage = (e as { usage?: Parameters<typeof costUsd>[1] }).usage;
+    if (usage) {
+      const cost = costUsd(o.model, usage);
+      outcome.costUsd += cost;
+      o.store.logCall({ at: now().toISOString(), file, model: o.model, ok: false, usage, costUsd: cost, latencyMs: Math.round(performance.now() - started), kind: 'check' });
+    }
+    return stop(o.signal.aborted ? '취소했습니다' : toAiError(e).message);
+  }
+  const cost = costUsd(o.model, result.usage);
+  outcome.costUsd += cost;
+  o.store.logCall({ at: now().toISOString(), file, model: o.model, ok: true, usage: result.usage, costUsd: cost, latencyMs: Math.round(performance.now() - started), kind: 'check' });
+
+  let parsed;
+  try {
+    parsed = parseDetection(result.data);
+  } catch (e) {
+    return stop(e instanceof Error ? e.message : String(e));
+  }
+  // 근거로 들 수 있는 화는 사실을 넘긴 앞 화뿐이다
+  const priorLines: PriorLines = new Map();
+  for (const n of new Set(facts.map((f) => f.chapter))) {
+    const prior = priors.find((f) => chapterNumber(f) === n)!;
+    priorLines.set(n, { file: prior, lines: (await chapterLines(o.root, prior)).lines });
+  }
+  const verified = verifyFindings(parsed, target.lines, priorLines);
+  o.store.saveCheck({
+    file,
+    contentHash: target.hash,
+    model: o.model,
+    modelVersion: result.modelVersion,
+    promptVersion: DETECT_PROMPT_VERSION,
+    factCount: facts.length,
+    dropped: verified.dropped.length,
+    costUsd: cost,
+    createdAt: now().toISOString(),
+    inputs,
+    findings: verified.findings.map((f) => ({ ...f, key: quoteKey(target.lines[f.target.line]!.slice(f.target.start, f.target.end)) })),
+  });
+  return { ...outcome, checked: true, findings: verified.findings.length, dropped: verified.dropped.length };
+}

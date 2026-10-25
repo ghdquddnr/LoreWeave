@@ -22,6 +22,22 @@ export interface LocatedFinding {
   evidence: LocatedEvidence[];
 }
 
+/**
+ * 무시 목록에서 "같은 문장"을 알아보는 키. 원고에서 찾은 글자(모델이 낸 인용이 아니라)로 만든다.
+ * NFC, 공백 개수, 따옴표 모양, 문장을 감싼 따옴표가 있는지 없는지는 같게 본다
+ * (모델이 같은 대사를 따옴표째 인용하기도, 빼고 인용하기도 한다). 작가가 글자를 고치면 키가 달라진다.
+ */
+export function quoteKey(text: string): string {
+  return text
+    .normalize('NFC')
+    .replace(/[“”„‟″]/g, '"')
+    .replace(/[‘’‚‛′]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^["'「『]+|["'」』]+$/g, '')
+    .trim();
+}
+
 /** 앞 화의 본문 줄. 화 번호로 찾는다 */
 export type PriorLines = Map<number, { file: string; lines: string[] }>;
 

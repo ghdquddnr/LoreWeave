@@ -16,7 +16,7 @@ import {
   type Finding,
   type PriorAnalysis,
 } from '../../src/core/ai/detection.ts';
-import { verifyFindings, type PriorLines } from '../../src/core/ai/verify.ts';
+import { quoteKey, verifyFindings, type PriorLines } from '../../src/core/ai/verify.ts';
 
 test('탐지 프롬프트는 M0-A에서 검증한 문구와 같다 (sha256 앞 12자리)', () => {
   assert.equal(createHash('sha256').update(DETECT_SYSTEM).digest('hex').slice(0, 12), '53207cd406ae');
@@ -149,4 +149,10 @@ test('검사 예상 비용은 M0-A 검사 호출의 최대 사용량보다 크�
   // 상한은 같은 사용량의 실제 비용 계산과 같은 단가를 쓴다
   const t = estimateCheckTokens(5000);
   assert.equal(estimateCheckCost('gpt-6.1-sol', 5000), costUsd('gpt-6.1-sol', { inputTokens: t.input, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: t.output }));
+});
+
+test('무시 키: 공백, 따옴표 모양, 감싼 따옴표는 같게 보고 글자가 다르면 다르다', () => {
+  assert.equal(quoteKey('"스물두  살입니다."'), quoteKey('스물두 살입니다.'));
+  assert.equal(quoteKey('“스물두 살입니다.”'), '스물두 살입니다.');
+  assert.notEqual(quoteKey('스물두 살입니다.'), quoteKey('스물세 살입니다.'));
 });
