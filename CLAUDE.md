@@ -12,10 +12,11 @@ AI가 글을 대신 쓰는 것이 아니라, 작가가 자신이 만든 설정�
 - `docs/M1-PLAN.md`, `docs/M1-REPORT.md` — M1 계획과 결과 (완료)
 - `docs/M2-PLAN.md`, `docs/M2-REPORT.md` — M2 계획과 결과 (완료)
 - `docs/M3-PLAN.md`, `docs/M3-REPORT.md` — M3 계획과 결과 (완료)
+- `docs/M4-PLAN.md` — 현재 단계(M4) 계획
 
 ## 현재 단계
 
-**M3 완료**: OpenAI 연결과 화별 사실 추출 (`docs/M3-REPORT.md`). 다음은 M4(연속성 오류 탐지, 계획 전). M1(Electron 셸 + 에디터 + Markdown 저장), M2(SQLite 색인과 원고 검색)도 완료 (`docs/M1-REPORT.md`, `docs/M2-REPORT.md`).
+**M3 완료**: OpenAI 연결과 화별 사실 추출 (`docs/M3-REPORT.md`). 다음은 M4(연속성 오류 탐지, `docs/M4-PLAN.md`). M1(Electron 셸 + 에디터 + Markdown 저장), M2(SQLite 색인과 원고 검색)도 완료 (`docs/M1-REPORT.md`, `docs/M2-REPORT.md`).
 
 M0 기술 검증 spike는 완료:
 
