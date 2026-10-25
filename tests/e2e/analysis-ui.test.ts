@@ -55,7 +55,7 @@ test('설정에서 키 저장 → 동의 → 이 화 분석 → 사실 패널 �
 
     await page.getByRole('button', { name: '이 화 분석' }).click();
     const consent = page.getByRole('dialog', { name: '원고 전송 안내' });
-    await consent.getByRole('button', { name: '동의하고 분석' }).click();
+    await consent.getByRole('button', { name: '동의하고 계속' }).click();
     await facts.getByRole('heading', { name: '김민수' }).waitFor();
     await facts.getByText('나이: 스무 살').waitFor();
     await page.getByRole('navigation', { name: '화 목록' }).getByLabel('AI 분석됨').waitFor();
@@ -82,7 +82,7 @@ test('분석 뒤 고친 화는 "바뀜"으로 표시되고, 남은 화 분석은
 
     await page.getByRole('button', { name: '남은 화 분석 (3)' }).click();
     // 이 사용자 데이터에서는 처음이라 전송 동의를 먼저 받는다
-    await page.getByRole('dialog', { name: '원고 전송 안내' }).getByRole('button', { name: '동의하고 분석' }).click();
+    await page.getByRole('dialog', { name: '원고 전송 안내' }).getByRole('button', { name: '동의하고 계속' }).click();
     const confirm = page.getByRole('dialog', { name: '분석 확인' });
     await confirm.getByText(/예상 비용 최대 \$0\.0\d+/).waitFor();
     const before = fake.requests.length;

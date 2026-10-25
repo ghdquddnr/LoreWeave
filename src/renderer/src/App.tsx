@@ -1,17 +1,20 @@
-// 앱 화면: 왼쪽 검색창과 화 목록(또는 검색 결과), 가운데 에디터, 아래 저장 상태 (M1-PLAN 1절, M2-PLAN 1절).
+// 앱 화면: 왼쪽 검색창과 화 목록(또는 검색 결과), 가운데 에디터, 오른쪽 AI 패널, 아래 저장 상태 (M1~M4 계획 1절).
 // 화를 옮기거나 폴더를 바꾸거나 창을 닫기 전에는 항상 현재 화를 먼저 저장한다.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chapterInfo } from '../../core/project/chapters.ts';
-import type { AnalysisState, ProjectOpened, SearchHit } from '../../preload/api.ts';
+import type { QuoteLocation } from '../../core/ai/locate.ts';
+import type { AnalysisState, CheckState, ProjectOpened, SearchHit } from '../../preload/api.ts';
 import { AnalysisBar } from './AnalysisBar.tsx';
 import { ChapterEditor, type ChapterEditorHandle, type Jump, type SaveStatus } from './ChapterEditor.tsx';
 import { FactsPanel } from './FactsPanel.tsx';
+import { IssuesPanel } from './IssuesPanel.tsx';
 import { SearchPanel, type SearchPanelHandle } from './SearchPanel.tsx';
 import { SettingsDialog } from './SettingsDialog.tsx';
 
 interface AiState {
   states: Record<string, AnalysisState>;
+  checkStates: Record<string, CheckState>;
   totalCostUsd: number;
   recoveredFrom: string | null;
   consent: boolean;
@@ -121,6 +124,14 @@ export function App() {
       setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
     });
 
+  /** 검사 근거로 이동: 그 화를 열고 근거 문장을 선택한다 */
+  const openEvidence = (target: string, at: QuoteLocation) =>
+    run(async () => {
+      if (target !== file && !(await leave())) return;
+      setFile(target);
+      setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }));
+    });
+
   /** 중복 id 해결: 고른 화에 새 id를 넣는다. 그 화가 열려 있으면 저장한 뒤 다시 연다 */
   const reissueId = (target: string) =>
     run(async () => {
@@ -163,11 +174,13 @@ export function App() {
       setProject((p) =>
         p && { ...p, list: { ...p.list, chapters: p.list.chapters.map((c) => (c.file === file ? { ...c, title, id } : c)) } },
       );
-      // 분석한 화를 고치면 "분석 뒤 바뀜"이 된다
-      if (ai?.states[file] === 'fresh') refreshAi();
+      // 분석·검사한 화를 고치면 "바뀜"이 된다 (이 화를 근거로 쓴 뒤 화의 검사도)
+      if (ai && (ai.states[file] === 'fresh' || Object.values(ai.checkStates).includes('fresh'))) refreshAi();
     },
     [file, ai, refreshAi],
   );
+
+  const jumpHere = (at: QuoteLocation) => setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }));
 
   if (starting) return null;
 
@@ -273,13 +286,23 @@ export function App() {
         )}
       </main>
       {file && (
-        <FactsPanel
-          file={file}
-          state={ai?.states[file]}
-          version={aiVersion}
-          currentLines={() => editor.current?.lines() ?? null}
-          onJump={(at) => setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }))}
-        />
+        <div className="ai-panel">
+          <IssuesPanel
+            file={file}
+            state={ai?.checkStates[file]}
+            version={aiVersion}
+            currentLines={() => editor.current?.lines() ?? null}
+            onJump={jumpHere}
+            onOpenEvidence={openEvidence}
+          />
+          <FactsPanel
+            file={file}
+            state={ai?.states[file]}
+            version={aiVersion}
+            currentLines={() => editor.current?.lines() ?? null}
+            onJump={jumpHere}
+          />
+        </div>
       )}
       <footer className="statusbar" role="status">
         <span>{current?.title ?? ''}</span>
