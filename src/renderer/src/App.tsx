@@ -3,9 +3,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chapterInfo } from '../../core/project/chapters.ts';
-import type { ProjectOpened, SearchHit } from '../../preload/api.ts';
+import type { AnalysisState, ProjectOpened, SearchHit } from '../../preload/api.ts';
+import { AnalysisBar } from './AnalysisBar.tsx';
 import { ChapterEditor, type ChapterEditorHandle, type Jump, type SaveStatus } from './ChapterEditor.tsx';
+import { FactsPanel } from './FactsPanel.tsx';
 import { SearchPanel, type SearchPanelHandle } from './SearchPanel.tsx';
+import { SettingsDialog } from './SettingsDialog.tsx';
+
+interface AiState {
+  states: Record<string, AnalysisState>;
+  totalCostUsd: number;
+  recoveredFrom: string | null;
+  consent: boolean;
+}
+
+const MARK_TITLE: Record<AnalysisState, string> = { none: '', fresh: 'AI 분석됨', stale: 'AI 분석 뒤 바뀜' };
 
 const api = window.loreweave;
 
@@ -34,13 +46,24 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [jump, setJump] = useState<Jump | null>(null);
+  const [ai, setAi] = useState<AiState | null>(null);
+  const [aiVersion, setAiVersion] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const editor = useRef<ChapterEditorHandle>(null);
   const search = useRef<SearchPanelHandle>(null);
 
-  const showProject = useCallback((p: ProjectOpened) => {
-    setProject(p);
-    setFile(firstReadable(p));
+  const refreshAi = useCallback(() => {
+    api.ai.analysisStatus().then(setAi, (e: Error) => setError(e.message));
   }, []);
+
+  const showProject = useCallback(
+    (p: ProjectOpened) => {
+      setProject(p);
+      setFile(firstReadable(p));
+      refreshAi();
+    },
+    [refreshAi],
+  );
 
   useEffect(() => {
     api.project
@@ -71,12 +94,15 @@ export function App() {
     window.addEventListener('blur', onBlur);
     window.addEventListener('keydown', onKey);
     const off = api.app.onBeforeClose(() => void leave().then((ok) => api.app.replyClose(ok)));
+    // 다른 프로그램이 화를 바꾸면 분석 상태(분석 뒤 바뀜)도 다시 읽는다
+    const offOutside = api.chapters.onChangedOutside(() => refreshAi());
     return () => {
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('keydown', onKey);
       off();
+      offOutside();
     };
-  }, [leave]);
+  }, [leave, refreshAi]);
 
   const run = (task: () => Promise<void>) => task().catch((e: Error) => setError(e.message));
 
@@ -137,8 +163,10 @@ export function App() {
       setProject((p) =>
         p && { ...p, list: { ...p.list, chapters: p.list.chapters.map((c) => (c.file === file ? { ...c, title, id } : c)) } },
       );
+      // 분석한 화를 고치면 "분석 뒤 바뀜"이 된다
+      if (ai?.states[file] === 'fresh') refreshAi();
     },
-    [file],
+    [file, ai, refreshAi],
   );
 
   if (starting) return null;
@@ -163,10 +191,26 @@ export function App() {
           <button onClick={chooseFolder} title="다른 원고 폴더 열기">
             열기
           </button>
+          <button onClick={() => setSettingsOpen(true)} title="AI 설정">
+            설정
+          </button>
         </header>
         <button className="new-chapter" onClick={newChapter}>
           + 새 화
         </button>
+        {ai && (
+          <AnalysisBar
+            file={file}
+            states={ai.states}
+            consent={ai.consent}
+            beforeAnalyze={() => editor.current?.flush() ?? Promise.resolve()}
+            onAnalyzed={() => {
+              refreshAi();
+              setAiVersion((v) => v + 1);
+            }}
+            onNeedKey={() => setSettingsOpen(true)}
+          />
+        )}
         <SearchPanel
           ref={search}
           active={searching}
@@ -204,6 +248,11 @@ export function App() {
               onClick={() => openChapter(c.file)}
             >
               {c.title}
+              {ai && ai.states[c.file] && ai.states[c.file] !== 'none' && (
+                <span className={`mark mark-${ai.states[c.file]}`} title={MARK_TITLE[ai.states[c.file]!]} aria-label={MARK_TITLE[ai.states[c.file]!]}>
+                  ●
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -223,6 +272,15 @@ export function App() {
           <p className="editor-message">왼쪽에서 화를 고르거나 새 화를 만드세요.</p>
         )}
       </main>
+      {file && (
+        <FactsPanel
+          file={file}
+          state={ai?.states[file]}
+          version={aiVersion}
+          currentLines={() => editor.current?.lines() ?? null}
+          onJump={(at) => setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }))}
+        />
+      )}
       <footer className="statusbar" role="status">
         <span>{current?.title ?? ''}</span>
         <span className={`save save-${save.status.kind}`}>
@@ -235,8 +293,12 @@ export function App() {
           </span>
         )}
         {notice && <span className="notice">{notice}</span>}
+        {ai?.recoveredFrom && <span className="warning">AI 분석 파일이 깨져 옮겨 두었습니다: {ai.recoveredFrom}</span>}
         {error && <span className="error">{error}</span>}
       </footer>
+      {settingsOpen && (
+        <SettingsDialog totalCostUsd={ai?.totalCostUsd ?? 0} onClose={() => setSettingsOpen(false)} onChange={() => refreshAi()} />
+      )}
     </div>
   );
 }

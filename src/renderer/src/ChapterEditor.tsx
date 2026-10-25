@@ -8,6 +8,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { openManuscript, serializeManuscript, type Doc, type Envelope } from '../../core/manuscript/index.ts';
 import { editorProps, extensions } from './editor/extensions.ts';
 import { lineRangeToPositions } from './editor/jump.ts';
+import { visibleLines } from '../../core/manuscript/lines.ts';
 
 const AUTOSAVE_DELAY_MS = 1500;
 const RETRY_DELAY_MS = 5000;
@@ -30,6 +31,8 @@ export interface Jump {
 export interface ChapterEditorHandle {
   /** 저장할 것이 있으면 저장한다. 끝난 뒤 저장 안 된 변경이 남아 있으면 false */
   flush(): Promise<boolean>;
+  /** 지금 에디터 본문의 줄별 글자 (M2 줄 주소). 아직 열리는 중이면 null */
+  lines(): string[] | null;
 }
 
 interface Props {
@@ -172,7 +175,14 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
   });
   editorRef.current = editor;
 
-  useImperativeHandle(ref, () => ({ flush: () => saveRef.current() }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      flush: () => saveRef.current(),
+      lines: () => (editor ? visibleLines(editor.getJSON() as Doc) : null),
+    }),
+    [editor],
+  );
 
   useEffect(() => {
     if (!editor || !jump) return;
