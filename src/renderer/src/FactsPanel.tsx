@@ -46,7 +46,8 @@ export function FactsPanel({ file, state, version, currentLines, onJump }: Props
       {analysis && (
         <>
           <p className="muted">
-            {analysis.model} · {new Date(analysis.createdAt).toLocaleString()}
+            {analysis.model}
+            {(analysis.chunks ?? 1) > 1 && ` · ${analysis.chunks}조각으로 나눠 추출`} · {new Date(analysis.createdAt).toLocaleString()}
           </p>
           {state === 'stale' && <p className="warning">분석한 뒤 본문이 바뀌었습니다. 다시 분석하면 최신 내용이 반영됩니다.</p>}
           {analysis.droppedQuotes > 0 && (

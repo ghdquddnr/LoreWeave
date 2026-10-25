@@ -117,7 +117,9 @@ export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promi
       let cost = 0;
       let modelVersion = '';
       for (const chunk of chunks) {
-        if (o.signal.aborted) throw new Error('취소했습니다');
+        // 조각마다 공유 중단을 확인한다: 취소했거나 다른 화가 키·모델·한도 문제로 멈췄으면 다음 조각을 보내지 않고,
+        // 이 화는 저장하지 않는다 (일부 조각만 합친 분석을 완성본으로 남기지 않는다). 이미 보낸 조각의 호출 기록은 남아 있다
+        if (!mayContinue()) return;
         started = performance.now();
         const result = await o.client.json({
           model: o.model,

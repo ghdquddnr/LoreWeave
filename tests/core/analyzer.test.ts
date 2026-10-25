@@ -221,3 +221,50 @@ test('나눠 추출: 긴 화는 조각마다 묻고 합쳐 저장하며, 비용�
   const split = await estimate(root, ['009.md'], 'gpt-6-luna');
   assert.ok(split.costUsd > one.costUsd);
 });
+
+for (const kind of ['auth', 'model', 'rate-limit'] as const) {
+  test(`나눠 추출 중단 전파 (${kind}): 한 화가 멈추면 다른 긴 화는 새 조각을 보내지 않고, 일부 조각만으로 저장하지 않으며, 이미 보낸 호출 기록과 이전 분석은 남는다`, async () => {
+    const long = (n: number) => ['# 화', '', ...Array.from({ length: 12 }, (_, i) => [`${'가'.repeat(200)} ${n}화문장${i}이다.`, '']).flat()].join('\n');
+    await writeFile(join(root, 'chapters', '008.md'), long(8));
+    await writeFile(join(root, 'chapters', '009.md'), long(9));
+    // 009화에는 이전에 완성된 분석이 있다
+    store = AiStore.open(root);
+    store.saveAnalysis({ file: '009.md', contentHash: 'old', model: 'gpt-6-luna', modelVersion: 'v', promptVersion: 'extract-1', summary: '이전 분석', droppedQuotes: 0, costUsd: 0, createdAt: 't', entities: [], facts: [] });
+
+    let release!: () => void;
+    const failed = new Promise<void>((r) => (release = r));
+    let started9!: () => void;
+    const sent9 = new Promise<void>((r) => (started9 = r));
+    const calls: number[] = [];
+    const client: AiClient = {
+      async check() {},
+      async json(call) {
+        const n = Number(/<chapter n="(\d+)">/.exec(call.user)![1]);
+        calls.push(n);
+        if (n === 8) {
+          // 009화가 첫 조각을 보낸 뒤, 008화 첫 조각이 키·모델·한도 문제로 멈춘다. 009화의 첫 응답은 그 뒤에 돌아온다
+          await sent9;
+          setTimeout(release, 0);
+          throw new AiError('멈춤', kind);
+        }
+        started9();
+        await failed;
+        await new Promise((r) => setTimeout(r, 5));
+        return { data: { summary: 's', entities: [], facts: [] }, usage, modelVersion: 'v', latencyMs: 1 };
+      },
+    };
+    const progress = await analyzeChapters(['008.md', '009.md'], options(client));
+    assert.equal(progress.stopped, '멈춤');
+    assert.deepEqual(calls.filter((n) => n === 9).length, 1, `009화 요청 ${calls.filter((n) => n === 9).length}회`);
+    // 일부 조각만 합친 분석으로 덮어쓰지 않았다
+    assert.equal(store!.analysis('009.md')!.summary, '이전 분석');
+    assert.equal(store!.analysis('008.md'), null);
+    // 이미 보낸 009화 첫 조각의 호출은 기록에 남는다
+    store!.close();
+    store = null;
+    const raw = new DatabaseSync(join(root, '.loreweave', 'ai.db'));
+    const logged = raw.prepare("SELECT count(*) AS n FROM calls WHERE file = '009.md'").get() as { n: number };
+    raw.close();
+    assert.equal(logged.n, 1);
+  });
+}
