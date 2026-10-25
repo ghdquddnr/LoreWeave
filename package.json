@@ -14,6 +14,7 @@
     "perf": "electron-vite build && tsx scripts/perf.ts",
     "perf:index": "tsx scripts/perf-index.ts",
     "export:predictions": "tsx scripts/export-predictions.ts",
+    "ai-script": "node scripts/electron-run.mjs",
     "test:e2e": "electron-vite build && node --import tsx --test --test-timeout=60000 --test-concurrency=1 \"tests/e2e/**/*.test.ts\""
   },
   "devDependencies": {

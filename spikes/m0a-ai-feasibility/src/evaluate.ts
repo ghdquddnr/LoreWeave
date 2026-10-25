@@ -297,9 +297,9 @@ function reviewQueueMarkdown(r: EvalReport): string {
   return lines.join('\n');
 }
 
-function main(dir: string) {
+function main(dir: string, benchmarkDir?: string) {
   const preds = JSON.parse(readFileSync(join(dir, 'predictions.json'), 'utf8')) as Predictions;
-  const r = evaluate(preds, loadGroundTruth(), loadChapters());
+  const r = evaluate(preds, loadGroundTruth(benchmarkDir), loadChapters(benchmarkDir));
   writeFileSync(join(dir, 'metrics.json'), JSON.stringify(r, null, 2) + '\n');
   writeFileSync(join(dir, 'review-queue.md'), reviewQueueMarkdown(r));
 
@@ -314,10 +314,11 @@ function main(dir: string) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const dir = process.argv[2];
+  // optional second argument: another benchmark folder with ground-truth.json and chapters/ (M5 long benchmark)
+  const [dir, benchmarkDir] = process.argv.slice(2);
   if (!dir) {
-    console.error('usage: tsx src/evaluate.ts results/<run-id>');
+    console.error('usage: tsx src/evaluate.ts results/<run-id> [benchmark-dir]');
     process.exit(1);
   }
-  main(dir);
+  main(dir, benchmarkDir);
 }
