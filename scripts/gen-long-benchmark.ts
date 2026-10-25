@@ -1,10 +1,12 @@
 // 150화 긴 시험 원고 만들기 (M5-PLAN 1·2절). Electron으로 실행해 앱에 저장된 키를 쓴다.
 //   pnpm ai-script scripts/gen-long-benchmark.ts --dry-run          (예상 비용만, 호출 없음)
 //   pnpm ai-script scripts/gen-long-benchmark.ts --budget 0.6       (생성)
+//   pnpm ai-script scripts/gen-long-benchmark.ts --limit 3          (없는 화 중 앞에서 3개만, 품질 확인용)
 // 원래 화 15개를 새 번호로 복사하고 정답표 번호를 바꾼 뒤, 없는 중간 화만 만든다 (중간에 멈춰도 이어서 만든다).
+// 작업 폴더 chapters/는 저장소에 넣지 않고, 150화가 다 되면 chapters.json 하나로 묶는다.
 // 모델은 계획대로 gpt-6-luna로 고정한다. 앱에서 고른 모델은 쓰지 않는다.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { costUsd } from '../src/core/ai/cost.ts';
 import { BudgetExceeded, withBudget } from './lib/budget.ts';
@@ -20,6 +22,8 @@ import {
   gapOf,
   ORIGINAL_CHAPTERS,
   originalPosition,
+  PACKED_FILE,
+  packChapters,
   parseFiller,
   parsePlot,
   renumberGroundTruth,
@@ -42,11 +46,18 @@ interface LogLine {
   summary: string;
 }
 
+function pack(chapters: string, out: string): void {
+  const files = Object.fromEntries(readdirSync(chapters).filter((f) => f.endsWith('.md')).map((f) => [f, readFileSync(join(chapters, f), 'utf8')]));
+  writeFileSync(join(out, PACKED_FILE), packChapters(files));
+  console.log(`150화를 ${join(out, PACKED_FILE)} 하나로 묶었습니다`);
+}
+
 runWithStoredKey(async ({ client, args }) => {
   const out = resolve(option(args, '--out') ?? 'spikes/m5-scale/benchmark');
   const budget = Number(option(args, '--budget') ?? '0.6');
   const concurrency = Number(option(args, '--concurrency') ?? '3');
   const dryRun = args.includes('--dry-run');
+  const limit = Number(option(args, '--limit') ?? 'Infinity');
   const chapters = join(out, 'chapters');
   const logPath = join(out, 'generation.jsonl');
   mkdirSync(chapters, { recursive: true });
@@ -68,14 +79,16 @@ runWithStoredKey(async ({ client, args }) => {
         .filter(Boolean)
         .map((l) => JSON.parse(l) as LogLine)
     : [];
-  const todo = fillerPositions().filter((n) => !existsSync(join(chapters, chapterFile(n))));
+  const missing = fillerPositions().filter((n) => !existsSync(join(chapters, chapterFile(n))));
+  const todo = missing.slice(0, limit);
 
   const sampleInput = fillerInput(2, canon, plot, []).length + FILLER_SYSTEM.length;
   const perChapter = costUsd(MODEL, { inputTokens: sampleInput + 600, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: OUTPUT_TOKENS_BOUND });
   console.log(`앱에 저장된 키를 읽었습니다. 모델 ${MODEL}, 출력 ${out}`);
-  console.log(`원래 화 15개와 정답표를 새 번호로 썼습니다. 만들 중간 화 ${todo.length}개 (이미 있는 것 ${135 - todo.length}개)`);
+  console.log(`원래 화 15개와 정답표를 새 번호로 썼습니다. 만들 중간 화 ${todo.length}개 (없는 것 ${missing.length}개, 이미 있는 것 ${135 - missing.length}개)`);
   console.log(`예상 비용 최대 $${(perChapter * todo.length).toFixed(3)} (화당 최대 $${perChapter.toFixed(4)}), 한도 $${budget.toFixed(2)}`);
-  if (dryRun || todo.length === 0) return;
+  if (dryRun) return;
+  if (todo.length === 0) return pack(chapters, out);
   if (perChapter * todo.length > budget) throw new Error('예상 비용 상한이 한도를 넘습니다. --budget을 늘리거나 나눠서 만드세요.');
 
   const ai = withBudget(client, MODEL, budget);
@@ -127,4 +140,5 @@ runWithStoredKey(async ({ client, args }) => {
   );
   console.log(`중간 화 ${made}개를 만들었습니다 · 비용 $${ai.spent().toFixed(4)}`);
   if (stopped) throw new Error(`${stopped}. 다시 실행하면 없는 화부터 이어서 만듭니다.`);
+  pack(chapters, out);
 });
