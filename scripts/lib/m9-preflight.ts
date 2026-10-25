@@ -60,6 +60,8 @@ export interface PreflightReport {
   chapters: ChapterResult[];
   /** 기준이 없거나 읽을 수 없어 대조하지 못한 이유 */
   missing: string[];
+  /** 기준 자료가 없어 명시적으로 건너뛴 항목 */
+  skipped: Item[];
 }
 
 interface Row {
@@ -106,8 +108,10 @@ export interface PreflightOptions {
   /** 요청을 만들 작업 폴더와 그 저장소 */
   workRoot: string;
   workStore: AiStore;
-  /** 기준 폴더의 평가기 출력 (화·인용 순서, 재구성 자료). 없으면 order 항목은 실패한다 */
+  /** 기준 폴더의 평가기 출력 (화·인용 순서, 재구성 자료). 없으면 order 항목은 실패한다 (skipOrder가 아니면) */
   predictions: { chapters: { target_chapter: number; context: { chapter: number; text: string }[] }[] } | null;
+  /** 평가기 출력이 원래 없는 기준(M4)에서 order 항목을 건너뛴다. 건너뛴 사실은 결과에 남긴다 */
+  skipOrder?: boolean;
   /** 대조할 화. 기준에 검사 기록이 없는 화가 있으면 실패한다 */
   targets: string[];
 }
@@ -118,7 +122,7 @@ export async function preflight(o: PreflightOptions): Promise<PreflightReport> {
   try {
     db = new DatabaseSync(join(o.baselineRoot, '.loreweave', 'ai.db'), { readOnly: true });
   } catch (e) {
-    return { ok: false, chapters: [], missing: [`기준 ai.db를 읽을 수 없습니다: ${e instanceof Error ? e.message : String(e)}`] };
+    return { ok: false, chapters: [], missing: [`기준 ai.db를 읽을 수 없습니다: ${e instanceof Error ? e.message : String(e)}`], skipped: [] };
   }
   try {
     const chapters: ChapterResult[] = [];
@@ -170,7 +174,9 @@ export async function preflight(o: PreflightOptions): Promise<PreflightReport> {
 
       // reconstructed: 평가기 출력의 화·인용 순서
       const exported = o.predictions?.chapters.find((c) => c.target_chapter === chapterNumber(file));
-      if (!exported) fail('order', '평가기 출력에 이 화가 없음');
+      if (o.skipOrder) {
+        // 건너뜀 (skipped에 남긴다)
+      } else if (!exported) fail('order', '평가기 출력에 이 화가 없음');
       else if (JSON.stringify(exported.context.map((c) => [c.chapter, c.text])) !== JSON.stringify(prepared.facts.map((f) => [f.chapter, f.quote])))
         fail('order', '사실의 화·인용 순서가 평가기 출력과 다름');
 
@@ -198,7 +204,7 @@ export async function preflight(o: PreflightOptions): Promise<PreflightReport> {
 
       chapters.push({ file, ok: failures.length === 0, failures, fingerprint: requestFingerprint(prepared), batches: prepared.batches.length, facts: prepared.facts.length });
     }
-    return { ok: missing.length === 0 && chapters.length > 0 && chapters.every((c) => c.ok), chapters, missing };
+    return { ok: missing.length === 0 && chapters.length > 0 && chapters.every((c) => c.ok), chapters, missing, skipped: o.skipOrder ? ['order'] : [] };
   } finally {
     db.close();
   }
@@ -215,6 +221,7 @@ export function publicSummary(r: PreflightReport) {
     batches: r.chapters.reduce((n, c) => n + c.batches, 0),
     failuresByItem: byItem,
     missing: r.missing.length,
+    skipped: r.skipped,
     basis: ITEM_BASIS,
     unknown: ['M8이 실제로 보낸 요청 바이트 (저장 기록 없음)'],
   };

@@ -10,95 +10,30 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, test } from 'node:test';
 import { costUsd } from '../../src/core/ai/cost.ts';
 import { DETECT_PROMPT_VERSION, DETECT_SCHEMA, DETECT_SYSTEM } from '../../src/core/ai/detection.ts';
-import type { Extraction } from '../../src/core/ai/extraction.ts';
 import { modelInfo } from '../../src/core/ai/models.ts';
 import { AiError, MAX_OUTPUT_TOKENS, type AiClient, type JsonCall } from '../../src/main/ai-client.ts';
 import { AiStore } from '../../src/main/ai-db.ts';
 import { checkChapter, prepareCheck } from '../../src/main/checker.ts';
-import { toPredictions } from '../../scripts/export-predictions.ts';
+import { fakeClient, M0A, makeBaseline, MODEL, REPO, tamper, TARGETS, usage } from './fixtures/m9-fixture.ts';
 import { buildDetect2, DETECT2_SYSTEM, DETECT2_VERSION } from '../../scripts/lib/detect2.ts';
 import { filesFingerprint, preflight } from '../../scripts/lib/m9-preflight.ts';
 import { M9_STAGE_LIMIT_USD, overlapReason, runM9 } from '../../scripts/lib/m9-run.ts';
 import { BudgetRefused, callCostBound, inputTokenBound, MESSAGE_OVERHEAD_TOKENS, withReservation } from '../../scripts/lib/reserve.ts';
 
-const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
-const REPO = join(__dirname, '../..');
-const MODEL = 'gpt-6-luna';
-const usage = { inputTokens: 2000, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: 300 };
-const TARGETS = ['002.md', '003.md'];
-/** 1화 사실 수. 400개씩 나누면 2화·3화 검사는 2묶음씩 된다 */
-const MANY = 450;
-
 let tmp: string;
 let baseline: string;
-
-const minsu = { name: '김민수', aliases: ['민수'] };
-/** 1화 본문에 있는 문장. 사실마다 돌려 써서 순서를 바꾸면 화·인용 순서가 달라지게 한다 */
-const QUOTES = ['둘 다 스무 살이었다.', '생각이 많아질 때마다 나오는 버릇이었다.', '가슴에 단 이름표가 아직 어색했다.'];
-const extractionOf = (n: number): Extraction =>
-  n === 1
-    ? {
-        summary: '입학',
-        entities: [minsu],
-        facts: Array.from({ length: MANY }, (_, i) => ({ entity: '김민수', predicate: '나이', value: `값 ${i}`, quote: QUOTES[i % QUOTES.length]! })),
-      }
-    : { summary: `${n}화`, entities: n === 2 ? [{ name: '이지현', aliases: [] }, minsu] : [minsu], facts: [] };
-
-/** 호출을 기록하는 가짜 클라이언트. detect는 검사 응답을 정한다 */
-function fakeClient(detect: (call: JsonCall) => Promise<unknown> | unknown = () => ({ findings: [] })): AiClient & { calls: JsonCall[] } {
-  const calls: JsonCall[] = [];
-  return {
-    calls,
-    async check() {},
-    async json(call) {
-      calls.push(call);
-      const n = Number(/<chapter n="(\d+)">/.exec(call.user)![1]);
-      const data = call.schema.name === 'chapter_extraction' ? extractionOf(n) : await detect(call);
-      return { data, usage, modelVersion: 'gpt-6-luna-test', latencyMs: 1 };
-    },
-  };
-}
-
-/** M8과 같은 모양의 기준 폴더: 분석 → 검사(detect-1) → 평가기 출력 */
-async function makeBaseline(root: string) {
-  await mkdir(join(root, 'chapters'), { recursive: true });
-  for (const n of ['01', '02', '03']) await copyFile(join(M0A, `ch${n}.md`), join(root, 'chapters', `0${n}.md`));
-  let tick = 0;
-  const now = () => new Date(Date.UTC(2026, 9, 25, 0, 0, tick++));
-  const store = AiStore.open(root);
-  try {
-    for (const file of TARGETS) {
-      const outcome = await checkChapter(file, { root, store, client: fakeClient(), model: MODEL, signal: new AbortController().signal, now });
-      assert.equal(outcome.stopped, null);
-    }
-  } finally {
-    store.close();
-  }
-  const { predictions } = toPredictions(join(root, '.loreweave', 'ai.db'), 'm8-test');
-  await mkdir(join(root, 'review', 'eval'), { recursive: true });
-  await writeFile(join(root, 'review', 'eval', 'predictions.json'), JSON.stringify(predictions));
-}
-
-/** 기준 ai.db를 직접 고친다 (변조 시험) */
-function tamper(root: string, sql: string, ...args: (string | number)[]) {
-  const db = new DatabaseSync(join(root, '.loreweave', 'ai.db'));
-  try {
-    db.prepare(sql).run(...args);
-  } finally {
-    db.close();
-  }
-}
 
 const m9 = (over: Partial<Parameters<typeof runM9>[0]> = {}) => {
   const connected: AiClient[] = [];
   const client = fakeClient();
-  const options = {
+  const options: Parameters<typeof runM9>[0] = {
+    label: 'real',
     baseline,
     work: join(tmp, 'work'),
     predictions: join(baseline, 'review', 'eval', 'predictions.json'),
     targets: TARGETS,
     runs: 2,
-    budgetUsd: 1.2,
+    ledgerDir: join(tmp, 'ledger'),
     run: false,
     connect: () => {
       connected.push(client);
@@ -364,11 +299,12 @@ test('옵션: 실행 횟수·한도가 잘못되면 폴더를 만들기 전에 �
     [2, Number.POSITIVE_INFINITY],
     [2, M9_STAGE_LIMIT_USD + 0.01],
   ];
-  for (const [runs, budgetUsd] of bad) {
-    const work = join(tmp, `w-${String(runs)}-${String(budgetUsd)}`);
-    const x = m9({ run: true, work, runs, budgetUsd });
+  for (const [runs, limitUsd] of bad) {
+    const work = join(tmp, `w-${String(runs)}-${String(limitUsd)}`);
+    const x = m9({ run: true, work, runs, stage: { id: 'test-bad', limitUsd } });
     const r = await runM9(x.options);
-    assert.equal(r.stage, 'refused', `${runs} ${budgetUsd}`);
+    assert.equal(r.stage, 'refused', `${runs} ${limitUsd}`);
+    assert.equal(existsSync(join(tmp, 'ledger')), false);
     assert.equal(x.connected.length + x.client.calls.length, 0);
     assert.equal(existsSync(work), false);
   }
@@ -416,7 +352,7 @@ test('실행: 통과하면 detect-2로, M8과 같은 사용자 입력을 보내�
 });
 
 test('실행: 예산이 상한 비용 한 번분도 안 되면 첫 호출 전에 멈추고 저장하지 않는다', async () => {
-  const { options, client } = m9({ run: true, budgetUsd: 0.001 });
+  const { options, client } = m9({ run: true, stage: { id: 'test-small', limitUsd: 0.001 } });
   const r = await runM9(options);
   assert.equal(r.stage, 'stopped');
   assert.match(r.reason!, /한도/);

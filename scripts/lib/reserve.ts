@@ -50,9 +50,61 @@ export interface ReservedClient extends AiClient {
   ledger(): ReservedLedger;
 }
 
+/** 예약 하나 (정산할 때 돌려준다) */
+export interface Reservation {
+  usd: number;
+}
+
+/**
+ * 예약 장부. 확인과 예약은 한 번에(동기로) 한다. 메모리 장부(memoryBudget)와 저장소 밖 파일 단계 장부(stage-ledger.ts)가 있다.
+ * withReservation은 호출 비용 상한을 계산하고 장부에 예약·정산만 맡긴다 (비용은 장부 한 곳에서만 센다)
+ */
+export interface Budget {
+  /** 한도 안이면 예약하고, 아니면 BudgetRefused를 던진다. 한 번 거절한 장부는 이후 모두 거절한다 */
+  reserve(needUsd: number): Reservation;
+  /** 끝난 시도를 정산한다. spentUsd를 모르면(null) 예약액 전부를 지출로 남긴다 */
+  settle(r: Reservation, spentUsd: number | null): void;
+  snapshot(): ReservedLedger;
+}
+
+/** 이 프로세스 안에서만 쓰는 장부 */
+export function memoryBudget(limitUsd: number): Budget {
+  const ledger: Omit<ReservedLedger, 'inFlight'> = { spent: 0, attempts: 0, unknownUsage: 0, refused: null };
+  /** 진행 중인 예약. 합계를 빼기로 셈하면 부동소수 찌꺼기가 남으므로 남은 예약을 매번 더한다 */
+  const open = new Set<Reservation>();
+  const inFlight = () => [...open].reduce((n, r) => n + r.usd, 0);
+  return {
+    reserve(need) {
+      const committed = ledger.spent + inFlight();
+      if (ledger.refused) throw new BudgetRefused(limitUsd, committed, need);
+      if (committed + need > limitUsd) {
+        const refused = new BudgetRefused(limitUsd, committed, need);
+        ledger.refused = refused.message;
+        throw refused;
+      }
+      const r = { usd: need };
+      open.add(r);
+      ledger.attempts++;
+      return r;
+    },
+    settle(r, spentUsd) {
+      if (!open.delete(r)) throw new Error('이미 정산한 예약입니다');
+      if (spentUsd !== null) ledger.spent += Math.max(spentUsd, 0);
+      else {
+        ledger.spent += r.usd;
+        ledger.unknownUsage++;
+      }
+    },
+    snapshot: () => ({ ...ledger, inFlight: inFlight() }),
+  };
+}
+
 export interface ReserveOptions {
   model: string;
-  limitUsd: number;
+  /** 메모리 장부의 한도. budget을 주면 쓰지 않는다 */
+  limitUsd?: number;
+  /** 예약 장부 (기본: limitUsd의 메모리 장부) */
+  budget?: Budget;
   /** 요청에 거는 출력 토큰 상한 (기본 MAX_OUTPUT_TOKENS) */
   maxOutputTokens?: number;
   /** 같은 호출을 다시 보내는 최대 횟수 (기본 0). 네트워크·한도(429) 오류일 때만 다시 보낸다 */
@@ -64,49 +116,24 @@ const RETRY_KINDS = new Set<AiError['kind']>(['network', 'rate-limit']);
 /** client는 SDK 재시도를 끈 것(maxRetries 0)이어야 한다. 아니면 보이지 않는 재시도 비용을 예약하지 못한다 */
 export function withReservation(client: AiClient, o: ReserveOptions): ReservedClient {
   const maxOutputTokens = o.maxOutputTokens ?? MAX_OUTPUT_TOKENS;
-  const ledger: Omit<ReservedLedger, 'inFlight'> = { spent: 0, attempts: 0, unknownUsage: 0, refused: null };
-  /** 진행 중인 예약. 합계를 빼기로 셈하면 부동소수 찌꺼기가 남으므로 남은 예약을 매번 더한다 */
-  const open = new Set<{ usd: number }>();
-  const inFlight = () => [...open].reduce((n, r) => n + r.usd, 0);
-
-  /** 예약에 성공하면 예약액을 돌려준다. await 없이 확인과 예약을 한 번에 한다 */
-  const reserve = (call: JsonCall): { usd: number } => {
-    const need = callCostBound(o.model, call, maxOutputTokens);
-    const committed = ledger.spent + inFlight();
-    if (ledger.refused) throw new BudgetRefused(o.limitUsd, committed, need);
-    if (committed + need > o.limitUsd) {
-      const refused = new BudgetRefused(o.limitUsd, committed, need);
-      ledger.refused = refused.message;
-      throw refused;
-    }
-    const reservation = { usd: need };
-    open.add(reservation);
-    ledger.attempts++;
-    return reservation;
-  };
-  const settle = (reservation: { usd: number }, usage: Usage | undefined) => {
-    open.delete(reservation);
-    if (usage) ledger.spent += Math.max(costUsd(o.model, usage), 0);
-    else {
-      ledger.spent += reservation.usd;
-      ledger.unknownUsage++;
-    }
-  };
+  if (!o.budget && o.limitUsd === undefined) throw new Error('예약 장부나 한도가 필요합니다');
+  const budget = o.budget ?? memoryBudget(o.limitUsd!);
 
   return {
     check: (m) => client.check(m),
-    ledger: () => ({ ...ledger, inFlight: inFlight() }),
+    ledger: () => budget.snapshot(),
     async json(call): Promise<JsonResult> {
       if (call.model !== o.model) throw new Error(`예약한 모델(${o.model})과 다른 모델로 부를 수 없습니다: ${call.model}`);
       for (let attempt = 0; ; attempt++) {
-        const reserved = reserve(call);
+        // await 없이 상한 계산과 예약을 한 번에 한다
+        const reserved = budget.reserve(callCostBound(o.model, call, maxOutputTokens));
         try {
           const result = await client.json({ ...call, maxOutputTokens });
-          settle(reserved, result.usage);
+          budget.settle(reserved, costUsd(o.model, result.usage));
           return result;
         } catch (e) {
           const usage = (e as { usage?: Usage }).usage;
-          settle(reserved, usage);
+          budget.settle(reserved, usage ? costUsd(o.model, usage) : null);
           const kind = toAiError(e).kind;
           if (call.signal?.aborted || attempt >= (o.retries ?? 0) || !RETRY_KINDS.has(kind)) throw e;
         }
