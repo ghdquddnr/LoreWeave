@@ -24,8 +24,23 @@ export interface ScriptContext {
   args: string[];
 }
 
+export interface LazyScriptContext {
+  /** 저장된 키를 그때 풀어 클라이언트를 만든다. 부르기 전에는 키를 읽지 않는다 */
+  connect(options?: { maxRetries?: number }): Promise<AiClient>;
+  args: string[];
+}
+
 /** 저장된 키로 클라이언트를 만들어 work를 실행하고, 끝나면 Electron을 끝낸다 */
 export function runWithStoredKey(work: (ctx: ScriptContext) => Promise<void>): void {
+  runWithLazyKey(async ({ connect, args }) => {
+    const client = await connect();
+    const { aiModel } = await readSettings(join(app.getPath('appData'), APP_DATA_NAME));
+    await work({ client, model: aiModel, args });
+  });
+}
+
+/** 키를 work가 connect()를 부를 때에만 푼다 (M9: 유료 호출 전 대조를 통과한 뒤에만 클라이언트를 만든다) */
+export function runWithLazyKey(work: (ctx: LazyScriptContext) => Promise<void>): void {
   const appFolder = join(app.getPath('appData'), APP_DATA_NAME);
   const scriptFolder = join(tmpdir(), 'loreweave-script-userdata');
   try {
@@ -41,12 +56,14 @@ export function runWithStoredKey(work: (ctx: ScriptContext) => Promise<void>): v
 
   void app.whenReady().then(async () => {
     try {
-      const key = await loadApiKey(appFolder);
-      if (!key) throw new Error('저장된 API 키를 풀 수 없습니다. 앱 [설정]에 키를 저장했는지 확인하세요.');
-      const { aiModel } = await readSettings(appFolder);
+      const connect = async (options: { maxRetries?: number } = {}) => {
+        const key = await loadApiKey(appFolder);
+        if (!key) throw new Error('저장된 API 키를 풀 수 없습니다. 앱 [설정]에 키를 저장했는지 확인하세요.');
+        return createOpenAiClient(key, options);
+      };
       // Electron은 자기 인자를 앞에 둔다: [electron, 번들 파일, ...스크립트 인자]
-      await work({ client: createOpenAiClient(key), model: aiModel, args: process.argv.slice(2) });
-      finish(0);
+      await work({ connect, args: process.argv.slice(2) });
+      finish(Number(process.exitCode ?? 0));
     } catch (e) {
       console.error(e instanceof Error ? e.message : String(e));
       finish(1);

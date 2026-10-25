@@ -10,6 +10,8 @@ export interface JsonCall {
   user: string;
   schema: { name: string; schema: Record<string, unknown> };
   signal?: AbortSignal;
+  /** 출력 토큰 상한 (추론 토큰 포함, 기본 MAX_OUTPUT_TOKENS) */
+  maxOutputTokens?: number;
 }
 
 export interface JsonResult {
@@ -37,7 +39,7 @@ export class AiError extends Error {
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
-const MAX_OUTPUT_TOKENS = 16_000;
+export const MAX_OUTPUT_TOKENS = 16_000;
 
 export function toAiError(e: unknown): AiError {
   if (e instanceof AiError) return e;
@@ -62,7 +64,7 @@ export function createOpenAiClient(apiKey: string, options: { fetch?: typeof fet
         throw toAiError(e);
       }
     },
-    async json({ model, system, user, schema, signal }) {
+    async json({ model, system, user, schema, signal, maxOutputTokens }) {
       const started = performance.now();
       let res: OpenAI.Responses.Response;
       try {
@@ -75,7 +77,7 @@ export function createOpenAiClient(apiKey: string, options: { fetch?: typeof fet
             ],
             text: { format: { type: 'json_schema', name: schema.name, schema: schema.schema, strict: true } },
             reasoning: { effort: 'low' },
-            max_output_tokens: MAX_OUTPUT_TOKENS,
+            max_output_tokens: maxOutputTokens ?? MAX_OUTPUT_TOKENS,
           },
           { signal },
         );
