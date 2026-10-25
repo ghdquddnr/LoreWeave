@@ -1,4 +1,4 @@
-// 비용 계산 (M3-PLAN 4절).
+// 비용 계산 (M3-PLAN 4절, M4-PLAN 4절).
 
 import { modelInfo } from './models.ts';
 
@@ -43,5 +43,24 @@ export function estimateExtractionTokens(chars: number): { input: number; output
 /** 본문 글자 수로 계산한 추출 비용 상한 (USD). 캐시 할인은 계산하지 않는다 */
 export function estimateExtractionCost(model: string, chars: number): number {
   const { input, output } = estimateExtractionTokens(chars);
+  return costUsd(model, { inputTokens: input, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: output });
+}
+
+// 검사 상한. M0-A B 전략 검사 호출 84회(입력 2,444~18,282자)의 최댓값을 넘도록 잡았다:
+//   입력 토큰 ≤ 0.87×입력 글자 수 (시스템 프롬프트 포함) → 600 + 1.0×글자 수
+//   출력 최대 890토큰 → 1,000 + 0.1×글자 수
+const CHECK_OUTPUT_BASE = 1000;
+const CHECK_OUTPUT_PER_CHAR = 0.1;
+
+export function estimateCheckTokens(inputChars: number): { input: number; output: number } {
+  return {
+    input: Math.ceil(PROMPT_TOKENS + INPUT_PER_CHAR * inputChars),
+    output: Math.ceil(CHECK_OUTPUT_BASE + CHECK_OUTPUT_PER_CHAR * inputChars),
+  };
+}
+
+/** 검사 입력(앞 화 사실 + 이 화 본문)의 글자 수로 계산한 검사 비용 상한 (USD) */
+export function estimateCheckCost(model: string, inputChars: number): number {
+  const { input, output } = estimateCheckTokens(inputChars);
   return costUsd(model, { inputTokens: input, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: output });
 }
