@@ -18,6 +18,7 @@ AI가 글을 대신 쓰는 것이 아니라, 작가가 자신이 만든 설정�
 - `docs/M7-PLAN.md`, `docs/M7-REPORT.md` — M7 계획과 결과 (완료, 낮은 확신도 숨기기와 실제 원고 Recall)
 - `docs/M8-PLAN.md`, `docs/M8-REPORT.md` — M8 계획과 결과 (완료, 긴 화를 나눠 추출)
 - `docs/M9-DIAGNOSIS.md`, `docs/M9-PLAN.md`, `docs/M9-REPORT.md`, `docs/M9-FOLLOWUP.md` — M9 진단·계획·결과·후속 진단 (detect-2 후보, M4 회귀 기준 미달로 중단)
+- `docs/M9-PREDICATE-REPORT.md` — M9 후속 실험 결과 (같은 속성 이름 사실 더하기, M4 회귀 기준 미달로 중단)
 
 ## 현재 단계
 
