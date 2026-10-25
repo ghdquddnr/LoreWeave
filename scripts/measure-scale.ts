@@ -57,11 +57,11 @@ async function growth(root: string, store: AiStore): Promise<Record<string, unkn
 }
 
 /** 측정 방법 이름: 사실 줄이기 방법(SELECTIONS) 또는 "batch-N"(줄이지 않고 N개씩 나눠 검사) */
-function parseMethod(name: string): { selection: Selection; batchSize?: number } {
+function parseMethod(name: string): { selection: Selection; batchSize: number } {
   const batch = /^batch-(\d+)$/.exec(name);
   if (batch) return { selection: 'all', batchSize: Number(batch[1]) };
   if (!(SELECTIONS as readonly string[]).includes(name)) throw new Error(`모르는 방법: ${name}`);
-  return { selection: name as Selection };
+  return { selection: name as Selection, batchSize: Infinity };
 }
 
 async function measure(base: string, work: string, name: string, ai: BudgetClient, signal: AbortSignal): Promise<string> {

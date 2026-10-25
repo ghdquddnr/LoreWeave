@@ -187,6 +187,7 @@ export function AnalysisBar({ file, states, consent, beforeAnalyze, onAnalyzed, 
             ) : (
               <p>예상 비용 최대 ${dialog.plan.costUsd.toFixed(4)}</p>
             )}
+            {dialog.plan.batches > 1 && <p className="muted">앞 화 사실이 많아 약 {dialog.plan.batches}번에 나눠 검사하고 결과를 합칩니다.</p>}
             <p className="muted">결과는 "문제 가능성"입니다. 의도한 설정 변화일 수 있으니 근거를 보고 판단하세요.</p>
             <div className="row end">
               <button type="button" onClick={() => setDialog(null)}>

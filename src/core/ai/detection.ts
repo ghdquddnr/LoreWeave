@@ -144,6 +144,13 @@ export type Selection = (typeof SELECTIONS)[number];
 /** 사실 수 상한. 사실 한 줄이 약 55토큰이라 400개면 약 2만 2천 토큰 */
 export const FACT_LIMIT = 400;
 
+/**
+ * [이 화 검사]에서 한 번에 넘기는 앞 화 사실 수. 이보다 많으면 나눠 검사하고 결과를 합친다.
+ * M5 측정(150화): 줄이지 않고 한 번에 넘기면 입력이 길어 모델이 모순을 덜 알아봤다 (Recall 70~75%).
+ * 400개씩 나누면 호출 한 번의 입력이 약 2만 5천 토큰 안이고 Recall 80~85%였다.
+ */
+export const CHECK_BATCH_SIZE = 400;
+
 /** 같은 속성으로 볼 키: 인물 이름 + 속성 이름(괄호 안 내용과 공백을 뺌, 예: "나이 (2008년)" → "나이") */
 export function attributeKey(f: { entity: string; predicate: string }): string {
   const predicate = f.predicate.normalize('NFC').replace(/\([^)]*\)/g, '').replace(/\s+/g, '');
