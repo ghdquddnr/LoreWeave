@@ -17,11 +17,11 @@ AI가 글을 대신 쓰는 것이 아니라, 작가가 자신이 만든 설정�
 - `docs/M6-PLAN.md`, `docs/M6-REPORT.md` — M6 계획과 결과 (완료, 실제 장편으로 확인)
 - `docs/M7-PLAN.md`, `docs/M7-REPORT.md` — M7 계획과 결과 (완료, 낮은 확신도 숨기기와 실제 원고 Recall)
 - `docs/M8-PLAN.md`, `docs/M8-REPORT.md` — M8 계획과 결과 (완료, 긴 화를 나눠 추출)
-- `docs/M9-DIAGNOSIS.md`, `docs/M9-PLAN.md` — M9 실패 원인 진단과 계획 (판단 프롬프트의 변화 판단)
+- `docs/M9-DIAGNOSIS.md`, `docs/M9-PLAN.md`, `docs/M9-REPORT.md` — M9 진단·계획·결과 (detect-2 후보, M4 회귀 기준 미달로 중단)
 
 ## 현재 단계
 
-**v0.1 완료 (M4)**: 연속성 오류 탐지 (`docs/M4-REPORT.md`). M1(Electron 셸 + 에디터 + Markdown 저장), M2(SQLite 색인과 원고 검색), M3(OpenAI 연결과 화별 사실 추출)도 완료. M5(긴 연재 대응: 앞 화 사실을 400개씩 나눠 검사, `docs/M5-REPORT.md`)도 완료. M6(실제 장편으로 확인, `docs/M6-REPORT.md`)도 완료. M7(낮은 확신도 숨기기와 실제 원고 Recall, `docs/M7-REPORT.md`)도 완료. M8(긴 화를 나눠 추출, `docs/M8-REPORT.md`)도 완료. M9는 M8 실패 원인을 진단(`docs/M9-DIAGNOSIS.md`)하고 판단 프롬프트의 변화 판단을 고치는 계획(`docs/M9-PLAN.md`)이다.
+**v0.1 완료 (M4)**: 연속성 오류 탐지 (`docs/M4-REPORT.md`). M1(Electron 셸 + 에디터 + Markdown 저장), M2(SQLite 색인과 원고 검색), M3(OpenAI 연결과 화별 사실 추출)도 완료. M5(긴 연재 대응: 앞 화 사실을 400개씩 나눠 검사, `docs/M5-REPORT.md`)도 완료. M6(실제 장편으로 확인, `docs/M6-REPORT.md`)도 완료. M7(낮은 확신도 숨기기와 실제 원고 Recall, `docs/M7-REPORT.md`)도 완료. M8(긴 화를 나눠 추출, `docs/M8-REPORT.md`)도 완료. M9는 M8 실패 원인을 진단(`docs/M9-DIAGNOSIS.md`)하고 판단 프롬프트 detect-2 후보를 검증했다(`docs/M9-REPORT.md`). M4 합성 원고 3회 중 1회가 Recall 기준에 미달해 실제 원고 검증 없이 중단했고, 제품은 detect-1 그대로다. 다음 단계는 감독이 정한다.
 
 M0 기술 검증 spike는 완료:
 

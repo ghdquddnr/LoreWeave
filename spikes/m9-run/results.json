@@ -1,0 +1,234 @@
+{
+ "note": "M9 고정 유료 검증. M4 3회에서 m4-3이 기준 8(회별 Recall ≥ 17/20)에 미달해, 감독 지시대로 실제 원고 호출 없이 멈췄다. 합성 원고(M0-A 벤치마크) 결과다. 실제 원고 원문·인물명 없음.",
+ "approval": "m9-detect2-20261026-0052",
+ "commit": "a1303bad00c3632c5ac37fadd0a6b21aaa08d600",
+ "model": "gpt-6-luna",
+ "prompt": "detect-2-candidate",
+ "criteria": {
+  "minTestTp": 17,
+  "testTotal": 20,
+  "minPrecision": 0.85,
+  "maxFpPerChapter": 0.3,
+  "threshold": 0.7,
+  "fpDenominator": "검사한 14화 (감독 승인)"
+ },
+ "m4": {
+  "runs": {
+   "m4-1": {
+    "pass": true,
+    "failures": [],
+    "checkedChapters": 14,
+    "test": {
+     "after07": {
+      "tp": 17,
+      "total": 20,
+      "fp": 1,
+      "recall": 0.85,
+      "precision": 0.9444444444444444,
+      "fpPerChapter": 0.07142857142857142
+     },
+     "before0": {
+      "tp": 17,
+      "total": 20,
+      "fp": 1,
+      "recall": 0.85,
+      "precision": 0.9444444444444444,
+      "fpPerChapter": 0.07142857142857142
+     }
+    },
+    "hiddenBelow07": 0,
+    "minCorrectConfidence": 0.88,
+    "missedTest": [
+     "E02",
+     "E23",
+     "E26"
+    ],
+    "missedDev": [
+     "E24",
+     "E25",
+     "E28"
+    ],
+    "labels": {
+     "tp": 24,
+     "unlabeled": 1,
+     "echo": 2
+    },
+    "trapHitsTest": 0,
+    "echo": 2,
+    "retrieval": 0.8667,
+    "judge": 0.9231,
+    "falsePositives": [
+     {
+      "chapter": 3,
+      "category": "habit",
+      "confidence": 0.73,
+      "label": "unlabeled"
+     }
+    ],
+    "ledgerSpentUsd": 0.0145042,
+    "attempts": 14
+   },
+   "m4-2": {
+    "pass": true,
+    "failures": [],
+    "checkedChapters": 14,
+    "test": {
+     "after07": {
+      "tp": 18,
+      "total": 20,
+      "fp": 0,
+      "recall": 0.9,
+      "precision": 1,
+      "fpPerChapter": 0
+     },
+     "before0": {
+      "tp": 18,
+      "total": 20,
+      "fp": 0,
+      "recall": 0.9,
+      "precision": 1,
+      "fpPerChapter": 0
+     }
+    },
+    "hiddenBelow07": 0,
+    "minCorrectConfidence": 0.88,
+    "missedTest": [
+     "E23",
+     "E26"
+    ],
+    "missedDev": [
+     "E24",
+     "E25",
+     "E28"
+    ],
+    "labels": {
+     "tp": 25
+    },
+    "trapHitsTest": 0,
+    "echo": 0,
+    "retrieval": 0.8667,
+    "judge": 0.9231,
+    "falsePositives": [],
+    "ledgerSpentUsd": 0.00438038,
+    "attempts": 14
+   },
+   "m4-3": {
+    "pass": false,
+    "failures": [
+     "Recall 15/20 < 17/20"
+    ],
+    "checkedChapters": 14,
+    "test": {
+     "after07": {
+      "tp": 15,
+      "total": 20,
+      "fp": 1,
+      "recall": 0.75,
+      "precision": 0.9375,
+      "fpPerChapter": 0.07142857142857142
+     },
+     "before0": {
+      "tp": 15,
+      "total": 20,
+      "fp": 1,
+      "recall": 0.75,
+      "precision": 0.9375,
+      "fpPerChapter": 0.07142857142857142
+     }
+    },
+    "hiddenBelow07": 0,
+    "minCorrectConfidence": 0.86,
+    "missedTest": [
+     "E02",
+     "E20",
+     "E23",
+     "E26",
+     "E30"
+    ],
+    "missedDev": [
+     "E14",
+     "E24",
+     "E25"
+    ],
+    "labels": {
+     "tp": 22,
+     "unlabeled": 1,
+     "echo": 1
+    },
+    "trapHitsTest": 0,
+    "echo": 1,
+    "retrieval": 0.8667,
+    "judge": 0.8462,
+    "falsePositives": [
+     {
+      "chapter": 13,
+      "category": "number",
+      "confidence": 0.96,
+      "label": "unlabeled"
+     }
+    ],
+    "ledgerSpentUsd": 0.00403738,
+    "attempts": 14
+   }
+  },
+  "passed": false
+ },
+ "real": {
+  "status": "not-started",
+  "reason": "M4 기준 8 미달 (m4-3 Recall 15/20). 감독 지시: 미달이면 실제 원고 호출 금지",
+  "calls": 0
+ },
+ "preflight": {
+  "m4": "run-1·2·3 각 14/14화 일치, 묶음 14, 불일치 0, order 대조 생략(당시 평가기 출력 없음)"
+ },
+ "baselines": {
+  "m4DetectOneProduct": {
+   "runs": 1,
+   "testRecall": 0.9,
+   "testPrecision": 1.0,
+   "fpPerChapter": 0,
+   "source": "docs/M4-REPORT.md"
+  },
+  "m0aBLuna": {
+   "runs": 3,
+   "testRecallMean": 0.85,
+   "testRecallRange": 0.1,
+   "testPrecision": 0.944,
+   "fpPerChapter": 0.071,
+   "source": "spikes/m0a-ai-feasibility/results/summary.json"
+  },
+  "m8Real": "실제 원고를 돌리지 않아 비교 없음"
+ },
+ "stageLedger": {
+  "stageId": "m9-detect2",
+  "limitUsd": 1.2,
+  "attempts": 42,
+  "settled": 42,
+  "unknown": 0,
+  "reservedUnsettled": 0,
+  "committedUsd": 0.02292196,
+  "runs": {
+   "m4-1": "done",
+   "m4-2": "done",
+   "m4-3": "done"
+  },
+  "lockLeft": false,
+  "remainingInStageUsd": 1.17707804
+ },
+ "costsApi": {
+  "before": {
+   "total": 6.8615,
+   "at": "2026-10-26T00:53+09:00"
+  },
+  "afterRightAway": {
+   "total": 6.8615,
+   "at": "2026-10-26T00:58+09:00",
+   "note": "이번 실행분이 아직 반영되지 않음 (반영 지연). 반복 조회하지 않고 나중 확인으로 남긴다"
+  }
+ },
+ "costNote": "실행 비용은 단계 장부(usage 정산)의 값이다. 복사본 ai.db의 calls에는 M4 당시 호출도 있어, export usage 합계를 이번 실행 비용으로 쓰지 않는다.",
+ "sources": "M4 시험 원고와 M8 복사본의 ai.db·화 파일·평가기 출력·정답표 해시(291개)가 실행 전후로 같다",
+ "unknown": [
+  "M8·M4 당시 실제 요청 바이트 (기록 없음)"
+ ]
+}
