@@ -19,7 +19,7 @@ import {
   type Finding,
   type PriorAnalysis,
 } from '../../src/core/ai/detection.ts';
-import { quoteKey, verifyFindings, type PriorLines } from '../../src/core/ai/verify.ts';
+import { mergeFindings, quoteKey, verifyFindings, type PriorLines } from '../../src/core/ai/verify.ts';
 
 test('탐지 프롬프트는 M0-A에서 검증한 문구와 같다 (sha256 앞 12자리)', () => {
   assert.equal(createHash('sha256').update(DETECT_SYSTEM).digest('hex').slice(0, 12), '53207cd406ae');
@@ -183,4 +183,18 @@ test('사실 줄이기: 전부 / 첫 값과 최신 값 / 최근 N개 / 둘을 �
   // 상한 4 → 속성 2개: 가장 최근에 언급된 지현 습관(5화)과 민수 나이(4화)
   assert.deepEqual(values(selectFacts(facts, 'first-latest-recent', 4)), ['1:20', '4:21', '5:왼손잡이']);
   for (const s of SELECTIONS) assert.ok(selectFacts(facts, s, 4).length <= (s === 'all' || s === 'first-latest' ? facts.length : 4));
+});
+
+test('결과 합치기: 같은 종류·같은 문장은 하나로, 근거는 겹치지 않게 모으고 확신도는 높은 쪽', () => {
+  const base = { category: 'age' as const, claim: '첫 설명', key: '스물두 살입니다.', target: { quote: '스물두 살입니다.', line: 2, start: 1, end: 10 } };
+  const ev = (chapter: number, line: number) => ({ file: `00${chapter}.md`, chapter, quote: 'q', line, start: 0, end: 1 });
+  const merged = mergeFindings([
+    { ...base, confidence: 0.6, evidence: [ev(1, 2)] },
+    { ...base, claim: '두 번째 설명', confidence: 0.9, evidence: [ev(1, 2), ev(2, 5)] },
+    { ...base, category: 'number' as const, confidence: 0.5, evidence: [ev(1, 3)] },
+  ]);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0]!.claim, '첫 설명');
+  assert.equal(merged[0]!.confidence, 0.9);
+  assert.deepEqual(merged[0]!.evidence.map((e) => [e.chapter, e.line]), [[1, 2], [2, 5]]);
 });
