@@ -124,6 +124,45 @@ export interface CheckOptions {
   selection?: Selection;
   /** 사실이 이보다 많으면 나눠 검사한다 (기본 CHECK_BATCH_SIZE, Infinity면 나누지 않음) */
   batchSize?: number;
+  /** 판단 프롬프트 (M9 측정용, 기본은 제품의 DETECT_SYSTEM·DETECT_PROMPT_VERSION) */
+  prompt?: { system: string; version: string };
+}
+
+/** 모델에 보내기 직전의 검사 요청. 분석이 모두 끝난 뒤에만 만든다 */
+export interface PreparedCheck {
+  file: string;
+  target: { lines: string[]; hash: string };
+  priors: string[];
+  /** 검사에 쓴 앞 화와 분석할 때의 화 파일 해시 */
+  inputs: { file: string; contentHash: string }[];
+  facts: ReturnType<typeof candidateFacts>;
+  batches: ReturnType<typeof candidateFacts>[];
+  /** 묶음마다 보낼 사용자 입력 (detectionInput) */
+  users: string[];
+}
+
+/** 저장된 분석으로 검사 요청을 만든다. 모델을 부르지 않는다. 분석이 없거나 본문이 바뀌었으면 그 이유를 돌려준다 */
+export async function prepareCheck(
+  file: string,
+  o: Pick<CheckOptions, 'root' | 'store' | 'selection' | 'batchSize'>,
+): Promise<PreparedCheck | string> {
+  const priors = await priorFiles(o.root, file);
+  const target = await chapterLines(o.root, file);
+  const targetAnalysis = o.store.analysis(file);
+  if (!targetAnalysis || targetAnalysis.contentHash !== target.hash) return '분석한 뒤 본문이 바뀌었습니다. 다시 검사하세요';
+  const priorAnalyses: PriorAnalysis[] = [];
+  const inputs: { file: string; contentHash: string }[] = [];
+  for (const prior of priors) {
+    const a = o.store.analysis(prior);
+    if (!a) return `분석하지 않은 앞 화가 있습니다: ${prior}`;
+    priorAnalyses.push({ chapter: chapterNumber(prior)!, entities: a.entities, facts: a.facts });
+    inputs.push({ file: prior, contentHash: a.contentHash });
+  }
+  const facts = selectFacts(candidateFacts(targetAnalysis.entities, priorAnalyses), o.selection ?? 'all');
+  // 사실이 많으면 batchSize개씩 나눠 따로 검사하고 결과를 합친다 (M5: 입력이 길면 모델이 모순을 덜 알아본다)
+  const size = o.batchSize ?? CHECK_BATCH_SIZE;
+  const batches = facts.length > size ? Array.from({ length: Math.ceil(facts.length / size) }, (_, i) => facts.slice(i * size, (i + 1) * size)) : [facts];
+  return { file, target, priors, inputs, facts, batches, users: batches.map((b) => detectionInput(file, target.lines, b)) };
 }
 
 /** 나눈 묶음을 동시에 보내는 수 */
@@ -144,31 +183,31 @@ export async function checkChapter(file: string, o: CheckOptions): Promise<Check
   }
   if (o.signal.aborted) return stop('취소했습니다');
 
-  const priors = await priorFiles(o.root, file);
-  const target = await chapterLines(o.root, file);
-  const targetAnalysis = o.store.analysis(file);
-  if (!targetAnalysis || targetAnalysis.contentHash !== target.hash) return stop('분석한 뒤 본문이 바뀌었습니다. 다시 검사하세요');
-  const priorAnalyses: PriorAnalysis[] = [];
-  const inputs: { file: string; contentHash: string }[] = [];
-  for (const prior of priors) {
-    const a = o.store.analysis(prior);
-    if (!a) return stop(`분석하지 않은 앞 화가 있습니다: ${prior}`);
-    priorAnalyses.push({ chapter: chapterNumber(prior)!, entities: a.entities, facts: a.facts });
-    inputs.push({ file: prior, contentHash: a.contentHash });
-  }
-  const facts = selectFacts(candidateFacts(targetAnalysis.entities, priorAnalyses), o.selection ?? 'all');
-  // 사실이 많으면 batchSize개씩 나눠 따로 검사하고 결과를 합친다 (M5: 입력이 길면 모델이 모순을 덜 알아본다)
-  const size = o.batchSize ?? CHECK_BATCH_SIZE;
-  const batches = facts.length > size ? Array.from({ length: Math.ceil(facts.length / size) }, (_, i) => facts.slice(i * size, (i + 1) * size)) : [facts];
+  const prepared = await prepareCheck(file, o);
+  if (typeof prepared === 'string') return stop(prepared);
+  const result = await runPreparedCheck(prepared, o);
+  outcome.costUsd += result.costUsd;
+  return result.stopped ? stop(result.stopped) : { ...outcome, ...result, costUsd: outcome.costUsd };
+}
+
+/** 만들어 둔 검사 요청을 보내고 결과를 확인·저장한다. 묶음 하나라도 실패하면 저장하지 않는다 */
+export async function runPreparedCheck(
+  prepared: PreparedCheck,
+  o: CheckOptions,
+): Promise<Pick<CheckOutcome, 'checked' | 'findings' | 'lowConfidence' | 'dropped' | 'costUsd' | 'stopped'>> {
+  const now = o.now ?? (() => new Date());
+  const { file, target, priors, inputs, facts } = prepared;
+  const prompt = o.prompt ?? { system: DETECT_SYSTEM, version: DETECT_PROMPT_VERSION };
+  const outcome = { checked: false, findings: 0, lowConfidence: 0, dropped: 0, costUsd: 0, stopped: null as string | null };
 
   /** 묶음 하나를 검사한다. 실패하면 그 이유를 돌려준다 */
-  const detect = async (batch: typeof facts): Promise<{ findings: Finding[]; modelVersion: string } | string> => {
+  const detect = async (user: string): Promise<{ findings: Finding[]; modelVersion: string } | string> => {
     const started = performance.now();
     try {
       const result = await o.client.json({
         model: o.model,
-        system: DETECT_SYSTEM,
-        user: detectionInput(file, target.lines, batch),
+        system: prompt.system,
+        user,
         schema: DETECT_SCHEMA,
         signal: o.signal,
       });
@@ -194,14 +233,14 @@ export async function checkChapter(file: string, o: CheckOptions): Promise<Check
   };
   let checkCost = 0;
   const results: Awaited<ReturnType<typeof detect>>[] = [];
-  const queue = [...batches.entries()];
+  const queue = [...prepared.users.entries()];
   await Promise.all(
     Array.from({ length: Math.min(BATCH_CONCURRENCY, queue.length) }, async () => {
       for (let next = queue.shift(); next; next = queue.shift()) results[next[0]] = await detect(next[1]);
     }),
   );
   const failed = results.find((r): r is string => typeof r === 'string');
-  if (failed) return stop(failed);
+  if (failed) return { ...outcome, stopped: failed };
   const done = results as { findings: Finding[]; modelVersion: string }[];
 
   // 근거로 들 수 있는 화는 사실을 넘긴 앞 화뿐이다
@@ -222,7 +261,7 @@ export async function checkChapter(file: string, o: CheckOptions): Promise<Check
     contentHash: target.hash,
     model: o.model,
     modelVersion: done[0]!.modelVersion,
-    promptVersion: DETECT_PROMPT_VERSION,
+    promptVersion: prompt.version,
     factCount: facts.length,
     dropped: verified.dropped.length,
     costUsd: checkCost,
