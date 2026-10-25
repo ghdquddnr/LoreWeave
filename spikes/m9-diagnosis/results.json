@@ -63,7 +63,9 @@
     "general-rule-overapplied": 2,
     "unclear": 2
   },
+  "observedJudgmentProblems": { "missedRetrieved": 7, "confirmedFalsePositives": 9, "total": 16, "unclearSeparate": 3 },
   "candidates": {
+    "basis": "진단 사례로 세운 가설. 증명된 상한이나 배타적 사실이 아니다. 0은 그 후보가 그 사례를 겨냥하지 않는다는 뜻이다.",
     "judgePrompt": { "missesAddressable": "3~5 (S04, S14, S19; S08 계산; S05 일부)", "fpAddressable": "3~4 (U05, U06, U12; U01 일부)" },
     "inputPairing": { "missesAddressable": "최대 3 (S04, S14, S19)", "fpAddressable": "0 (U01·U05·U06은 짝지으면 더 눈에 띌 수 있음)" },
     "shortNotationExtraction": { "missesAddressable": "2~3 (S01, S16, S10 일부)", "fpAddressable": "0 (사실 증가로 M8처럼 오탐이 늘 수 있음)" },
