@@ -116,6 +116,8 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (file, category, target_key)
   );
   `,
+  // 4: 화를 몇 조각으로 나눠 추출했는지 (M8). 이전 기록은 NULL(나누지 않음)
+  `ALTER TABLE analyses ADD COLUMN chunks INTEGER;`,
 ];
 
 export interface StoredAnalysis {
@@ -128,6 +130,8 @@ export interface StoredAnalysis {
   droppedQuotes: number;
   costUsd: number;
   createdAt: string;
+  /** 나눠 추출한 조각 수 (나누지 않았으면 1) */
+  chunks?: number;
   entities: Entity[];
   facts: LocatedFact[];
 }
@@ -215,10 +219,10 @@ export class AiStore {
       this.db.prepare('DELETE FROM analyses WHERE file = ?').run(a.file);
       const { lastInsertRowid: id } = this.db
         .prepare(
-          `INSERT INTO analyses (file, content_hash, model, model_version, prompt_version, summary, dropped_quotes, cost_usd, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO analyses (file, content_hash, model, model_version, prompt_version, summary, dropped_quotes, cost_usd, created_at, chunks)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(a.file, a.contentHash, a.model, a.modelVersion, a.promptVersion, a.summary, a.droppedQuotes, a.costUsd, a.createdAt);
+        .run(a.file, a.contentHash, a.model, a.modelVersion, a.promptVersion, a.summary, a.droppedQuotes, a.costUsd, a.createdAt, a.chunks ?? 1);
       const entity = this.db.prepare('INSERT INTO entities (analysis_id, ord, name, aliases) VALUES (?, ?, ?, ?)');
       a.entities.forEach((e, i) => entity.run(id, i, e.name, JSON.stringify(e.aliases)));
       const fact = this.db.prepare(
@@ -248,6 +252,7 @@ export class AiStore {
       droppedQuotes: Number(row['dropped_quotes']),
       costUsd: Number(row['cost_usd']),
       createdAt: String(row['created_at']),
+      chunks: Number(row['chunks'] ?? 1),
       entities: this.db
         .prepare('SELECT name, aliases FROM entities WHERE analysis_id = ? ORDER BY ord')
         .all(id)

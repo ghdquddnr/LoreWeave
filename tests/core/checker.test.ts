@@ -205,7 +205,7 @@ test('나눠 검사: 묶음 하나라도 실패하면 저장하지 않는다', a
   const client = fakeClient(() => {
     if (++n === 2) throw new AiError('응답이 끝나지 않았습니다', 'incomplete');
     return { findings: [ageFinding] };
-  }, (_c, k) => (k === 1 ? { ...extractionOf(1), facts: [...extractionOf(1).facts, ...extractionOf(1).facts] } : extractionOf(k)));
+  }, (_c, k) => (k === 1 ? { ...extractionOf(1), facts: [...extractionOf(1).facts, { entity: '김민수', predicate: '첫날', value: '대학생이 된 첫날', quote: '대학생이 된 첫날이었다.' }] } : extractionOf(k)));
   const outcome = await checkChapter('003.md', { ...options(client), batchSize: 1 });
   assert.equal(outcome.checked, false);
   assert.equal(outcome.stopped, '응답이 끝나지 않았습니다');

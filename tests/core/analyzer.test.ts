@@ -170,11 +170,11 @@ test('저장소: 다시 열어도 결과가 남고, 깨진 파일은 옮겨 두�
   store.close();
   store = null;
 
-  // 형식 1(M3 첫 배포) 파일은 결과를 둔 채 지금 형식(3)으로 올린다
+  // 형식 1(M3 첫 배포) 파일은 결과를 둔 채 지금 형식(4)으로 올린다
   const path = join(root, '.loreweave', 'ai.db');
   const v1 = new DatabaseSync(path);
   v1.exec(
-    `DROP TABLE dismissals; DROP TABLE finding_evidence; DROP TABLE findings; DROP TABLE check_inputs; DROP TABLE checks;
+    `ALTER TABLE analyses DROP COLUMN chunks; DROP TABLE dismissals; DROP TABLE finding_evidence; DROP TABLE findings; DROP TABLE check_inputs; DROP TABLE checks;
      ALTER TABLE calls DROP COLUMN kind; ALTER TABLE calls DROP COLUMN latency_ms; PRAGMA user_version = 1`,
   );
   v1.close();
@@ -183,7 +183,7 @@ test('저장소: 다시 열어도 결과가 남고, 깨진 파일은 옮겨 두�
   store.close();
   store = null;
   const v2 = new DatabaseSync(path);
-  assert.equal((v2.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 3);
+  assert.equal((v2.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 4);
   assert.deepEqual(v2.prepare('SELECT latency_ms FROM calls').all().map((r) => r['latency_ms']), [null]);
   v2.close();
 
@@ -201,4 +201,23 @@ test('저장소: 다시 열어도 결과가 남고, 깨진 파일은 옮겨 두�
   raw.close();
   assert.throws(() => AiStore.open(root), NewerFormatError);
   assert.ok((await readdir(join(root, '.loreweave'))).includes('ai.db'));
+});
+
+test('나눠 추출: 긴 화는 조각마다 묻고 합쳐 저장하며, 비용은 조각 합, 조각 수를 남긴다', async () => {
+  const long = ['# 9화', '', ...Array.from({ length: 12 }, (_, i) => [`${'가'.repeat(200)} 문장${i}이다.`, '']).flat()].join('\n');
+  await writeFile(join(root, 'chapters', '009.md'), long);
+  const client = fakeClient((call) => {
+    const i = /문장(\d+)이다/.exec(call.user)![1];
+    return { summary: `조각${i}`, entities: [{ name: '김민수', aliases: [] }], facts: [{ entity: '김민수', predicate: '문장', value: i!, quote: `문장${i}이다.` }] };
+  });
+  const progress = await analyzeChapters(['009.md'], options(client));
+  assert.ok(client.calls.length >= 2, `calls ${client.calls.length}`);
+  const saved = store!.analysis('009.md')!;
+  assert.equal(saved.chunks, client.calls.length);
+  assert.equal(saved.facts.length, client.calls.length);
+  assert.equal(saved.entities.length, 1);
+  assert.equal(progress.costUsd.toFixed(5), (client.calls.length * 0.00062).toFixed(5));
+  const one = await estimate(root, ['001.md'], 'gpt-6-luna');
+  const split = await estimate(root, ['009.md'], 'gpt-6-luna');
+  assert.ok(split.costUsd > one.costUsd);
 });
