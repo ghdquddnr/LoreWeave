@@ -211,3 +211,17 @@ test('나눠 검사: 묶음 하나라도 실패하면 저장하지 않는다', a
   assert.equal(outcome.stopped, '응답이 끝나지 않았습니다');
   assert.equal(store!.check('003.md'), null);
 });
+
+test('계획: 앞 화 사실이 CHECK_BATCH_SIZE보다 많으면 나눠 검사할 횟수와 그만큼의 비용을 어림한다', async () => {
+  await checkChapter('003.md', options(fakeClient()));
+  const small = await planCheck(root, store, '003.md', 'gpt-6-luna');
+  assert.equal(small.batches, 1);
+  // 1화에 사실 450개가 있다고 친다
+  const first = store!.analysis('001.md')!;
+  const fact = first.facts[0]!;
+  store!.saveAnalysis({ ...first, facts: Array.from({ length: 450 }, () => fact) });
+  const big = await planCheck(root, store, '003.md', 'gpt-6-luna');
+  assert.deepEqual(big.analyze, []);
+  assert.equal(big.batches, 2);
+  assert.ok(big.costUsd > small.costUsd);
+});

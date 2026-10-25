@@ -7,6 +7,7 @@
 import { costUsd, estimateCheckCost, estimateExtractionTokens } from '../core/ai/cost.ts';
 import {
   candidateFacts,
+  CHECK_BATCH_SIZE,
   DETECT_PROMPT_VERSION,
   DETECT_SCHEMA,
   DETECT_SYSTEM,
@@ -58,6 +59,8 @@ export interface CheckPlan {
   /** 검사 전에 분석할 화 (분석 안 됨 또는 분석 뒤 바뀜) */
   analyze: string[];
   priors: number;
+  /** 앞 화 사실이 많아 나눠 검사할 횟수 (어림, 1이면 나누지 않음) */
+  batches: number;
   /** 분석과 검사를 합친 예상 비용 (상한) */
   costUsd: number;
 }
@@ -67,20 +70,30 @@ const factChars = (f: { entity: string; predicate: string; value: string; quote:
   `- ${f.entity} | ${f.predicate} | ${f.value} | 원문: "${f.quote}"\n`.length;
 /** 화마다 붙는 <facts chapter="N"> 줄 */
 const FACT_BLOCK_CHARS = 40;
+/** 분석 전인 화의 사실 수를 어림할 때 사실 한 줄의 글자 수 */
+const FACT_CHARS_GUESS = 60;
 
 export async function planCheck(root: string, store: AiStore | null, file: string, model: string): Promise<CheckPlan> {
   const priors = await priorFiles(root, file);
   const states = store ? await analysisStates(root, store) : {};
   const analyze = [...priors, file].filter((f) => states[f] !== 'fresh');
   const extraction = analyze.length ? (await estimate(root, analyze, model)).costUsd : 0;
-  // 검사 입력 상한: 이 화 본문 + 앞 화 사실 전부 (분석 전인 화는 추출 출력 상한만큼)
-  let chars = (await chapterLines(root, file)).lines.join('\n').length + 200;
+  // 검사 입력 상한: 앞 화 사실 전부 (분석 전인 화는 추출 출력 상한만큼) + 나눠 검사하는 묶음마다 이 화 본문
+  let factCount = 0;
+  let factTotal = 0;
   for (const prior of priors) {
     const a = analyze.includes(prior) ? null : store!.analysis(prior);
-    if (a) chars += FACT_BLOCK_CHARS + a.facts.reduce((n, f) => n + factChars(f), 0);
-    else chars += FACT_BLOCK_CHARS + estimateExtractionTokens((await chapterLines(root, prior)).lines.join('\n').length).output;
+    const chars = a
+      ? a.facts.reduce((n, f) => n + factChars(f), 0)
+      : estimateExtractionTokens((await chapterLines(root, prior)).lines.join('\n').length).output;
+    factTotal += FACT_BLOCK_CHARS + chars;
+    factCount += a ? a.facts.length : Math.ceil(chars / FACT_CHARS_GUESS);
   }
-  return { analyze, priors: priors.length, costUsd: extraction + estimateCheckCost(model, chars) };
+  const batches = Math.max(1, Math.ceil(factCount / CHECK_BATCH_SIZE));
+  const chapterChars = (await chapterLines(root, file)).lines.join('\n').length + 200;
+  // 묶음마다 출력 상한도 따로 든다
+  const check = estimateCheckCost(model, factTotal + batches * chapterChars) + (batches - 1) * estimateCheckCost(model, 0);
+  return { analyze, priors: priors.length, batches, costUsd: extraction + check };
 }
 
 export interface CheckOutcome {
@@ -105,7 +118,7 @@ export interface CheckOptions {
   now?(): Date;
   /** 앞 화 사실을 줄이는 방법 (M5 측정용, 기본은 줄이지 않음) */
   selection?: Selection;
-  /** 사실이 이보다 많으면 나눠 검사한다 (기본은 나누지 않음) */
+  /** 사실이 이보다 많으면 나눠 검사한다 (기본 CHECK_BATCH_SIZE, Infinity면 나누지 않음) */
   batchSize?: number;
 }
 
@@ -141,7 +154,7 @@ export async function checkChapter(file: string, o: CheckOptions): Promise<Check
   }
   const facts = selectFacts(candidateFacts(targetAnalysis.entities, priorAnalyses), o.selection ?? 'all');
   // 사실이 많으면 batchSize개씩 나눠 따로 검사하고 결과를 합친다 (M5: 입력이 길면 모델이 모순을 덜 알아본다)
-  const size = o.batchSize ?? Infinity;
+  const size = o.batchSize ?? CHECK_BATCH_SIZE;
   const batches = facts.length > size ? Array.from({ length: Math.ceil(facts.length / size) }, (_, i) => facts.slice(i * size, (i + 1) * size)) : [facts];
 
   /** 묶음 하나를 검사한다. 실패하면 그 이유를 돌려준다 */

@@ -4,7 +4,7 @@
 //   - [무시]한 결과는 다시 검사해도 숨는다
 
 import { useEffect, useState } from 'react';
-import { CATEGORY_LABELS } from '../../core/ai/detection.ts';
+import { CATEGORY_LABELS, CHECK_BATCH_SIZE } from '../../core/ai/detection.ts';
 import { locateQuote, type QuoteLocation } from '../../core/ai/locate.ts';
 import type { CheckState, StoredCheck, StoredFinding } from '../../preload/api.ts';
 
@@ -65,7 +65,9 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
       {check && (
         <>
           <p className="muted">
-            앞 화 {check.inputs.length}개의 사실 {check.factCount}개와 비교 · {check.model} · {new Date(check.createdAt).toLocaleString()}
+            앞 화 {check.inputs.length}개의 사실 {check.factCount}개와 비교
+            {check.factCount > CHECK_BATCH_SIZE && ` (${Math.ceil(check.factCount / CHECK_BATCH_SIZE)}번 나눠 검사)`} · {check.model} ·{' '}
+            {new Date(check.createdAt).toLocaleString()}
           </p>
           {state === 'stale' && <p className="warning">검사한 뒤 이 화나 앞 화의 본문이 바뀌었습니다. 다시 검사하면 최신 내용으로 비교합니다.</p>}
           {check.dropped > 0 && <p className="muted">원고에서 문장을 찾을 수 없어 버린 결과 {check.dropped}개</p>}
