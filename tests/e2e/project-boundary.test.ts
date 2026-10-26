@@ -46,7 +46,7 @@ for (const [name, aText, bText] of [
   ['같은 바이트 (감독 재현)', '# Same\n\nidentical manuscript\n', '# Same\n\nidentical manuscript\n'],
   ['다른 바이트', '# Project A\n\nidentical manuscript\n', '# Project B\n\nBeta manuscript\n'],
 ] as const) {
-  test(`경계 (${name}): main은 이미 B인데 화면이 아직 A일 때 A 에디터의 저장은 거절되고, A·B 모두 바뀌지 않으며, 그 뒤 B에서는 정상 저장된다`, { timeout: 60_000 }, async () => {
+  test(`경계 (${name}): main은 이미 B인데 화면이 아직 A인 동안 A 에디터는 입력·붙여넣기를 받지 않고 원고 조작도 막히며, A·B 모두 바뀌지 않고, 그 뒤 B에서는 정상 저장된다`, { timeout: 60_000 }, async () => {
     const A = await project('boundary-A', aText);
     const B = await project('boundary-B', bText);
     const { app, page } = await launch(await tempDir('boundary-userdata'));
@@ -58,21 +58,26 @@ for (const [name, aText, bText] of [
       await page.getByRole('button', { name: '열기', exact: true }).click();
       for (let n = 0; n < 200 && !(await switched(app)); n++) await page.waitForTimeout(10);
       assert.equal(await switched(app), true);
-      // 화면은 아직 A다. A 에디터에서 입력하고 저장한다
+      // 화면은 아직 A지만 에디터는 잠겨 있다
+      assert.equal(await editor(page).getAttribute('contenteditable'), 'false');
       await editor(page).getByText('identical manuscript').click();
       await page.keyboard.press('End');
       await page.keyboard.type(' OLD EDITOR');
+      await page.keyboard.insertText(' PASTED');
       await page.keyboard.press('Control+S');
-      await page.getByRole('status').getByText(STALE_PROJECT, { exact: false }).waitFor({ timeout: 5000 });
+      assert.ok(!(await editor(page).innerText()).includes('OLD EDITOR'), '잠긴 에디터가 입력을 받았다');
+      assert.ok(!(await editor(page).innerText()).includes('PASTED'), '잠긴 에디터가 붙여넣기를 받았다');
+      // 원고 조작도 막힌다
+      assert.equal(await page.getByRole('button', { name: '+ 새 화' }).isDisabled(), true);
+      assert.equal(await page.getByRole('button', { name: '열기', exact: true }).isDisabled(), true);
+      await page.waitForTimeout(2000);
       assert.equal(await read(A), aText);
       assert.equal(await read(B), bText);
-      // 자동 저장 시간이 지나도 쓰지 않는다
-      await page.waitForTimeout(2000);
-      assert.equal(await read(B), bText);
+      assert.deepEqual(await readdir(join(B, 'chapters')), ['001.md']);
       await release(app);
-      await page.getByRole('status').getByText(STALE_PROJECT).waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
       await editor(page).waitFor();
-      assert.ok(!(await editor(page).innerText()).includes('OLD EDITOR'), '새 프로젝트 화면에 이전 입력이 남았다');
+      for (let n = 0; n < 100 && (await editor(page).getAttribute('contenteditable')) !== 'true'; n++) await page.waitForTimeout(20);
+      assert.equal(await editor(page).getAttribute('contenteditable'), 'true');
       // B에서는 정상 저장된다
       await editor(page).getByText(bText.includes('Beta') ? 'Beta manuscript' : 'identical manuscript').click();
       await page.keyboard.press('End');
@@ -89,6 +94,33 @@ for (const [name, aText, bText] of [
     assert.ok(!(await read(B)).includes('OLD EDITOR'));
   });
 }
+
+test('잠그기 직전에 친 입력은 마지막 저장으로 A에 남고 B에는 쓰이지 않는다', { timeout: 60_000 }, async () => {
+  const A = await project('last-A', '# A\n\nalpha\n');
+  const B = await project('last-B', '# A\n\nalpha\n');
+  const { app, page } = await launch(await tempDir('last-userdata'));
+  try {
+    await openFirst(app, page, A);
+    await editor(page).getByText('alpha').click();
+    await holdChooseResponse(app);
+    await stubFolderDialog(app, B);
+    // 자동 저장(1.5초) 전에 입력하고 곧바로 열기를 누른다
+    await page.keyboard.press('End');
+    await page.keyboard.type(' last moment');
+    await page.getByRole('button', { name: '열기', exact: true }).click();
+    for (let n = 0; n < 200 && !(await switched(app)); n++) await page.waitForTimeout(10);
+    assert.equal(await read(A), '# A\n\nalpha last moment\n');
+    assert.equal(await read(B), '# A\n\nalpha\n');
+    await release(app);
+    await editor(page).getByText('alpha').waitFor();
+    assert.ok(!(await editor(page).innerText()).includes('last moment'));
+  } finally {
+    await release(app).catch(() => {});
+    await closeWindow(app);
+  }
+  assert.equal(await read(A), '# A\n\nalpha last moment\n');
+  assert.equal(await read(B), '# A\n\nalpha\n');
+});
 
 test('이전 token으로 직접 보낸 읽기·쓰기·새 화·id 재발급은 main이 거절하고, 새 프로젝트에 아무것도 쓰지 않는다', { timeout: 60_000 }, async () => {
   const A = await project('token-A', '# A\n\nalpha\n');
