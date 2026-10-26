@@ -15,6 +15,10 @@ const quoted = (quote: string) => (/^["“'‘「『].*["”'’」』]$/s.test(
 
 interface Props {
   file: string;
+  /** 이 패널을 띄운 프로젝트의 token. 읽기·무시 요청에 함께 보낸다 (다른 프로젝트가 열린 뒤의 요청은 main이 거절한다) */
+  projectToken: number;
+  /** 프로젝트를 바꾸는 중. main은 이미 새 프로젝트일 수 있어, 이 패널의 조작(무시·이동)을 받지 않는다 */
+  locked: boolean;
   state: CheckState | undefined;
   /** 분석·검사가 끝날 때마다 바뀐다 (다시 읽기) */
   version: number;
@@ -24,7 +28,7 @@ interface Props {
   onOpenEvidence(file: string, at: QuoteLocation): void;
 }
 
-export function IssuesPanel({ file, state, version, currentLines, onJump, onOpenEvidence }: Props) {
+export function IssuesPanel({ file, projectToken, locked, state, version, currentLines, onJump, onOpenEvidence }: Props) {
   const [check, setCheck] = useState<StoredCheck | null | undefined>(undefined);
   const [showDismissed, setShowDismissed] = useState(false);
   const [showLow, setShowLow] = useState(false);
@@ -35,11 +39,11 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
   useEffect(() => {
     let cancelled = false;
     setMissing(null);
-    void api.ai.checkResult(file).then((c) => !cancelled && setCheck(c));
+    void api.ai.checkResult(file, projectToken).then((c) => !cancelled && setCheck(c));
     return () => {
       cancelled = true;
     };
-  }, [file, version, reload]);
+  }, [file, projectToken, version, reload]);
 
   useEffect(() => {
     setShowDismissed(false);
@@ -47,16 +51,19 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
   }, [file]);
 
   const jump = (quote: string) => {
+    if (locked) return;
     const at = locateQuote(currentLines() ?? [], quote);
     setMissing(at ? null : quote);
     if (at) onJump(at);
   };
 
-  const dismiss = (f: StoredFinding) =>
-    void api.ai.dismiss(file, f.ord).then(
+  const dismiss = (f: StoredFinding) => {
+    if (locked) return;
+    void api.ai.dismiss(file, f.ord, projectToken).then(
       () => setReload((n) => n + 1),
       (e: Error) => setError(e.message),
     );
+  };
 
   // 무시한 결과와 확신도가 낮은 결과는 숨긴다 (각각 [보기]로 볼 수 있다)
   const low = (f: StoredFinding) => f.confidence < MIN_CONFIDENCE;
@@ -93,13 +100,13 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
                   {f.dismissed ? (
                     <span className="muted">무시함</span>
                   ) : (
-                    <button type="button" className="link" onClick={() => dismiss(f)}>
+                    <button type="button" className="link" disabled={locked} onClick={() => dismiss(f)}>
                       무시
                     </button>
                   )}
                 </span>
                 <span className="claim">{f.claim}</span>
-                <button type="button" className="quote" title="이 화의 이 문장으로 이동" onClick={() => jump(f.target.quote)}>
+                <button type="button" className="quote" title="이 화의 이 문장으로 이동" disabled={locked} onClick={() => jump(f.target.quote)}>
                   이 화: {quoted(f.target.quote)}
                 </button>
                 {f.evidence.map((e, i) => (
@@ -108,6 +115,7 @@ export function IssuesPanel({ file, state, version, currentLines, onJump, onOpen
                     key={i}
                     className="quote evidence"
                     title={`${e.chapter}화의 이 문장으로 이동`}
+                    disabled={locked}
                     onClick={() => onOpenEvidence(e.file, e)}
                   >
                     {e.chapter}화: {quoted(e.quote)}

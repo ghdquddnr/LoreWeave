@@ -9,6 +9,10 @@ const api = window.loreweave;
 
 interface Props {
   file: string;
+  /** 이 패널을 띄운 프로젝트의 token. 읽기 요청에 함께 보낸다 (다른 프로젝트가 열린 뒤의 요청은 main이 거절한다) */
+  projectToken: number;
+  /** 프로젝트를 바꾸는 중. 이 패널의 이동을 받지 않는다 */
+  locked: boolean;
   state: AnalysisState | undefined;
   /** 분석이 끝날 때마다 바뀐다 (다시 읽기) */
   version: number;
@@ -16,20 +20,21 @@ interface Props {
   onJump(at: QuoteLocation): void;
 }
 
-export function FactsPanel({ file, state, version, currentLines, onJump }: Props) {
+export function FactsPanel({ file, projectToken, locked, state, version, currentLines, onJump }: Props) {
   const [analysis, setAnalysis] = useState<StoredAnalysis | null | undefined>(undefined);
   const [missing, setMissing] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setAnalysis(undefined);
-    void api.ai.analysis(file).then((a) => !cancelled && setAnalysis(a));
+    void api.ai.analysis(file, projectToken).then((a) => !cancelled && setAnalysis(a));
     return () => {
       cancelled = true;
     };
-  }, [file, version]);
+  }, [file, projectToken, version]);
 
   const jump = (quote: string) => {
+    if (locked) return;
     const at = locateQuote(currentLines() ?? [], quote);
     setMissing(at ? null : quote);
     if (at) onJump(at);
@@ -67,7 +72,7 @@ export function FactsPanel({ file, state, version, currentLines, onJump }: Props
                     <span className="fact">
                       {f.predicate}: {f.value}
                     </span>
-                    <button type="button" className="quote" title="본문에서 이 문장으로 이동" onClick={() => jump(f.quote)}>
+                    <button type="button" className="quote" title="본문에서 이 문장으로 이동" disabled={locked} onClick={() => jump(f.quote)}>
                       “{f.quote}”
                     </button>
                   </li>

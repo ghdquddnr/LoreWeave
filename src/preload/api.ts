@@ -72,8 +72,11 @@ export interface LoreweaveApi {
     check(): Promise<{ ok: true } | { ok: false; message: string }>;
     /** 원고가 OpenAI로 전송된다는 안내에 동의했는지 저장한다 */
     setConsent(consent: boolean): Promise<void>;
-    /** 화마다 분석·검사 상태, 지금까지 쓴 비용, 깨진 분석 파일을 옮겼는지, 전송 동의 여부 */
-    analysisStatus(): Promise<{
+    /**
+     * 화마다 분석·검사 상태, 지금까지 쓴 비용, 깨진 분석 파일을 옮겼는지, 전송 동의 여부.
+     * token: 요청한 화면의 프로젝트 token. 다른 프로젝트가 열렸으면(답을 기다리는 사이 포함) STALE_PROJECT로 거절한다 (analysis·checkResult·dismiss도 같다)
+     */
+    analysisStatus(token: number): Promise<{
       states: Record<string, AnalysisState>;
       checkStates: Record<string, CheckState>;
       totalCostUsd: number;
@@ -90,15 +93,15 @@ export interface LoreweaveApi {
     cancel(): Promise<void>;
     onProgress(listener: (progress: AnalyzeProgress) => void): () => void;
     /** 저장된 분석 결과 */
-    analysis(file: string): Promise<StoredAnalysis | null>;
+    analysis(file: string, token: number): Promise<StoredAnalysis | null>;
     /** [이 화 검사] 전에 보여 줄 것: 먼저 분석할 화, 비교할 앞 화 수, 예상 비용 (상한) */
     planCheck(file: string, token: number): Promise<CheckPlan>;
     /** 필요한 화를 분석하고 이 화를 앞 화들과 비교한다. 분석 진행 상황은 onProgress로 온다. 취소는 cancel */
     runCheck(file: string, token: number): Promise<CheckOutcome>;
     /** 저장된 검사 결과 (무시한 결과도 dismissed 표시와 함께 온다) */
-    checkResult(file: string): Promise<StoredCheck | null>;
+    checkResult(file: string, token: number): Promise<StoredCheck | null>;
     /** 검사 결과 하나를 무시한다. 다시 검사해도 같은 화·종류·문장의 결과는 숨는다 */
-    dismiss(file: string, ord: number): Promise<void>;
+    dismiss(file: string, ord: number, token: number): Promise<void>;
   };
   app: {
     /** 창을 닫기 직전에 불린다. 저장을 마친 뒤 replyClose로 답해야 창이 닫힌다 */
