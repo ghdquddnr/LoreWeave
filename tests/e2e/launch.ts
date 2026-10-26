@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import electronPath from 'electron';
 import { _electron, type ElectronApplication, type Page } from 'playwright';
+import { diag, diagDir } from './diag.ts';
 
 export async function tempDir(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), `loreweave-${prefix}-`));
@@ -18,6 +19,15 @@ export async function launch(userData: string, env: Record<string, string> = {})
     args: ['.', `--user-data-dir=${userData}`],
     env: { ...(process.env as Record<string, string>), ...env },
   });
+  if (diagDir) {
+    // 진단 기록(선택): 이 앱 프로세스의 출력과 종료 시각 (다음 실행과 겹쳤는지 볼 수 있다)
+    const proc = app.process();
+    const file = `app-${Date.now()}-${proc.pid}.log`;
+    diag(file, `launch pid=${proc.pid} extraEnv=${Object.keys(env).join(',')}`);
+    proc.stdout?.on('data', (d: Buffer) => diag(file, `out ${d.toString().trimEnd()}`));
+    proc.stderr?.on('data', (d: Buffer) => diag(file, `err ${d.toString().trimEnd()}`));
+    proc.on('exit', (code) => diag(file, `exit ${code}`));
+  }
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   return { app, page };

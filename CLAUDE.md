@@ -42,6 +42,7 @@ corepack pnpm dev        # 개발 실행 (electron-vite)
 corepack pnpm typecheck
 corepack pnpm test       # core 단위 테스트 (node:test)
 corepack pnpm test:e2e   # 빌드 후 Electron 앱 E2E (Playwright)
+E2E_DIAG_DIR=<저장소 밖 폴더> corepack pnpm test:e2e   # (선택) 불안정한 실패의 진단 기록 (tests/e2e/diag.ts)
 ```
 
 ## 디렉터리 구조 (계획)

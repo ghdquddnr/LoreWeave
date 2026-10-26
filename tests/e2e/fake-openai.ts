@@ -3,6 +3,7 @@
 
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { diag, diagDir } from './diag.ts';
 
 export interface FakeRequest {
   path: string;
@@ -58,6 +59,17 @@ export async function startFakeOpenAi(reply: (user: string) => unknown): Promise
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
+  if (diagDir) {
+    const log = (m: string) => diag('fake-openai.log', `${port} ${m}`);
+    log('listening');
+    server.on('connection', (s) => {
+      log('connection');
+      s.on('error', (e: Error) => log(`socket-error ${e.message}`));
+    });
+    server.on('request', (r) => log(`request ${r.method} ${r.url}`));
+    server.on('clientError', (e) => log(`client-error ${e.message}`));
+    server.on('close', () => log('close'));
+  }
   return {
     baseUrl: `http://127.0.0.1:${port}/v1`,
     requests,
