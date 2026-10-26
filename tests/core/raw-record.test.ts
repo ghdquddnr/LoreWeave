@@ -1,7 +1,7 @@
 // 실험 runner의 원래 응답 기록(scripts/lib/raw-record.ts)과 오프라인 재생(raw-replay.ts). 가짜 AI 클라이언트로 네트워크 없이 확인한다.
 
 import assert from 'node:assert/strict';
-import { appendFileSync, existsSync, readdirSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,6 +12,7 @@ import { AiStore } from '../../src/main/ai-db.ts';
 import { toPredictions } from '../../scripts/export-predictions.ts';
 import { runM10 } from '../../scripts/lib/m10-run.ts';
 import { sha256 } from '../../scripts/lib/m9-preflight.ts';
+import { ambiguousRequests, rawRecorder, RawRecordError } from '../../scripts/lib/raw-record.ts';
 import { readRaw, replayRun, replaySummary } from '../../scripts/lib/raw-replay.ts';
 import { fakeClient, makeBaseline, REPO, TARGETS, usage } from './fixtures/m9-fixture.ts';
 
@@ -254,4 +255,103 @@ test('기록 실패: 응답을 받은 뒤 쓰지 못하면 진단 완료로 보�
   } finally {
     s.close();
   }
+});
+
+// ---- 검토 반영: 본문이 같은 요청, 이번 회차 저장과 기준의 예전 기록 구분
+
+test('본문이 같은 요청: 어느 묶음의 응답인지 가릴 수 없으면 조용히 한 묶음으로 몰지 않고 회차 시작을 거부한다 (제품은 같은 사실을 합쳐 실제 경로에서는 생기지 않는다)', () => {
+  assert.match(ambiguousRequests([{ file: '002.md', users: ['same', 'same'] }])!, /002\.md 묶음 1, 002\.md 묶음 2/);
+  assert.equal(ambiguousRequests([{ file: '002.md', users: ['a', 'b'] }, { file: '003.md', users: ['c'] }]), null);
+  const dir = join(tmp, 'raw-amb');
+  const recorder = rawRecorder(dir, 't');
+  assert.throws(() => recorder.startRun('m4-1', [{ file: '002.md', users: ['same', 'same'], factChapters: [1] }]), RawRecordError);
+  // 시작하지 못한 회차로는 보낼 수 없고, 아무 시도도 남지 않는다
+  const client = recorder.wrap(fakeClient());
+  return assert.rejects(client.json({ model: 'gpt-6-luna', system: 's', user: '<chapter n="2">same', schema: { name: 'continuity_findings', schema: {} } } as JsonCall), RawRecordError).then(() => {
+    assert.equal(existsSync(join(dir, 'm4-1.jsonl')), false);
+  });
+});
+
+test('역순 완료 + 재시도: 둘째 묶음이 먼저 끝나고 첫 묶음이 연결 실패 뒤 재시도로 응답해도, 묶음·시도 귀속이 정확하고 재생이 이번 저장과 같다', { timeout: 60_000 }, async () => {
+  const { client, pending } = gatedClient();
+  const o = options(client, { recordRaw: true });
+  const run = runM10(o);
+  await until(() => pending.length === 2);
+  const b0 = pending.find((p) => firstBatch(p.call))!;
+  const b1 = pending.find((p) => !firstBatch(p.call))!;
+  b1.resolve();
+  await new Promise((r) => setTimeout(r, 20));
+  b0.reject(new AiError('연결 끊김', 'network'));
+  await until(() => pending.length === 3);
+  client.setAuto();
+  pending[2]!.resolve();
+  const r = await run;
+  assert.equal(r.stage, 'done', r.reason ?? '');
+  const { attempts } = readRaw(join(o.work, 'raw', 'm4-1.jsonl'));
+  const c2 = attempts.filter((a) => a.file === '002.md').map((a) => [a.batch, a.attempt, a.outcome]);
+  assert.deepEqual(c2, [[1, 1, 'response'], [0, 1, 'error'], [0, 2, 'response']]);
+  const chapters = await replayRun(runRoot(o, 'm4-1'), join(o.work, 'raw', 'm4-1.jsonl'), join(runRoot(o, 'm4-1'), '.loreweave', 'ai.db'));
+  assert.ok(chapters.every((c) => c.complete && c.matchesStored === true));
+});
+
+test('기준의 예전 검사 기록은 이번 저장이 아니다: 계획만 있고 시도가 없는 화는 불완전·미저장이며 성공 일치로 세지 않는다 (감독 재현)', async () => {
+  const raw = join(tmp, 'plan-only.jsonl');
+  writeFileSync(raw, JSON.stringify({ type: 'plan', run: 'm4-1', file: '002.md', batches: 2, factChapters: [1] }) + '\n');
+  const chapters = await replayRun(real, raw, join(real, '.loreweave', 'ai.db'));
+  const s = replaySummary('m4-1', chapters, []);
+  assert.deepEqual(s.incomplete, ['002.md']);
+  assert.deepEqual(s.notSaved, ['002.md']);
+  assert.equal(s.matchesStored, 0);
+  assert.equal(chapters[0]!.matchesStored, null);
+});
+
+test('성공 응답 뒤 취소: 두 묶음 응답을 다 받았어도 저장 전에 취소되면 그 화는 이번 저장이 아니다. 내용이 기준 기록과 우연히 같아도 일치로 세지 않는다', { timeout: 60_000 }, async () => {
+  const { client, pending } = gatedClient();
+  const cancel = new AbortController();
+  const o = options(client, { recordRaw: true, signal: cancel.signal });
+  const run = runM10(o);
+  await until(() => pending.length === 2);
+  // 2화 응답은 결과 없음 = 기준(가짜 기준 검사도 결과 없음)과 같은 내용
+  pending[0]!.resolve();
+  pending[1]!.resolve();
+  cancel.abort();
+  const r = await run;
+  assert.equal(r.stage, 'stopped');
+  const raw = join(o.work, 'raw', 'm4-1.jsonl');
+  const { attempts, saved } = readRaw(raw);
+  assert.deepEqual(attempts.map((a) => a.outcome), ['response', 'response']);
+  assert.deepEqual(saved, []);
+  const chapters = await replayRun(runRoot(o, 'm4-1'), raw, join(runRoot(o, 'm4-1'), '.loreweave', 'ai.db'));
+  const c2 = chapters.find((c) => c.file === '002.md')!;
+  assert.equal(c2.complete, true);
+  assert.equal(c2.merged.length, 0);
+  assert.equal(c2.stored, null);
+  assert.equal(c2.matchesStored, null);
+});
+
+test('저장 기록 실패: 이 화를 DB에 저장한 뒤 saved 기록을 쓰지 못하면 새 요청을 멈추고, 그 화는 이번 저장으로 세지 않으며, 장부는 이미 보낸 호출만 정확히 정산한다', async () => {
+  const client = fakeClient(detect);
+  const o = options(client, {
+    recordRaw: true,
+    rawWrite: (path, value) => {
+      if ((value as { type: string }).type === 'saved') throw new Error('디스크 가득 참');
+      appendFileSync(path, JSON.stringify(value) + '\n');
+    },
+  });
+  const r = await runM10(o);
+  assert.equal(r.stage, 'stopped');
+  assert.match(r.reason!, /저장 기록을 남기지 못해/);
+  // 2화 두 묶음만 보내고 멈췄다
+  assert.equal(client.calls.length, 2);
+  assert.equal(r.ledger!.attempts, 2);
+  assert.equal(r.ledger!.inFlight, 0);
+  assert.equal(r.ledger!.unknownUsage, 0);
+  assert.ok(Math.abs(r.ledger!.spent - 2 * costUsd('gpt-6-luna', usage)) < 1e-12);
+  const raw = join(o.work, 'raw', 'm4-1.jsonl');
+  const chapters = await replayRun(runRoot(o, 'm4-1'), raw, join(runRoot(o, 'm4-1'), '.loreweave', 'ai.db'));
+  const c2 = chapters.find((c) => c.file === '002.md')!;
+  // DB에는 이번 결과가 저장됐지만, saved 기록이 없으므로 이번 저장으로 세지 않는다
+  assert.equal(c2.complete, true);
+  assert.equal(c2.stored, null);
+  assert.equal(c2.matchesStored, null);
 });

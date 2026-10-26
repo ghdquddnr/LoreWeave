@@ -44,6 +44,34 @@ export interface RawPlan {
   factChapters: number[];
 }
 
+/**
+ * 이번 회차가 이 화의 검사 결과를 실제로 저장했다는 기록. 회차 복사본에는 기준 폴더의 예전 검사 기록이 그대로 있으므로,
+ * 재생은 이 기록과 DB의 검사 기록(시각·프롬프트 버전·본문 해시·사실 수·결과 fingerprint)이 맞을 때만 이번 저장으로 센다
+ */
+export interface RawSaved {
+  type: 'saved';
+  run: string;
+  file: string;
+  createdAt: string;
+  promptVersion: string;
+  contentHash: string;
+  factCount: number;
+  findingsSha: string;
+}
+
+/** 같은 회차에 본문이 같은 요청이 둘 이상이면 그 이유. 요청 본문(fingerprint)만으로는 어느 묶음의 응답인지 가릴 수 없다 */
+export function ambiguousRequests(plans: { file: string; users: string[] }[]): string | null {
+  const seen = new Map<string, string>();
+  for (const p of plans)
+    for (const [batch, u] of p.users.entries()) {
+      const k = sha256(u);
+      const where = `${p.file} 묶음 ${batch + 1}`;
+      if (seen.has(k)) return `본문이 같은 요청이 있어 응답을 묶음별로 가릴 수 없습니다: ${seen.get(k)}, ${where}`;
+      seen.set(k, where);
+    }
+  return null;
+}
+
 /** 기록하지 못했다. 응답이 있었으면 usage를 붙여 장부가 정확히 정산한다 */
 export class RawRecordError extends Error {
   constructor(
@@ -75,6 +103,9 @@ export function rawRecorder(dir: string, promptVersion: string, write: (path: st
 
   /** 회차를 시작한다. requests: 이 회차에 보낼 요청(사용자 입력)의 화·묶음 */
   const startRun = (label: string, plans: { file: string; users: string[]; factChapters: number[] }[]) => {
+    // 본문이 같은 요청을 조용히 마지막 묶음으로 귀속하지 않는다 (runner는 연결 전 사전 대조에서 이미 거부한다)
+    const ambiguous = ambiguousRequests(plans);
+    if (ambiguous) throw new RawRecordError(ambiguous);
     run = label;
     requests = new Map();
     attempts = new Map();
@@ -125,5 +156,10 @@ export function rawRecorder(dir: string, promptVersion: string, write: (path: st
       return result;
     },
   });
-  return { startRun, wrap };
+  /** 이번 회차가 이 화를 저장했음을 남긴다 (runner가 저장 직후 DB에서 읽은 값) */
+  const markSaved = (saved: Omit<RawSaved, 'type' | 'run'>) => {
+    if (!run) throw new RawRecordError('회차를 시작하지 않았습니다');
+    write(path(), { type: 'saved', run, ...saved } satisfies RawSaved);
+  };
+  return { startRun, wrap, markSaved };
 }

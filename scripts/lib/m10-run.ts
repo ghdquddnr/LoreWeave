@@ -24,7 +24,8 @@ import { mergedPredictions, mergeRuns, storedRun } from './merge-runs.ts';
 import { analysesFingerprint, filesFingerprint, preflight, publicSummary, requestFingerprint, sha256, type PreflightReport } from './m9-preflight.ts';
 import { copyProject, inside, M9_MODEL, overlapReason, projectFiles, realPath } from './m9-run.ts';
 import { haltGate, sentObserver } from './predicate-run.ts';
-import { rawRecorder } from './raw-record.ts';
+import { ambiguousRequests, rawRecorder } from './raw-record.ts';
+import { storedCheckMeta } from './raw-replay.ts';
 import { callCostBound, withReservation, type ReservedLedger } from './reserve.ts';
 import { StageLedger, StageLedgerError, stageReason, type StageDef } from './stage-ledger.ts';
 
@@ -224,6 +225,8 @@ interface RunCopy {
   analyses: string;
   report: PreflightReport;
   plans: ChapterPlan[];
+  /** 원래 응답을 기록할 때, 본문이 같은 요청이 있어 묶음을 가릴 수 없으면 그 이유 */
+  ambiguous: string | null;
   /** 이 회차를 시작하기 직전의 마지막 호출 기록 id. 이 뒤의 기록만 이 회차의 것이다 */
   callsAfterId?: number;
 }
@@ -284,9 +287,11 @@ export async function runM10(o: M10Options): Promise<M10Result> {
         const analyses = await analysesFingerprint(root, store);
         const report = await preflight({ baselineRoot: snapshot, workRoot: root, workStore: store, predictions, skipOrder: d.predictions === null, targets: d.targets });
         const plans: ChapterPlan[] = [];
+        const requests: { file: string; users: string[] }[] = [];
         for (const file of d.targets) {
           const base = await prepareCheck(file, { root, store });
           const bounds = typeof base === 'string' ? [] : requestBounds(base);
+          if (typeof base !== 'string') requests.push({ file, users: base.users });
           plans.push({
             file,
             ok: typeof base !== 'string',
@@ -301,7 +306,7 @@ export async function runM10(o: M10Options): Promise<M10Result> {
         if ((await analysesFingerprint(root, store)) !== analyses) report.ok = false;
         // 요청이 그때 기록과의 대조 때와 같아야 한다
         for (const p of plans) if (p.fingerprint !== report.chapters.find((c) => c.file === p.file)?.fingerprint) Object.assign(p, { ok: false, reason: p.reason ?? '요청이 대조 때와 다릅니다' });
-        runs.push({ label, dataset, root, store, analyses, report, plans });
+        runs.push({ label, dataset, root, store, analyses, report, plans, ambiguous: ambiguousRequests(requests) });
         result.preflight.push({
           label,
           base: publicSummary(report),
@@ -321,6 +326,9 @@ export async function runM10(o: M10Options): Promise<M10Result> {
     const expectedRuns = M10_RUNS.m4 + M10_RUNS.real;
     if (runs.length !== expectedRuns || !runs.every((r) => r.report.ok && r.plans.length > 0 && r.plans.every((p) => p.ok)))
       return { ...result, stage: 'preflight-failed', reason: '그때 기록과 맞지 않는 화가 있어 호출하지 않았습니다' };
+    // 원래 응답을 기록하려면 요청 본문으로 화·묶음을 가릴 수 있어야 한다. 가릴 수 없으면 연결 전에 멈춘다 (조용히 한 묶음으로 몰지 않는다)
+    const ambiguous = o.recordRaw ? runs.find((r) => r.ambiguous) : undefined;
+    if (ambiguous) return { ...result, stage: 'preflight-failed', reason: `${ambiguous.label}: ${ambiguous.ambiguous}` };
     if (result.crossRun.m4 || result.crossRun.real) return { ...result, stage: 'preflight-failed', reason: `회차 사이 요청이 다릅니다: ${result.crossRun.m4 ?? result.crossRun.real}` };
     if (!o.run) return { ...result, stage: 'preflight-ok' };
 
@@ -406,6 +414,18 @@ export async function runM10(o: M10Options): Promise<M10Result> {
         const prepared = verified.get(`${run.label}|${file}`)!;
         const outcome = await runPreparedCheck(prepared, { root: run.root, store: run.store, client, model: M9_MODEL, signal, prompt: M10_PROMPT });
         log(`${run.label} ${file}: 결과 ${outcome.findings}개 (숨김 ${outcome.lowConfidence}) · 단계 누적 $${stageLedger.committed().toFixed(4)}`);
+        // 이번 회차가 이 화를 실제로 저장했으면, 저장 직후 DB의 검사 기록 식별 값을 남긴다 (재생이 기준의 예전 기록과 가린다)
+        if (recorder && outcome.checked) {
+          try {
+            const meta = storedCheckMeta(join(run.root, '.loreweave', 'ai.db'), file);
+            if (!meta) throw new Error('저장한 검사 기록을 읽을 수 없습니다');
+            recorder.markSaved({ file, ...meta });
+          } catch (e) {
+            const reason = `${run.label} ${file}: 저장 기록을 남기지 못해 멈춥니다 (${e instanceof Error ? e.message : String(e)})`;
+            stageLedger.finishRun(run.label, 'stopped', reason);
+            return reason;
+          }
+        }
         if (!outcome.stopped && !gate.halted()) {
           const ctx = observer.contextOf(prepared);
           if (typeof ctx === 'string') {
