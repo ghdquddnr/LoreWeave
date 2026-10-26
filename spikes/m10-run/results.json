@@ -168,26 +168,27 @@
    "perRun": {
     "real-1": {
      "found": 8,
-     "fp": 5,
+     "fp": 6,
      "unclear": 3,
      "correctOutside": 2
     },
     "real-2": {
      "found": 8,
-     "fp": 6,
+     "fp": 7,
      "unclear": 3,
      "correctOutside": 0,
      "note": "평가기는 S15도 찾음으로 셌으나 그 결과의 claim이 스스로 모순으로 단정하지 못한다고 써 사람 판정에서 뺌"
-    }
+    },
+    "note": "회별 수는 합친 항목이 그 회에 있었는지로 센다 (두 회에 다 있는 항목은 양쪽에 센다)"
    },
    "merged": {
     "findingsRaw": 38,
     "visible07": 36,
     "seedsFound": 12,
-    "duplicates": 5,
+    "duplicates": 4,
     "echo": 1,
     "correctOutside": 2,
-    "falsePositive": 11,
+    "falsePositive": 12,
     "unclear": 5,
     "hiddenBelow07": {
      "count": 2,
@@ -221,13 +222,33 @@
     "S18",
     "S20"
    ],
-   "falsePositiveOverlapAcrossRuns": 0
+   "falsePositiveOverlapAcrossRuns": 1,
+   "falsePositiveOverlapNote": "두 회에 같은 항목으로 나온 확정 오탐은 1개: S15 문장을 가리키지만 claim이 모순을 부정한 결과",
+   "s15": "합친 결과에 S15 문장을 가리키는 항목이 둘이다. 나이 종류·다른 근거의 유효 결과(real-1에만)를 찾음으로 센다. 평가기가 TP로 고른 다른 항목(두 회 모두)은 claim이 시간 경과가 없어 모순이라고 단정할 수 없다고 결론해, 모순을 짚지 않았으므로 찾음도 중복도 아닌 잘못 읽음(확정 오탐)으로 셌다. 근거와 결론이 달라 4-3의 중복 규칙에도 맞지 않는다. real-2는 이 항목만 있어 S15를 찾지 않은 것으로 센다",
+   "partitionCheck": {
+    "items": 38,
+    "missing": 0,
+    "inMoreThanOneClass": 0,
+    "sum": 38,
+    "hiddenMatchesConfidence": true,
+    "classes": {
+     "seedFound": 12,
+     "duplicate": 4,
+     "echo": 1,
+     "correctOutside": 2,
+     "falsePositive": 12,
+     "unclear": 5,
+     "hidden": 2
+    }
+   },
+   "correction": "PR #79 첫 head(fbecb48)의 1차 판정은 S15의 유효 결과를 찾음과 중복 양쪽에 넣고 모순을 부정한 항목을 어느 분류에도 넣지 않았다 (합만 38). 재판정으로 확정 오탐 11→12, 중복 5→4, 두 회 공통 확정 오탐 0→1"
   },
   "criteria": {
    "R1": {
     "value": "12/20",
     "limit": ">= 10/20",
-    "pass": true
+    "pass": true,
+    "note": "S15 처리 정정 뒤에도 12/20 (유효 결과로 찾음)"
    },
    "R2": {
     "value": "6/9 (S09·S18·S20 잃음)",
@@ -235,12 +256,12 @@
     "pass": false
    },
    "R3": {
-    "value": 11,
+    "value": 12,
     "limit": "<= 14",
     "pass": true
    },
    "R4": {
-    "value": 16,
+    "value": 17,
     "limit": "<= 18",
     "pass": true
    },
@@ -248,7 +269,7 @@
     "value": 0,
     "population": "필터 전 합친 결과 중 맞는 결과 14개 (심은 오류 12 + 맞는 지적 2)",
     "pass": true,
-    "note": "독립 안전 기준 아님, M7 숨기기 회귀 확인"
+    "note": "독립 안전 기준 아님, M7 숨기기 회귀 확인. 모순을 부정한 항목은 맞는 결과가 아니라 모집단에 넣지 않는다 (확신도 0.99라 숨김과도 무관)"
    }
   },
   "verdict": "미달 (R2). 두 회 합치기 후보 유지 안 함, 제품 채택 0",
@@ -322,5 +343,10 @@
   "conservativeRemainingUsd": 2.4977,
   "remainingFormula": "10 − 7.4150 − (0.5506 − 0.5084) − 0.0451(끝난 M9 장부 두 개 전액, 감독 방식)"
  },
- "preservation": "원고·ai.db·끝난 장부 두 개의 해시 292개가 실행 전후로 같다"
+ "preservation": "원고·ai.db·끝난 장부 두 개의 해시 292개가 실행 전후로 같다",
+ "comparisonLimits": [
+  "이번 두 회 사이의 요청 동일성은 화 순서를 포함한 요청 fingerprint로 확인했다 (차이 0)",
+  "M8과 같은 입력이라는 것은 사전 대조의 기록 항목(화·앞 화 해시, 사실 수, 묶음 수, 호출 수·입력 토큰 등) 일치에 근거한다. M8 당시 요청 원문은 저장하지 않아 정확한 요청 바이트 동일성은 미확인이다. 이것은 이번 두 회 사이의 동일성과 별개다",
+  "M8은 1회, 이번은 2회다. 모델 세부 버전이 같았는지는 기록이 없다"
+ ]
 }
