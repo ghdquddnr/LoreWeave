@@ -1,0 +1,362 @@
+{
+ "note": "저장된 M4 회차를 제품 합치기 규칙(검증·quoteKey·mergeFindings)으로 실제로 합쳐 채점한 재현 (유료 호출 0). 확신도 0.7은 합친 뒤에 적용. 오탐은 평가기의 trap·fabricated·unlabeled",
+ "threshold": 0.7,
+ "perRun": [
+  {
+   "condition": "m0a-d1",
+   "id": "m0a-d1-r0",
+   "droppedByVerify": 0,
+   "testTp": 18,
+   "fp": 0,
+   "precision": 1,
+   "fpPerChapter": 0,
+   "pass": true,
+   "labels07": {
+    "tp": 23,
+    "echo": 1
+   }
+  },
+  {
+   "condition": "m0a-d1",
+   "id": "m0a-d1-r1",
+   "droppedByVerify": 0,
+   "testTp": 16,
+   "fp": 2,
+   "precision": 0.8888888888888888,
+   "fpPerChapter": 0.14285714285714285,
+   "pass": false,
+   "labels07": {
+    "tp": 21,
+    "unlabeled": 2,
+    "echo": 1
+   }
+  },
+  {
+   "condition": "m0a-d1",
+   "id": "m0a-d1-r2",
+   "droppedByVerify": 0,
+   "testTp": 17,
+   "fp": 1,
+   "precision": 0.9444444444444444,
+   "fpPerChapter": 0.07142857142857142,
+   "pass": true,
+   "labels07": {
+    "tp": 23,
+    "unlabeled": 1
+   }
+  },
+  {
+   "condition": "m9-d2",
+   "id": "m9-d2-1",
+   "droppedByVerify": 0,
+   "testTp": 17,
+   "fp": 1,
+   "precision": 0.9444444444444444,
+   "fpPerChapter": 0.07142857142857142,
+   "pass": true,
+   "labels07": {
+    "tp": 24,
+    "unlabeled": 1,
+    "echo": 2
+   }
+  },
+  {
+   "condition": "m9-d2",
+   "id": "m9-d2-2",
+   "droppedByVerify": 0,
+   "testTp": 18,
+   "fp": 0,
+   "precision": 1,
+   "fpPerChapter": 0,
+   "pass": true,
+   "labels07": {
+    "tp": 25
+   }
+  },
+  {
+   "condition": "m9-d2",
+   "id": "m9-d2-3",
+   "droppedByVerify": 0,
+   "testTp": 15,
+   "fp": 1,
+   "precision": 0.9375,
+   "fpPerChapter": 0.07142857142857142,
+   "pass": false,
+   "labels07": {
+    "tp": 22,
+    "unlabeled": 1,
+    "echo": 1
+   }
+  },
+  {
+   "condition": "m9-p",
+   "id": "m9-p-1",
+   "droppedByVerify": 0,
+   "testTp": 17,
+   "fp": 0,
+   "precision": 1,
+   "fpPerChapter": 0,
+   "pass": true,
+   "labels07": {
+    "tp": 23,
+    "echo": 1
+   }
+  },
+  {
+   "condition": "m9-p",
+   "id": "m9-p-2",
+   "droppedByVerify": 0,
+   "testTp": 17,
+   "fp": 0,
+   "precision": 1,
+   "fpPerChapter": 0,
+   "pass": true,
+   "labels07": {
+    "tp": 24,
+    "echo": 2
+   }
+  },
+  {
+   "condition": "m9-p",
+   "id": "m9-p-3",
+   "droppedByVerify": 0,
+   "testTp": 16,
+   "fp": 2,
+   "precision": 0.8888888888888888,
+   "fpPerChapter": 0.14285714285714285,
+   "pass": false,
+   "labels07": {
+    "tp": 23,
+    "unlabeled": 2
+   }
+  }
+ ],
+ "pairs": [
+  {
+   "condition": "m0a-d1",
+   "runs": [
+    "m0a-d1-r0",
+    "m0a-d1-r1"
+   ],
+   "idUnionTestTp": 18,
+   "merged": {
+    "testTp": 18,
+    "fp": 2,
+    "precision": 0.9,
+    "fpPerChapter": 0.14285714285714285,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 24,
+    "unlabeled": 2,
+    "duplicate": 3,
+    "echo": 1
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 2
+  },
+  {
+   "condition": "m0a-d1",
+   "runs": [
+    "m0a-d1-r0",
+    "m0a-d1-r2"
+   ],
+   "idUnionTestTp": 18,
+   "merged": {
+    "testTp": 18,
+    "fp": 1,
+    "precision": 0.9473684210526315,
+    "fpPerChapter": 0.07142857142857142,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 25,
+    "duplicate": 5,
+    "echo": 1,
+    "unlabeled": 1
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 1
+  },
+  {
+   "condition": "m0a-d1",
+   "runs": [
+    "m0a-d1-r1",
+    "m0a-d1-r2"
+   ],
+   "idUnionTestTp": 17,
+   "merged": {
+    "testTp": 17,
+    "fp": 2,
+    "precision": 0.8947368421052632,
+    "fpPerChapter": 0.14285714285714285,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 23,
+    "unlabeled": 2,
+    "echo": 1,
+    "duplicate": 4
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 3
+  },
+  {
+   "condition": "m9-d2",
+   "runs": [
+    "m9-d2-1",
+    "m9-d2-2"
+   ],
+   "idUnionTestTp": 18,
+   "merged": {
+    "testTp": 18,
+    "fp": 1,
+    "precision": 0.9473684210526315,
+    "fpPerChapter": 0.07142857142857142,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 25,
+    "unlabeled": 1,
+    "duplicate": 3,
+    "echo": 2
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 1
+  },
+  {
+   "condition": "m9-d2",
+   "runs": [
+    "m9-d2-1",
+    "m9-d2-3"
+   ],
+   "idUnionTestTp": 17,
+   "merged": {
+    "testTp": 17,
+    "fp": 2,
+    "precision": 0.8947368421052632,
+    "fpPerChapter": 0.14285714285714285,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 25,
+    "unlabeled": 2,
+    "duplicate": 3,
+    "echo": 1
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 2
+  },
+  {
+   "condition": "m9-d2",
+   "runs": [
+    "m9-d2-2",
+    "m9-d2-3"
+   ],
+   "idUnionTestTp": 18,
+   "merged": {
+    "testTp": 18,
+    "fp": 1,
+    "precision": 0.9473684210526315,
+    "fpPerChapter": 0.07142857142857142,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 26,
+    "duplicate": 2,
+    "unlabeled": 1,
+    "echo": 1
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 1
+  },
+  {
+   "condition": "m9-p",
+   "runs": [
+    "m9-p-1",
+    "m9-p-2"
+   ],
+   "idUnionTestTp": 18,
+   "merged": {
+    "testTp": 18,
+    "fp": 0,
+    "precision": 1,
+    "fpPerChapter": 0,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 25,
+    "duplicate": 4,
+    "echo": 2
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 0
+  },
+  {
+   "condition": "m9-p",
+   "runs": [
+    "m9-p-1",
+    "m9-p-3"
+   ],
+   "idUnionTestTp": 19,
+   "merged": {
+    "testTp": 19,
+    "fp": 2,
+    "precision": 0.9047619047619048,
+    "fpPerChapter": 0.14285714285714285,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 26,
+    "unlabeled": 2,
+    "duplicate": 5,
+    "echo": 1
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 2
+  },
+  {
+   "condition": "m9-p",
+   "runs": [
+    "m9-p-2",
+    "m9-p-3"
+   ],
+   "idUnionTestTp": 18,
+   "merged": {
+    "testTp": 18,
+    "fp": 2,
+    "precision": 0.9,
+    "fpPerChapter": 0.14285714285714285,
+    "pass": true
+   },
+   "labels07": {
+    "tp": 26,
+    "unlabeled": 2,
+    "duplicate": 2,
+    "echo": 2
+   },
+   "inIdUnionOnly": [],
+   "inMergedOnly": [],
+   "fpSumOfRuns": 2
+  }
+ ],
+ "summary": {
+  "pairsWithDifferentTp": [],
+  "mergedMinTestTp": 17,
+  "mergedMaxFpPerChapter": 0.14285714285714285,
+  "mergedFailingGate": []
+ },
+ "sources": {
+  "m0a-d1": "태그 spike-m0a-2026-10-24의 회별 predictions.json을 M4 원고 줄로 제품 검증·합치기",
+  "m9-d2": "M9 detect-2 회차 ai.db 복사본",
+  "m9-p": "M9 사실 더하기 회차 ai.db 복사본"
+ }
+}
