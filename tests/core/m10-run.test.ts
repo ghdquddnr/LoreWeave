@@ -10,6 +10,8 @@ import { DETECT_PROMPT_VERSION, DETECT_SCHEMA, DETECT_SYSTEM } from '../../src/c
 import type { Extraction } from '../../src/core/ai/extraction.ts';
 import { AiError, type AiClient, type JsonCall } from '../../src/main/ai-client.ts';
 import { AiStore } from '../../src/main/ai-db.ts';
+import { costUsd } from '../../src/core/ai/cost.ts';
+import { DatabaseSync } from 'node:sqlite';
 import { prepareCheck } from '../../src/main/checker.ts';
 import { filesFingerprint } from '../../scripts/lib/m9-preflight.ts';
 import { budgetPlan, crossRunReason, M10_PROMPT, M10_STAGE, requestBounds, runM10 } from '../../scripts/lib/m10-run.ts';
@@ -193,6 +195,75 @@ test('실행: 첫 호출 전에 예약이 장부 파일에 남는다', async () 
   assert.equal(r.stage, 'done', r.reason ?? '');
   assert.equal(seen.length, 24);
   assert.ok(seen.every((x) => x === 'reserved'));
+});
+
+test('회차별 usage: 복사해 온 과거 호출(큰 비용·지연·토큰, 실패 포함)은 섞지 않고 이 회차의 검사 호출만 세며, 단계 장부와 맞는다. 과거 기록은 지우지 않는다', async () => {
+  // 기준의 검사 기록(대상 화 2·3화의 성공 호출 4개)은 사전 대조가 묶음 수·입력 토큰을 맞춰 보므로 수와 토큰은 두고 비용·지연만 키운다.
+  // 대상이 아닌 화에는 큰 토큰·비용·지연의 성공·실패 검사 호출을 더한다
+  const insert = `INSERT INTO calls (at, file, model, ok, input_tokens, cached_tokens, cache_write_tokens, output_tokens, cost_usd, latency_ms, kind)
+                  VALUES ('2026-10-01T00:00:00Z', '001.md', 'gpt-6-luna', ?, 999999, 0, 0, 99999, 9.99, 999999, 'check')`;
+  for (const base of [m4, real]) {
+    tamper(base, "UPDATE calls SET cost_usd = 9.99, latency_ms = 999999 WHERE kind = 'check'");
+    tamper(base, insert, 1);
+    tamper(base, insert, 0);
+  }
+  const { o } = runOpts();
+  const r = await runM10(o);
+  assert.equal(r.stage, 'done', r.reason ?? '');
+  const perCall = costUsd('gpt-6-luna', usage);
+  for (const [dataset, n] of [['m4', 4], ['real', 2]] as const) {
+    for (let i = 1; i <= n; i++) {
+      const label = `${dataset}-${i}`;
+      const u = JSON.parse(readFileSync(join(o.work, dataset, `run-${i}`, 'eval', 'usage.json'), 'utf8'));
+      assert.equal(u.scope, 'this-run');
+      assert.equal(u.checks, 4, label);
+      assert.ok(Math.abs(u.costUsd - 4 * perCall) < 1e-12, label);
+      assert.ok(Math.abs(u.maxCostUsd - perCall) < 1e-12);
+      assert.equal(u.maxInputTokens, usage.inputTokens);
+      assert.ok(u.maxLatencyMs !== null && u.maxLatencyMs < 999999);
+      assert.deepEqual(u.failed, { count: 0, costUsd: 0 });
+      // 단계 장부의 이 회차와 같다 (usage를 모두 알고 재시도가 없으므로)
+      assert.equal(u.ledger.attempts, 4);
+      assert.equal(u.ledger.unknown, 0);
+      assert.ok(Math.abs(u.ledger.spentUsd - u.costUsd) < 1e-12);
+      assert.ok(Math.abs(r.stageSummary!.runs[label]!.spentUsd - u.costUsd) < 1e-12);
+    }
+  }
+  // 복사본의 과거 호출 기록은 그대로 남아 있다
+  const db = new DatabaseSync(join(o.work, 'real', 'run-1', '.loreweave', 'ai.db'), { readOnly: true });
+  try {
+    assert.equal(Number((db.prepare('SELECT COUNT(*) AS n FROM calls WHERE cost_usd = 9.99').get() as { n: number }).n), 4 + 2);
+  } finally {
+    db.close();
+  }
+});
+
+test('회차별 usage: 다시 보내 성공한 시도는 장부의 시도·usage 불명에만 남고, 성공 호출 수·비용은 성공한 묶음만 센다', async () => {
+  let failed = false;
+  const base = fakeClient();
+  const client = {
+    calls: base.calls,
+    check: async () => {},
+    json: async (call: JsonCall) => {
+      base.calls.push(call);
+      if (!failed && call.user.includes('<chapter n="2">')) {
+        failed = true;
+        throw new AiError('연결 끊김', 'network');
+      }
+      return base.json(call);
+    },
+  };
+  const { o } = runOpts({ client });
+  const r = await runM10(o);
+  assert.equal(r.stage, 'done', r.reason ?? '');
+  const u = JSON.parse(readFileSync(join(o.work, 'm4', 'run-1', 'eval', 'usage.json'), 'utf8'));
+  assert.equal(u.checks, 4);
+  assert.deepEqual(u.failed, { count: 0, costUsd: 0 });
+  assert.equal(u.ledger.attempts, 5);
+  assert.equal(u.ledger.unknown, 1);
+  assert.ok(u.ledger.spentUsd > u.costUsd);
+  const u2 = JSON.parse(readFileSync(join(o.work, 'm4', 'run-2', 'eval', 'usage.json'), 'utf8'));
+  assert.equal(u2.ledger.attempts, 4);
 });
 
 test('M4 관문: 합친 두 쌍 중 하나라도 미달이면 실제 원고 회차를 시작하지 않는다 (호출 M4 4회분)', async () => {

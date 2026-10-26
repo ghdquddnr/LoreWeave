@@ -12,6 +12,7 @@
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { DETECT_SCHEMA, DETECT_SYSTEM } from '../../src/core/ai/detection.ts';
 import { chapterNumber } from '../../src/core/project/chapters.ts';
 import { MAX_OUTPUT_TOKENS, type AiClient } from '../../src/main/ai-client.ts';
@@ -165,6 +166,46 @@ export function budgetPlan(runs: { label: string; dataset: Label; plans: Chapter
   };
 }
 
+/** 호출 기록(calls)의 마지막 id. 복사본에는 기준 폴더의 과거 호출 기록이 그대로 들어 있다 (지우지 않는다) */
+export function lastCallId(dbPath: string): number {
+  const db = new DatabaseSync(dbPath, { readOnly: true });
+  try {
+    return Number((db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM calls').get() as { id: number }).id);
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * 이 회차가 남긴 검사 호출 기록만 센다 (id > afterId). 과거 호출(기준 폴더의 분석·검사)은 넣지 않는다.
+ *   - checks·costUsd·max*: 성공한 검사 호출 (묶음 하나당 하나). checker가 최종 결과마다 남긴다. 비용은 usage로 계산한 값이다
+ *   - failed: 실패했지만 usage를 아는 검사 호출 (checker가 남긴 것). usage를 모르는 실패는 호출 기록에 없다
+ *   - 다시 보내 성공한 시도의 앞 실패는 checker까지 오지 않아 호출 기록에 없다. 시도 수·usage 불명은 단계 장부(ledger)가 센다:
+ *     ledger.attempts = 예약한 모든 시도(재시도 포함), ledger.unknown = usage를 몰라 예약액 전부를 지출로 남긴 시도,
+ *     ledger.spentUsd = usage 정산액 + unknown 예약액. 그래서 ledger.spentUsd ≥ costUsd + failed.costUsd 이다
+ */
+export function runCallUsage(dbPath: string, afterId: number) {
+  const db = new DatabaseSync(dbPath, { readOnly: true });
+  try {
+    const rows = db.prepare("SELECT ok, cost_usd, latency_ms, input_tokens FROM calls WHERE kind = 'check' AND id > ? ORDER BY id").all(afterId) as Record<string, unknown>[];
+    const ok = rows.filter((r) => Number(r['ok']) === 1);
+    const failed = rows.filter((r) => Number(r['ok']) !== 1);
+    const latencies = ok.map((r) => r['latency_ms']).filter((v) => v !== null).map(Number);
+    return {
+      scope: 'this-run' as const,
+      callsAfterId: afterId,
+      checks: ok.length,
+      costUsd: ok.reduce((n, r) => n + Number(r['cost_usd']), 0),
+      maxCostUsd: Math.max(0, ...ok.map((r) => Number(r['cost_usd']))),
+      maxLatencyMs: latencies.length ? Math.max(...latencies) : null,
+      maxInputTokens: Math.max(0, ...ok.map((r) => Number(r['input_tokens']))),
+      failed: { count: failed.length, costUsd: failed.reduce((n, r) => n + Number(r['cost_usd']), 0) },
+    };
+  } finally {
+    db.close();
+  }
+}
+
 interface RunCopy {
   label: string;
   dataset: Label;
@@ -173,6 +214,8 @@ interface RunCopy {
   analyses: string;
   report: PreflightReport;
   plans: ChapterPlan[];
+  /** 이 회차를 시작하기 직전의 마지막 호출 기록 id. 이 뒤의 기록만 이 회차의 것이다 */
+  callsAfterId?: number;
 }
 
 export async function runM10(o: M10Options): Promise<M10Result> {
@@ -317,6 +360,7 @@ export async function runM10(o: M10Options): Promise<M10Result> {
     const send = async (run: RunCopy): Promise<string | null> => {
       const before = gate.halted();
       if (before) return `${run.label}: ${before === '취소' ? '취소했습니다' : `중단했습니다 (${before})`}`;
+      run.callsAfterId = lastCallId(join(run.root, '.loreweave', 'ai.db'));
       stageLedger.startRun(run.label);
       observer.reset();
       for (const file of o[run.dataset].targets) {
@@ -357,7 +401,11 @@ export async function runM10(o: M10Options): Promise<M10Result> {
     const exported = (run: RunCopy): Predictions | string => {
       run.store.close();
       try {
-        const { predictions, usage } = toPredictions(join(run.root, '.loreweave', 'ai.db'), `m10-${run.label}`, 'all', { source: 'runner-sent', byChapter: sentContexts.get(run.label) ?? new Map() });
+        const db = join(run.root, '.loreweave', 'ai.db');
+        // toPredictions의 usage는 DB 전체(복사해 온 과거 호출 포함)라 쓰지 않는다. 이 회차의 호출 기록만 센다
+        const { predictions } = toPredictions(db, `m10-${run.label}`, 'all', { source: 'runner-sent', byChapter: sentContexts.get(run.label) ?? new Map() });
+        if (run.callsAfterId === undefined) throw new Error('회차 시작 전 호출 기록 위치가 없습니다');
+        const usage = { ...runCallUsage(db, run.callsAfterId), ledger: stageLedger.summary().runs[run.label] ?? null };
         const out = join(run.root, 'eval');
         mkdirSync(out, { recursive: true });
         writeFileSync(join(out, 'predictions.json'), JSON.stringify(predictions, null, 2) + '\n');
