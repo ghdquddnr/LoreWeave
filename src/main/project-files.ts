@@ -1,6 +1,7 @@
 // 원고 폴더의 파일 입출력 (M1-PLAN 4절). Electron에 의존하지 않아 Node에서 바로 테스트한다.
 //   - 쓰기는 같은 폴더의 임시 파일 → fsync → 이름 바꾸기 (원자적 쓰기)
-//   - 쓰기 직전에 디스크 내용의 해시를 읽을 때의 해시와 비교해, 다른 프로그램이 바꾼 내용을 덮어쓰지 않는다
+//   - 쓰기 직전과 이름 바꾸기(시도마다) 직전에 디스크 내용의 해시를 읽을 때의 해시와 비교해, 다른 프로그램이 바꾼 내용을 덮어쓰지 않는다
+//     (마지막 비교와 이름 바꾸기 사이의 짧은 틈은 일반 파일 시스템에서 막을 수 없다)
 //   - UTF-8이 아닌 파일은 열지 않는다 (잘못 읽은 채로 저장하면 원고가 깨진다)
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -112,19 +113,17 @@ export async function readChapter(root: string, file: string): Promise<ChapterCo
 const RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** 백신·OneDrive 등이 파일을 잠시 잡고 있으면 이름 바꾸기가 실패하므로 짧게 재시도한다 */
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await rename(from, to);
-    } catch (e) {
-      if (attempt >= 5 || !RETRY_CODES.has((e as NodeJS.ErrnoException).code ?? '')) throw e;
-      await sleep(50 * 2 ** attempt);
-    }
-  }
-}
+const diskHashOf = async (path: string) => {
+  const disk = await readBytes(path);
+  return disk ? hashOf(disk) : null;
+};
 
-async function atomicWrite(path: string, bytes: Uint8Array): Promise<void> {
+/**
+ * 임시 파일에 쓰고 fsync한 뒤 이름을 바꾼다. 이름 바꾸기 직전마다 디스크가 아직 expectedHash인지 다시 본다:
+ * 임시 파일을 준비하거나 재시도를 기다리는 동안 다른 프로그램이 바꾸거나 지우거나 만들었으면 쓰지 않고 conflict를 돌려준다.
+ * 백신·OneDrive 등이 파일을 잠시 잡고 있으면 이름 바꾸기가 실패하므로 짧게 재시도한다
+ */
+async function atomicWrite(path: string, bytes: Uint8Array, expectedHash: string | null): Promise<WriteResult> {
   const temp = `${path}.${randomUUID()}.tmp`;
   try {
     const handle = await open(temp, 'wx');
@@ -134,7 +133,20 @@ async function atomicWrite(path: string, bytes: Uint8Array): Promise<void> {
     } finally {
       await handle.close();
     }
-    await renameWithRetry(temp, path);
+    for (let attempt = 0; ; attempt++) {
+      const diskHash = await diskHashOf(path);
+      if (diskHash !== expectedHash) {
+        await rm(temp, { force: true });
+        return { status: 'conflict', diskHash };
+      }
+      try {
+        await rename(temp, path);
+        return { status: 'saved', hash: hashOf(bytes) };
+      } catch (e) {
+        if (attempt >= 5 || !RETRY_CODES.has((e as NodeJS.ErrnoException).code ?? '')) throw e;
+        await sleep(50 * 2 ** attempt);
+      }
+    }
   } catch (e) {
     await rm(temp, { force: true });
     throw e;
@@ -148,12 +160,9 @@ async function atomicWrite(path: string, bytes: Uint8Array): Promise<void> {
  */
 export async function writeChapter(root: string, file: string, text: string, expectedHash: string | null): Promise<WriteResult> {
   const path = chapterPath(root, file);
-  const disk = await readBytes(path);
-  const diskHash = disk ? hashOf(disk) : null;
+  const diskHash = await diskHashOf(path);
   if (diskHash !== expectedHash) return { status: 'conflict', diskHash };
-  const bytes = Buffer.from(text, 'utf8');
-  await atomicWrite(path, bytes);
-  return { status: 'saved', hash: hashOf(bytes) };
+  return atomicWrite(path, Buffer.from(text, 'utf8'), expectedHash);
 }
 
 export async function createChapter(root: string): Promise<{ file: string } & ChapterContent> {
