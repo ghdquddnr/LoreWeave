@@ -53,6 +53,8 @@ export function App() {
    */
   const [switching, setSwitching] = useState(false);
   const switchingRef = useRef(false);
+  /** 진행 중인 프로젝트 전환의 결과 (새 프로젝트를 열었으면 true). 전환 중이 아니면 null */
+  const switchDone = useRef<Promise<boolean> | null>(null);
   /** 새 화·id 재발급을 처리하는 중. 같은 조작을 겹쳐 시작하지 않고, 화 이동도 막는다 (프로젝트 전환은 막지 않는다) */
   const [acting, setActing] = useState(false);
   const actingRef = useRef(false);
@@ -184,6 +186,15 @@ export function App() {
     });
   };
   const isCurrent = (gen: number) => gen === projectGenRef.current;
+  /**
+   * 원고 조작 응답 뒤의 후속 요청(목록·다시 읽기) 전에 부른다. 프로젝트 전환 중이면 끝나기를 기다린다:
+   * main은 열기 처리 중에 이미 새 프로젝트로 바뀌었을 수 있어, 이전 token으로 보내면 거절되어 거짓 오류가 된다.
+   * 전환이 취소·실패했으면 지금 프로젝트 그대로이므로 true (후속 요청을 보낸다), 새 프로젝트가 열렸으면 false
+   */
+  const settled = async (gen: number) => {
+    if (switchDone.current) await switchDone.current;
+    return isCurrent(gen);
+  };
 
   const openChapter = (next: string) =>
     run(async (gen) => {
@@ -213,7 +224,8 @@ export function App() {
     lockedAction(async (gen) => {
       if (!project || !(await leave()) || !isCurrent(gen)) return false;
       const list = await api.chapters.reissueId(target, project.token);
-      if (!isCurrent(gen)) return false;
+      // 다른 프로젝트가 열렸으면 그 화면의 에디터가 대신한다 (잠금이 풀리면 열린다)
+      if (!(await settled(gen))) return true;
       setProject((p) => p && { ...p, list });
       if (target !== file) return false;
       setReloadKey((k) => k + 1);
@@ -224,7 +236,7 @@ export function App() {
     lockedAction(async (gen) => {
       if (!project || !(await leave()) || !isCurrent(gen)) return false;
       const created = await api.chapters.create(project.token);
-      if (!isCurrent(gen)) return false;
+      if (!(await settled(gen))) return true;
       const list = await api.chapters.list(project.token);
       if (!isCurrent(gen)) return false;
       setProject((p) => p && { ...p, list });
@@ -240,6 +252,8 @@ export function App() {
       setSwitching(true);
       lockEditor();
       let opened = false;
+      let done!: (opened: boolean) => void;
+      switchDone.current = new Promise((resolve) => (done = resolve));
       try {
         if (!(await leave())) return;
         const p = await api.project.choose();
@@ -252,6 +266,8 @@ export function App() {
         setSwitching(false);
         // 취소·실패·저장 확인 거절이면 지금 에디터를 다시 연다. 열렸으면 새 프로젝트의 새 에디터가 대신한다
         unlockEditor(opened);
+        switchDone.current = null;
+        done(opened);
       }
     });
 
