@@ -73,7 +73,8 @@ function updateIndex(work: (index: ManuscriptIndex) => void | Promise<void>): Pr
   const current = index;
   if (!current) return Promise.resolve();
   return Promise.resolve(work(current)).catch((e: Error) => {
-    indexError = e.message;
+    // 그사이 다른 프로젝트를 열어 이 색인이 닫혔으면 새 프로젝트의 오류로 남기지 않는다
+    if (index === current) indexError = e.message;
   });
 }
 let stopWatching: () => void = () => {};
@@ -149,6 +150,13 @@ function requireProject(token: unknown): string {
   return path;
 }
 
+/**
+ * 요청을 받을 때 열려 있던 프로젝트(token)가 아직 열려 있는가. 디스크 작업이 끝나기 전에 다른 프로젝트(같은 폴더를 다시 연 것 포함)를
+ * 열었으면, 끝난 작업은 원래 폴더에 남기고 새 프로젝트의 색인·자기 쓰기 기록·감시는 건드리지 않는다
+ * (원래 프로젝트의 색인은 다음에 열 때 맞춰지고, 같은 폴더를 다시 열었으면 새 감시가 이 변경을 알아챈다)
+ */
+const stillOpen = (token: number) => token === projectToken;
+
 const CLOSE_TIMEOUT_MS = 10_000;
 
 /**
@@ -197,7 +205,7 @@ export function registerIpc(): void {
     // root는 await 전에 정한다: 이미 시작한 저장은 프로젝트를 바꿔도 원래 폴더에서 끝난다
     const path = requireProject(token);
     const result = await writeChapter(path, file, text, expectedHash);
-    if (result.status === 'saved') {
+    if (result.status === 'saved' && stillOpen(token)) {
       ownWrites.set(file, result.hash);
       await updateIndex(async (i) => {
         const info = await stat(join(path, CHAPTERS_DIR, file));
@@ -209,17 +217,21 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.chapterCreate, async (_e, token: number) => {
     const path = requireProject(token);
     const created = await createChapter(path);
-    ownWrites.set(created.file, created.hash);
-    await updateIndex((i) => reindexChapter(i, path, created.file));
-    // chapters 폴더를 방금 만들었을 수 있다
-    startWatching(path);
+    if (stillOpen(token)) {
+      ownWrites.set(created.file, created.hash);
+      await updateIndex((i) => reindexChapter(i, path, created.file));
+    }
+    // chapters 폴더를 방금 만들었을 수 있다. 그사이 다른 폴더를 열었으면 그 폴더의 감시는 그대로 둔다 (같은 폴더를 다시 열었으면 다시 시작한다)
+    if (root === path) startWatching(path);
     return created;
   });
   ipcMain.handle(CHANNELS.chapterReissueId, async (_e, file: string, token: number) => {
     const path = requireProject(token);
     const { hash } = await reissueChapterId(path, file);
-    ownWrites.set(file, hash);
-    await updateIndex((i) => reindexChapter(i, path, file));
+    if (stillOpen(token)) {
+      ownWrites.set(file, hash);
+      await updateIndex((i) => reindexChapter(i, path, file));
+    }
     return listChapters(path);
   });
   ipcMain.handle(CHANNELS.aiStatus, () => aiStatus());
