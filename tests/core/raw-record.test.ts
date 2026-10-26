@@ -264,7 +264,7 @@ test('본문이 같은 요청: 어느 묶음의 응답인지 가릴 수 없으�
   assert.equal(ambiguousRequests([{ file: '002.md', users: ['a', 'b'] }, { file: '003.md', users: ['c'] }]), null);
   const dir = join(tmp, 'raw-amb');
   const recorder = rawRecorder(dir, 't');
-  assert.throws(() => recorder.startRun('m4-1', [{ file: '002.md', users: ['same', 'same'], factChapters: [1] }]), RawRecordError);
+  assert.throws(() => recorder.startRun('m4-1', [{ file: '002.md', users: ['same', 'same'], factChapters: [1], inputs: [{ file: '002.md', contentHash: 'h' }] }]), RawRecordError);
   // 시작하지 못한 회차로는 보낼 수 없고, 아무 시도도 남지 않는다
   const client = recorder.wrap(fakeClient());
   return assert.rejects(client.json({ model: 'gpt-6-luna', system: 's', user: '<chapter n="2">same', schema: { name: 'continuity_findings', schema: {} } } as JsonCall), RawRecordError).then(() => {
@@ -354,4 +354,47 @@ test('저장 기록 실패: 이 화를 DB에 저장한 뒤 saved 기록을 쓰�
   assert.equal(c2.complete, true);
   assert.equal(c2.stored, null);
   assert.equal(c2.matchesStored, null);
+});
+
+// ---- 검토 반영 2: 실행 때 입력 원고 버전
+
+test('입력 버전: 실행 뒤 대상 화만 / 근거 화만 / 둘 다 바뀌면 버전 오류로 따로 세고 성공 일치·남김·버림 집계에서 뺀다. 결과가 비어 기준과 우연히 같아도 마찬가지다. 그대로면 일치한다', async () => {
+  // 모든 응답이 결과 없음 → 다시 돌린 결과(빈 목록)가 어떤 원고로도 우연히 같아지는 경우
+  const o = options(fakeClient(), { recordRaw: true });
+  const r = await runM10(o);
+  assert.equal(r.stage, 'done', r.reason ?? '');
+  const touch = (label: string, file: string) => appendFileSync(join(runRoot(o, label), 'chapters', file), '\n덧붙인 줄\n');
+  touch('m4-1', '003.md'); // 대상만 (3화는 다른 화의 근거가 아니다)
+  touch('m4-2', '001.md'); // 근거만 (2·3화 모두의 근거)
+  touch('m4-3', '002.md'); // 2화는 대상, 3화에는 근거
+  touch('m4-3', '001.md');
+  const summary = async (label: string) => {
+    const raw = join(o.work, 'raw', `${label}.jsonl`);
+    const chapters = await replayRun(runRoot(o, label), raw, join(runRoot(o, label), '.loreweave', 'ai.db'));
+    return { chapters, s: replaySummary(label, chapters, readRaw(raw).attempts) };
+  };
+  const one = await summary('m4-1');
+  assert.deepEqual(one.s.versionMismatch, ['003.md']);
+  assert.deepEqual(one.chapters.find((c) => c.file === '003.md')!.versionMismatch, ['003.md']);
+  assert.equal(one.s.matchesStored, 1);
+  const two = await summary('m4-2');
+  assert.deepEqual(two.s.versionMismatch, ['002.md', '003.md']);
+  assert.deepEqual(two.chapters.map((c) => c.versionMismatch), [['001.md'], ['001.md']]);
+  assert.equal(two.s.matchesStored, 0);
+  const three = await summary('m4-3');
+  assert.deepEqual(three.chapters.map((c) => c.versionMismatch.sort()), [['001.md', '002.md'], ['001.md', '002.md']]);
+  assert.equal(three.s.matchesStored, 0);
+  // 버전 오류인 화의 원래 결과는 남김·버림 집계에 넣지 않는다 (이 화들은 결과가 없지만, 이번 저장 기록은 그대로 남아 있다)
+  assert.ok(three.chapters.every((c) => c.findings.length === 0 && c.matchesStored === null && c.stored !== null));
+  const four = await summary('m4-4');
+  assert.deepEqual(four.s.versionMismatch, []);
+  assert.equal(four.s.matchesStored, 2);
+});
+
+test('입력 버전: 기록된 계획에 입력 해시가 없으면 버전을 확인할 수 없어 성공 일치로 세지 않는다', async () => {
+  const raw = join(tmp, 'no-inputs.jsonl');
+  writeFileSync(raw, JSON.stringify({ type: 'plan', run: 'm4-1', file: '002.md', batches: 2, factChapters: [1] }) + '\n');
+  const chapters = await replayRun(real, raw, join(real, '.loreweave', 'ai.db'));
+  assert.deepEqual(chapters[0]!.versionMismatch, ['(기록 없음)']);
+  assert.equal(chapters[0]!.matchesStored, null);
 });

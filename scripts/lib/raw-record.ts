@@ -42,6 +42,8 @@ export interface RawPlan {
   file: string;
   batches: number;
   factChapters: number[];
+  /** 이 검사에 쓴 입력의 본문 해시 (대상 화가 먼저, 그다음 앞 화). 재생 전에 지금 원고와 대조한다 */
+  inputs: { file: string; contentHash: string }[];
 }
 
 /**
@@ -102,7 +104,7 @@ export function rawRecorder(dir: string, promptVersion: string, write: (path: st
   const path = () => join(dir, `${run}.jsonl`);
 
   /** 회차를 시작한다. requests: 이 회차에 보낼 요청(사용자 입력)의 화·묶음 */
-  const startRun = (label: string, plans: { file: string; users: string[]; factChapters: number[] }[]) => {
+  const startRun = (label: string, plans: { file: string; users: string[]; factChapters: number[]; inputs: { file: string; contentHash: string }[] }[]) => {
     // 본문이 같은 요청을 조용히 마지막 묶음으로 귀속하지 않는다 (runner는 연결 전 사전 대조에서 이미 거부한다)
     const ambiguous = ambiguousRequests(plans);
     if (ambiguous) throw new RawRecordError(ambiguous);
@@ -111,7 +113,7 @@ export function rawRecorder(dir: string, promptVersion: string, write: (path: st
     attempts = new Map();
     for (const p of plans) {
       p.users.forEach((u, batch) => requests.set(sha256(u), { file: p.file, batch }));
-      write(path(), { type: 'plan', run: label, file: p.file, batches: p.users.length, factChapters: p.factChapters } satisfies RawPlan);
+      write(path(), { type: 'plan', run: label, file: p.file, batches: p.users.length, factChapters: p.factChapters, inputs: p.inputs } satisfies RawPlan);
     }
   };
 

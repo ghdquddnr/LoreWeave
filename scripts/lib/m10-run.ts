@@ -390,7 +390,7 @@ export async function runM10(o: M10Options): Promise<M10Result> {
             run.label,
             o[run.dataset].targets.map((file) => {
               const p = verified.get(`${run.label}|${file}`)!;
-              return { file, users: p.users, factChapters: [...new Set(p.facts.map((f) => f.chapter))] };
+              return { file, users: p.users, factChapters: [...new Set(p.facts.map((f) => f.chapter))], inputs: [{ file, contentHash: p.target.hash }, ...p.inputs] };
             }),
           );
         } catch (e) {
