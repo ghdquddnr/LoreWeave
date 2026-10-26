@@ -21,17 +21,26 @@ interface Props {
 }
 
 export function FactsPanel({ file, projectToken, locked, state, version, currentLines, onJump }: Props) {
-  const [analysis, setAnalysis] = useState<StoredAnalysis | null | undefined>(undefined);
+  /** 보이는 분석과 그 분석을 읽은 화. 화를 바꾼 직후(새 결과를 읽기 전)에도 이전 화의 분석을 보이지 않는다 */
+  const [loaded, setLoaded] = useState<{ file: string; analysis: StoredAnalysis | null } | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   const [missing, setMissing] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    setAnalysis(undefined);
-    void api.ai.analysis(file, projectToken).then((a) => !cancelled && setAnalysis(a));
+    setLoaded(null);
+    setFailed(null);
+    // 거절·실패도 받는다: 지금 조회의 실패는 안내와 [다시 읽기]로 보이고, 이전 조회(다른 화·다른 프로젝트)의 실패는 조용히 버린다
+    api.ai.analysis(file, projectToken).then(
+      (a) => !cancelled && setLoaded({ file, analysis: a }),
+      (e: Error) => !cancelled && setFailed(e.message),
+    );
     return () => {
       cancelled = true;
     };
-  }, [file, projectToken, version]);
+  }, [file, projectToken, version, reload]);
+  const analysis = loaded?.file === file ? loaded.analysis : undefined;
 
   const jump = (quote: string) => {
     if (locked) return;
@@ -46,7 +55,15 @@ export function FactsPanel({ file, projectToken, locked, state, version, current
   return (
     <aside className="facts" aria-label="AI가 찾은 사실">
       <h2>AI가 찾은 사실</h2>
-      {analysis === undefined && <p className="muted">불러오는 중…</p>}
+      {failed && (
+        <p className="error">
+          분석 결과를 읽지 못했습니다: {failed}{' '}
+          <button type="button" className="link" onClick={() => setReload((n) => n + 1)}>
+            다시 읽기
+          </button>
+        </p>
+      )}
+      {analysis === undefined && !failed && <p className="muted">불러오는 중…</p>}
       {analysis === null && <p className="muted">아직 분석하지 않은 화입니다. 왼쪽의 [이 화 분석]을 누르세요.</p>}
       {analysis && (
         <>
