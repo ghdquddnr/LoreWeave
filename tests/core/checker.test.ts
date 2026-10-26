@@ -1,6 +1,7 @@
 // 연속성 검사 실행과 저장 (M4-PLAN 1·3·4·5절). 가짜 AI 클라이언트로 네트워크 없이 확인한다.
 
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,7 +10,7 @@ import { afterEach, beforeEach, test } from 'node:test';
 import type { Extraction } from '../../src/core/ai/extraction.ts';
 import { AiError, type AiClient, type JsonCall } from '../../src/main/ai-client.ts';
 import { AiStore } from '../../src/main/ai-db.ts';
-import { checkChapter, checkStates, planCheck } from '../../src/main/checker.ts';
+import { CHANGED_BEFORE_SEND, CHANGED_DURING_CHECK, changedFile, checkChapter, checkStates, planCheck, prepareCheck, runPreparedCheck } from '../../src/main/checker.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
 const usage = { inputTokens: 2000, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: 300 };
@@ -417,4 +418,66 @@ test('취소: 마지막 응답 뒤 어느 시점에 취소하든 취소된 상�
   }
   // 적어도 한 번은 API 응답 뒤(근거 읽기·저장 전) 취소가 걸려 저장을 막았다
   assert.ok(duringEvidence > 0);
+});
+
+// ---- 검사 중 원고 버전이 섞이지 않게
+
+/** 정상 검사로 경고 하나를 저장해 둔다 */
+async function savedCheck() {
+  const first = await checkChapter('003.md', options(fakeClient(() => ({ findings: [ageFinding] }))));
+  assert.equal(first.findings, 1);
+  return store!.check('003.md')!;
+}
+
+for (const [name, change, expectDeleted] of [
+  ['근거 문장이 바뀜 (감독 재현)', async () => {
+    const p = join(root, 'chapters', '001.md');
+    await writeFile(p, (await readFile(p, 'utf8')).replace('둘 다 스무 살이었다.', '두 사람의 나이는 알 수 없었다.'));
+  }, false],
+  ['검사하는 화가 바뀜', async () => {
+    const p = join(root, 'chapters', '003.md');
+    await writeFile(p, (await readFile(p, 'utf8')) + '\n덧붙인 줄\n');
+  }, false],
+  ['근거 화 파일이 없어짐', async () => rm(join(root, 'chapters', '001.md')), true],
+] as const) {
+  test(`버전: 응답을 기다리는 동안 ${name}이면 새 검사를 저장하지 않고 기존 결과를 지키며, 호출 기록은 남긴다`, { timeout: 20_000 }, async () => {
+    const before = await savedCheck();
+    const callsBefore = checkCalls().length;
+    const { client, pending } = deferredClient();
+    const run = checkChapter('003.md', { ...options(client as unknown as AiClient), batchSize: 100 });
+    await until(() => pending.length === 1);
+    await change();
+    // 옛 인용을 담은 성공 응답이 돌아온다
+    pending[0]!.resolve({ findings: [ageFinding] });
+    const outcome = await run;
+    assert.equal(outcome.checked, false);
+    assert.equal(outcome.stopped, CHANGED_DURING_CHECK);
+    assert.deepEqual(store!.check('003.md'), before);
+    assert.equal(checkCalls().length, callsBefore + 1);
+    assert.equal(checkCalls().at(-1)!.ok, 1);
+    assert.equal(expectDeleted, !existsSync(join(root, 'chapters', '001.md')));
+  });
+}
+
+test('버전: 검사를 준비한 뒤 보내기 전에 원고가 바뀌면 호출하지 않는다', async () => {
+  const before = await savedCheck();
+  const prepared = await prepareCheck('003.md', { root, store: store! });
+  assert.ok(typeof prepared !== 'string');
+  const p = join(root, 'chapters', '001.md');
+  await writeFile(p, (await readFile(p, 'utf8')) + '\n덧붙인 줄\n');
+  const client = fakeClient();
+  const r = await runPreparedCheck(prepared, options(client));
+  assert.equal(r.stopped, CHANGED_BEFORE_SEND);
+  assert.equal(client.calls.length, 0);
+  assert.deepEqual(store!.check('003.md'), before);
+});
+
+test('버전: 원고가 그대로면 같은 검사가 정상 저장된다 (회귀)', async () => {
+  await savedCheck();
+  const prepared = await prepareCheck('003.md', { root, store: store! });
+  assert.ok(typeof prepared !== 'string');
+  assert.equal(await changedFile(root, prepared), null);
+  const r = await runPreparedCheck(prepared, options(fakeClient(() => ({ findings: [ageFinding] }))));
+  assert.equal(r.checked, true);
+  assert.equal(r.findings, 1);
 });

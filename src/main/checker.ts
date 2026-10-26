@@ -2,6 +2,8 @@
 //   - 이 화와 앞 화(파일 이름 번호가 더 작은 화)가 모두 분석돼 있어야 한다. 아니면 먼저 분석한다 (M3)
 //   - 앞 화 분석이 하나라도 실패하면 검사하지 않는다 (빠진 사실로 검사하면 놓친 오류가 "문제 없음"처럼 보인다)
 //   - 이 화 문장과 근거 문장이 원고에 없는 결과는 저장하지 않는다 (ADR 0001 결정 2)
+//   - 검사를 준비한 원고 버전(이 화와 앞 화의 파일 해시)과, 보낼 때·근거를 읽을 때·저장할 때의 버전이 다르면 저장하지 않는다
+//     (옛 입력으로 받은 결과를 새 원고로 검증하면 맞는 결과가 버려지거나 위치가 어긋난다). 이미 저장된 결과는 그대로 둔다
 //   - 나눠 검사할 때 묶음 하나라도 실패하거나 취소하면, 아직 보내지 않은 묶음은 보내지 않고 그 화는 저장하지 않는다 (이미 보낸 묶음은 기다려 기록한다)
 //   - 화 파일은 읽기만 한다
 
@@ -192,6 +194,20 @@ export async function checkChapter(file: string, o: CheckOptions): Promise<Check
 }
 
 /** 만들어 둔 검사 요청을 보내고 결과를 확인·저장한다. 묶음 하나라도 실패하면 저장하지 않는다 */
+/** 원고가 검사를 준비한 때와 달라졌을 때의 이유 */
+export const CHANGED_BEFORE_SEND = '검사를 준비한 뒤 원고가 바뀌었습니다. 다시 검사하세요';
+export const CHANGED_DURING_CHECK = '검사하는 동안 원고가 바뀌었거나 없어졌습니다. 다시 검사하세요';
+
+/**
+ * 이 화와 앞 화의 지금 파일 해시가 검사를 준비한 때(prepared.target.hash, prepared.inputs)와 같은가. 다르거나 파일이 없으면 그 파일 이름.
+ * 외부 수정과 동시에 일어나는 경우까지 원자적으로 막지는 않는다. 확인하는 시점들 사이의 변경을 잡는다
+ */
+export async function changedFile(root: string, prepared: Pick<PreparedCheck, 'file' | 'target' | 'inputs'>): Promise<string | null> {
+  if ((await chapterHash(root, prepared.file)) !== prepared.target.hash) return prepared.file;
+  for (const i of prepared.inputs) if ((await chapterHash(root, i.file)) !== i.contentHash) return i.file;
+  return null;
+}
+
 export async function runPreparedCheck(
   prepared: PreparedCheck,
   o: CheckOptions,
@@ -199,6 +215,8 @@ export async function runPreparedCheck(
   const now = o.now ?? (() => new Date());
   const { file, target, priors, inputs, facts } = prepared;
   const prompt = o.prompt ?? { system: DETECT_SYSTEM, version: DETECT_PROMPT_VERSION };
+  // 보내기 전: 준비한 뒤 원고가 바뀌었으면 보내지 않는다
+  if (await changedFile(o.root, prepared)) return { checked: false, findings: 0, lowConfidence: 0, dropped: 0, costUsd: 0, stopped: CHANGED_BEFORE_SEND };
   const outcome = { checked: false, findings: 0, lowConfidence: 0, dropped: 0, costUsd: 0, stopped: null as string | null };
 
   /** 묶음 하나를 검사한다. 실패하면 그 이유를 돌려준다 */
@@ -252,11 +270,19 @@ export async function runPreparedCheck(
   if (o.signal.aborted) return { ...outcome, stopped: '취소했습니다' };
   const done = results as { findings: Finding[]; modelVersion: string }[];
 
-  // 근거로 들 수 있는 화는 사실을 넘긴 앞 화뿐이다
+  // 근거로 들 수 있는 화는 사실을 넘긴 앞 화뿐이다. 근거 줄은 보낸 입력과 같은 버전(prepared.inputs의 해시)이어야 한다
   const priorLines: PriorLines = new Map();
+  const sentHash = new Map(inputs.map((i) => [i.file, i.contentHash]));
   for (const n of new Set(facts.map((f) => f.chapter))) {
     const prior = priors.find((f) => chapterNumber(f) === n)!;
-    priorLines.set(n, { file: prior, lines: (await chapterLines(o.root, prior)).lines });
+    let read: { lines: string[]; hash: string };
+    try {
+      read = await chapterLines(o.root, prior);
+    } catch {
+      return { ...outcome, stopped: CHANGED_DURING_CHECK };
+    }
+    if (read.hash !== sentHash.get(prior)) return { ...outcome, stopped: CHANGED_DURING_CHECK };
+    priorLines.set(n, { file: prior, lines: read.lines });
   }
   const verified = verifyFindings(
     done.flatMap((d) => d.findings),
@@ -265,7 +291,9 @@ export async function runPreparedCheck(
   );
   const keyed = verified.findings.map((f) => ({ ...f, key: quoteKey(target.lines[f.target.line]!.slice(f.target.start, f.target.end)) }));
   const findings = mergeFindings(keyed);
-  // 근거 화를 읽는 동안(비동기) 취소했을 수 있다. 저장 직전에 다시 확인한다
+  // 응답을 기다리거나 근거를 읽는 동안 이 화나 앞 화가 바뀌었으면 저장하지 않는다 (이 화는 입력 때의 줄로 검증했다)
+  if (await changedFile(o.root, prepared)) return { ...outcome, stopped: CHANGED_DURING_CHECK };
+  // 근거 화를 읽는 동안(비동기) 취소했을 수 있다. 마지막 await 뒤, 저장 바로 앞에서 다시 확인한다
   if (o.signal.aborted) return { ...outcome, stopped: '취소했습니다' };
   o.store.saveCheck({
     file,
