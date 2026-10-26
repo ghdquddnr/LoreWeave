@@ -1,0 +1,149 @@
+{
+ "note": "scripts/m10-repeat.ts 기본 경로(대조와 상한 계산만) 출력. 연결·키·호출·장부 0. 화별 fingerprint와 경로는 저장소 밖 작업 폴더에만 있다",
+ "stage": "preflight-ok",
+ "connected": false,
+ "crossRun": {
+  "m4": null,
+  "real": null
+ },
+ "budget": {
+  "calls": {
+   "m4": 56,
+   "real": 256,
+   "total": 312
+  },
+  "maxAttempts": 624,
+  "maxOutputTokens": 16000,
+  "completionBoundUsd": {
+   "retries0": 5.9837644999999995,
+   "retries1": 11.967528999999999
+  },
+  "perRunBoundUsd": {
+   "m4-1": 0.15158175,
+   "m4-2": 0.15158175,
+   "m4-3": 0.15158175,
+   "m4-4": 0.15158175,
+   "real-1": 2.6887187499999996,
+   "real-2": 2.6887187499999996
+  },
+  "maxCallBoundUsd": {
+   "m4": 0.012598,
+   "real": 0.023011125
+  },
+  "maxInFlightUsd": 0.04602225,
+  "stageLimitUsd": 1.2,
+  "completionGuaranteed": false
+ },
+ "preflight": [
+  {
+   "label": "m4-1",
+   "base": {
+    "ok": true,
+    "passed": 14,
+    "chapters": 14,
+    "batches": 14,
+    "failuresByItem": {},
+    "skipped": [
+     "order"
+    ]
+   },
+   "plan": {
+    "chapters": 14,
+    "passed": 14,
+    "facts": 1207,
+    "batches": 14
+   }
+  },
+  {
+   "label": "m4-2",
+   "base": {
+    "ok": true,
+    "passed": 14,
+    "chapters": 14,
+    "batches": 14,
+    "failuresByItem": {},
+    "skipped": [
+     "order"
+    ]
+   },
+   "plan": {
+    "chapters": 14,
+    "passed": 14,
+    "facts": 1207,
+    "batches": 14
+   }
+  },
+  {
+   "label": "m4-3",
+   "base": {
+    "ok": true,
+    "passed": 14,
+    "chapters": 14,
+    "batches": 14,
+    "failuresByItem": {},
+    "skipped": [
+     "order"
+    ]
+   },
+   "plan": {
+    "chapters": 14,
+    "passed": 14,
+    "facts": 1207,
+    "batches": 14
+   }
+  },
+  {
+   "label": "m4-4",
+   "base": {
+    "ok": true,
+    "passed": 14,
+    "chapters": 14,
+    "batches": 14,
+    "failuresByItem": {},
+    "skipped": [
+     "order"
+    ]
+   },
+   "plan": {
+    "chapters": 14,
+    "passed": 14,
+    "facts": 1207,
+    "batches": 14
+   }
+  },
+  {
+   "label": "real-1",
+   "base": {
+    "ok": true,
+    "passed": 20,
+    "chapters": 20,
+    "batches": 128,
+    "failuresByItem": {},
+    "skipped": []
+   },
+   "plan": {
+    "chapters": 20,
+    "passed": 20,
+    "facts": 47038,
+    "batches": 128
+   }
+  },
+  {
+   "label": "real-2",
+   "base": {
+    "ok": true,
+    "passed": 20,
+    "chapters": 20,
+    "batches": 128,
+    "failuresByItem": {},
+    "skipped": []
+   },
+   "plan": {
+    "chapters": 20,
+    "passed": 20,
+    "facts": 47038,
+    "batches": 128
+   }
+  }
+ ]
+}
