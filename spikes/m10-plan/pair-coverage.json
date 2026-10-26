@@ -1,0 +1,716 @@
+{
+ "note": "scripts/m10-pair-coverage.ts 출력 (유료 호출 0, 저장 분석 복사본을 읽기 전용으로). 오류 ID·화 번호·수만 담는다. 원문·이름·속성·값·인용·경로 없음. 앞 화 사실은 제품 이름 고르기(candidateFacts) 그대로",
+ "pairDefinition": "검사할 화에서 뽑힌 사실과 넘긴 앞 화 사실이 같은 대상(sameEntity)·같은 속성 이름(괄호·공백 제외)·다른 값",
+ "m4": {
+  "chapters": 14,
+  "totals": {
+   "priorFacts": 1207,
+   "pairs": 15,
+   "pairedPriorFacts": 15
+  },
+  "errors": [
+   {
+    "id": "E01",
+    "split": "dev",
+    "targetChapter": 9,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E02",
+    "split": "test",
+    "targetChapter": 7,
+    "retrieved": false,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E03",
+    "split": "test",
+    "targetChapter": 12,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E04",
+    "split": "dev",
+    "targetChapter": 3,
+    "retrieved": true,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E05",
+    "split": "test",
+    "targetChapter": 13,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": true,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E06",
+    "split": "test",
+    "targetChapter": 10,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E07",
+    "split": "test",
+    "targetChapter": 6,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E08",
+    "split": "test",
+    "targetChapter": 11,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E09",
+    "split": "dev",
+    "targetChapter": 4,
+    "retrieved": true,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E10",
+    "split": "dev",
+    "targetChapter": 5,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E11",
+    "split": "test",
+    "targetChapter": 13,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E12",
+    "split": "test",
+    "targetChapter": 7,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E13",
+    "split": "test",
+    "targetChapter": 8,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E14",
+    "split": "dev",
+    "targetChapter": 12,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E15",
+    "split": "test",
+    "targetChapter": 8,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E16",
+    "split": "test",
+    "targetChapter": 10,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E17",
+    "split": "dev",
+    "targetChapter": 11,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E18",
+    "split": "test",
+    "targetChapter": 14,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E19",
+    "split": "test",
+    "targetChapter": 12,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E20",
+    "split": "test",
+    "targetChapter": 9,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E21",
+    "split": "dev",
+    "targetChapter": 15,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E22",
+    "split": "test",
+    "targetChapter": 11,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E23",
+    "split": "test",
+    "targetChapter": 10,
+    "retrieved": false,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E24",
+    "split": "dev",
+    "targetChapter": 13,
+    "retrieved": false,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E25",
+    "split": "dev",
+    "targetChapter": 8,
+    "retrieved": false,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E26",
+    "split": "test",
+    "targetChapter": 15,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E27",
+    "split": "test",
+    "targetChapter": 14,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "E28",
+    "split": "dev",
+    "targetChapter": 9,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E29",
+    "split": "test",
+    "targetChapter": 15,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "E30",
+    "split": "test",
+    "targetChapter": 14,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   }
+  ],
+  "burden": [
+   {
+    "chapter": 2,
+    "priorFacts": 14,
+    "targetFacts": 15,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 3,
+    "priorFacts": 29,
+    "targetFacts": 13,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 4,
+    "priorFacts": 38,
+    "targetFacts": 17,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 5,
+    "priorFacts": 47,
+    "targetFacts": 14,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 6,
+    "priorFacts": 59,
+    "targetFacts": 19,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 7,
+    "priorFacts": 85,
+    "targetFacts": 10,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 8,
+    "priorFacts": 75,
+    "targetFacts": 18,
+    "pairs": 2,
+    "pairedPriorFacts": 2
+   },
+   {
+    "chapter": 9,
+    "priorFacts": 94,
+    "targetFacts": 15,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 10,
+    "priorFacts": 94,
+    "targetFacts": 17,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 11,
+    "priorFacts": 101,
+    "targetFacts": 18,
+    "pairs": 1,
+    "pairedPriorFacts": 1
+   },
+   {
+    "chapter": 12,
+    "priorFacts": 131,
+    "targetFacts": 8,
+    "pairs": 1,
+    "pairedPriorFacts": 1
+   },
+   {
+    "chapter": 13,
+    "priorFacts": 130,
+    "targetFacts": 17,
+    "pairs": 3,
+    "pairedPriorFacts": 3
+   },
+   {
+    "chapter": 14,
+    "priorFacts": 147,
+    "targetFacts": 11,
+    "pairs": 3,
+    "pairedPriorFacts": 3
+   },
+   {
+    "chapter": 15,
+    "priorFacts": 163,
+    "targetFacts": 19,
+    "pairs": 5,
+    "pairedPriorFacts": 5
+   }
+  ]
+ },
+ "real": {
+  "chapters": 20,
+  "totals": {
+   "priorFacts": 47038,
+   "pairs": 736,
+   "pairedPriorFacts": 584
+  },
+  "errors": [
+   {
+    "id": "S01",
+    "split": "test",
+    "targetChapter": 2,
+    "retrieved": false,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S02",
+    "split": "test",
+    "targetChapter": 16,
+    "retrieved": false,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S03",
+    "split": "test",
+    "targetChapter": 30,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "S04",
+    "split": "test",
+    "targetChapter": 44,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": true,
+    "pairSameEntity": true
+   },
+   {
+    "id": "S05",
+    "split": "test",
+    "targetChapter": 57,
+    "retrieved": true,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S06",
+    "split": "test",
+    "targetChapter": 71,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "S07",
+    "split": "test",
+    "targetChapter": 85,
+    "retrieved": true,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S08",
+    "split": "test",
+    "targetChapter": 99,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S09",
+    "split": "test",
+    "targetChapter": 113,
+    "retrieved": false,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S10",
+    "split": "test",
+    "targetChapter": 127,
+    "retrieved": false,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S11",
+    "split": "test",
+    "targetChapter": 140,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "S12",
+    "split": "test",
+    "targetChapter": 154,
+    "retrieved": true,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S13",
+    "split": "test",
+    "targetChapter": 168,
+    "retrieved": false,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S14",
+    "split": "test",
+    "targetChapter": 182,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": true
+   },
+   {
+    "id": "S15",
+    "split": "test",
+    "targetChapter": 196,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": true,
+    "pairSameEntity": true
+   },
+   {
+    "id": "S16",
+    "split": "test",
+    "targetChapter": 210,
+    "retrieved": false,
+    "targetFactExtracted": true,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S17",
+    "split": "test",
+    "targetChapter": 223,
+    "retrieved": false,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S18",
+    "split": "test",
+    "targetChapter": 237,
+    "retrieved": false,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   },
+   {
+    "id": "S19",
+    "split": "test",
+    "targetChapter": 251,
+    "retrieved": true,
+    "targetFactExtracted": true,
+    "pairSameAttribute": true,
+    "pairSameEntity": true
+   },
+   {
+    "id": "S20",
+    "split": "test",
+    "targetChapter": 265,
+    "retrieved": true,
+    "targetFactExtracted": false,
+    "pairSameAttribute": false,
+    "pairSameEntity": false
+   }
+  ],
+  "burden": [
+   {
+    "chapter": 2,
+    "priorFacts": 25,
+    "targetFacts": 39,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 16,
+    "priorFacts": 293,
+    "targetFacts": 37,
+    "pairs": 4,
+    "pairedPriorFacts": 4
+   },
+   {
+    "chapter": 30,
+    "priorFacts": 594,
+    "targetFacts": 40,
+    "pairs": 6,
+    "pairedPriorFacts": 6
+   },
+   {
+    "chapter": 44,
+    "priorFacts": 903,
+    "targetFacts": 17,
+    "pairs": 6,
+    "pairedPriorFacts": 5
+   },
+   {
+    "chapter": 57,
+    "priorFacts": 1222,
+    "targetFacts": 38,
+    "pairs": 20,
+    "pairedPriorFacts": 13
+   },
+   {
+    "chapter": 71,
+    "priorFacts": 1549,
+    "targetFacts": 37,
+    "pairs": 23,
+    "pairedPriorFacts": 22
+   },
+   {
+    "chapter": 85,
+    "priorFacts": 1425,
+    "targetFacts": 24,
+    "pairs": 4,
+    "pairedPriorFacts": 4
+   },
+   {
+    "chapter": 99,
+    "priorFacts": 1802,
+    "targetFacts": 30,
+    "pairs": 1,
+    "pairedPriorFacts": 1
+   },
+   {
+    "chapter": 113,
+    "priorFacts": 1856,
+    "targetFacts": 14,
+    "pairs": 20,
+    "pairedPriorFacts": 20
+   },
+   {
+    "chapter": 127,
+    "priorFacts": 1975,
+    "targetFacts": 8,
+    "pairs": 0,
+    "pairedPriorFacts": 0
+   },
+   {
+    "chapter": 140,
+    "priorFacts": 2541,
+    "targetFacts": 33,
+    "pairs": 32,
+    "pairedPriorFacts": 32
+   },
+   {
+    "chapter": 154,
+    "priorFacts": 2772,
+    "targetFacts": 32,
+    "pairs": 27,
+    "pairedPriorFacts": 19
+   },
+   {
+    "chapter": 168,
+    "priorFacts": 2979,
+    "targetFacts": 34,
+    "pairs": 10,
+    "pairedPriorFacts": 10
+   },
+   {
+    "chapter": 182,
+    "priorFacts": 3432,
+    "targetFacts": 50,
+    "pairs": 84,
+    "pairedPriorFacts": 64
+   },
+   {
+    "chapter": 196,
+    "priorFacts": 3511,
+    "targetFacts": 30,
+    "pairs": 70,
+    "pairedPriorFacts": 67
+   },
+   {
+    "chapter": 210,
+    "priorFacts": 3272,
+    "targetFacts": 34,
+    "pairs": 105,
+    "pairedPriorFacts": 62
+   },
+   {
+    "chapter": 223,
+    "priorFacts": 4032,
+    "targetFacts": 42,
+    "pairs": 51,
+    "pairedPriorFacts": 50
+   },
+   {
+    "chapter": 237,
+    "priorFacts": 4063,
+    "targetFacts": 21,
+    "pairs": 108,
+    "pairedPriorFacts": 96
+   },
+   {
+    "chapter": 251,
+    "priorFacts": 4279,
+    "targetFacts": 26,
+    "pairs": 162,
+    "pairedPriorFacts": 106
+   },
+   {
+    "chapter": 265,
+    "priorFacts": 4513,
+    "targetFacts": 30,
+    "pairs": 3,
+    "pairedPriorFacts": 3
+   }
+  ]
+ }
+}
