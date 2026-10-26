@@ -41,6 +41,12 @@ export function App() {
   const [project, setProject] = useState<ProjectOpened | null>(null);
   const [file, setFile] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  /**
+   * 프로젝트를 열 때마다 1씩 는다. 에디터·검색·AI 패널의 key에 넣어, 다른 프로젝트에 같은 이름의 화(001.md)가 있어도
+   * 새 프로젝트의 화를 다시 읽게 한다 (같은 폴더를 다시 열 때도 새로 읽는다)
+   */
+  const [projectGen, setProjectGen] = useState(0);
+  const projectGenRef = useRef(0);
   const [save, setSave] = useState<{ status: SaveStatus; changesOnReopen: number | null }>({
     status: { kind: 'saved' },
     changesOnReopen: null,
@@ -56,13 +62,25 @@ export function App() {
   const search = useRef<SearchPanelHandle>(null);
 
   const refreshAi = useCallback(() => {
-    api.ai.analysisStatus().then(setAi, (e: Error) => setError(e.message));
+    // 프로젝트를 바꾼 뒤에 도착한 이전 프로젝트의 응답은 버린다
+    const gen = projectGenRef.current;
+    api.ai.analysisStatus().then(
+      (s) => gen === projectGenRef.current && setAi(s),
+      (e: Error) => gen === projectGenRef.current && setError(e.message),
+    );
   }, []);
 
   const showProject = useCallback(
     (p: ProjectOpened) => {
+      projectGenRef.current += 1;
+      setProjectGen(projectGenRef.current);
       setProject(p);
       setFile(firstReadable(p));
+      // 이전 프로젝트의 이동 위치·저장 상태·알림·AI 상태를 지운다 (새 에디터와 AI 상태가 다시 알린다)
+      setJump(null);
+      setSave({ status: { kind: 'saved' }, changesOnReopen: null });
+      setNotice(null);
+      setAi(null);
       refreshAi();
     },
     [refreshAi],
@@ -225,6 +243,7 @@ export function App() {
           />
         )}
         <SearchPanel
+          key={projectGen}
           ref={search}
           active={searching}
           onActiveChange={setSearching}
@@ -273,7 +292,7 @@ export function App() {
       <main className="editor-pane">
         {file ? (
           <ChapterEditor
-            key={`${file}:${reloadKey}`}
+            key={`${projectGen}:${file}:${reloadKey}`}
             ref={editor}
             file={file}
             onStatus={onStatus}
@@ -288,6 +307,7 @@ export function App() {
       {file && (
         <div className="ai-panel">
           <IssuesPanel
+            key={projectGen}
             file={file}
             state={ai?.checkStates[file]}
             version={aiVersion}
@@ -296,6 +316,7 @@ export function App() {
             onOpenEvidence={openEvidence}
           />
           <FactsPanel
+            key={projectGen}
             file={file}
             state={ai?.states[file]}
             version={aiVersion}
