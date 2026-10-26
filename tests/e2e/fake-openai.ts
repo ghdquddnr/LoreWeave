@@ -1,7 +1,7 @@
 // E2E용 가짜 OpenAI 서버. 앱은 OpenAI SDK의 표준 설정(OPENAI_BASE_URL)으로 이 서버를 부른다.
 // 제품 코드에는 테스트 전용 장치가 없다.
 
-import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { createServer, STATUS_CODES, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { diag, diagDir } from './diag.ts';
 
@@ -59,15 +59,18 @@ export async function startFakeOpenAi(reply: (user: string) => unknown): Promise
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
-  if (diagDir) {
+  if (diagDir()) {
     const log = (m: string) => diag('fake-openai.log', `${port} ${m}`);
     log('listening');
-    server.on('connection', (s) => {
-      log('connection');
-      s.on('error', (e: Error) => log(`socket-error ${e.message}`));
-    });
+    server.on('connection', () => log('connection'));
     server.on('request', (r) => log(`request ${r.method} ${r.url}`));
-    server.on('clientError', (e) => log(`client-error ${e.message}`));
+    // clientError 리스너를 달면 Node의 기본 처리(오류 응답 + 연결 종료)가 꺼진다. 기록한 뒤 같은 처리를 직접 한다
+    server.on('clientError', (e: NodeJS.ErrnoException, socket) => {
+      log(`client-error ${e.code ?? ''} ${e.message}`);
+      if (!socket.writable) return void socket.destroy();
+      const status = e.code === 'HPE_HEADER_OVERFLOW' ? 431 : e.code === 'HPE_CHUNK_EXTENSIONS_OVERFLOW' ? 413 : e.code === 'ERR_HTTP_REQUEST_TIMEOUT' ? 408 : 400;
+      socket.end(`HTTP/1.1 ${status} ${STATUS_CODES[status]}\r\nConnection: close\r\n\r\n`);
+    });
     server.on('close', () => log('close'));
   }
   return {

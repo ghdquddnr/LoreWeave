@@ -19,7 +19,7 @@ export async function launch(userData: string, env: Record<string, string> = {})
     args: ['.', `--user-data-dir=${userData}`],
     env: { ...(process.env as Record<string, string>), ...env },
   });
-  if (diagDir) {
+  if (diagDir()) {
     // 진단 기록(선택): 이 앱 프로세스의 출력과 종료 시각 (다음 실행과 겹쳤는지 볼 수 있다)
     const proc = app.process();
     const file = `app-${Date.now()}-${proc.pid}.log`;

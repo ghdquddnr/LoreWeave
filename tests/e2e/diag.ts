@@ -3,14 +3,38 @@
 //   - app-<시각>-<pid>.log: 띄운 앱 프로세스의 stdout·stderr·종료 시각
 //   - fail.log: 테스트가 남긴 실패 순간의 화면 상태 (검색 결과 요약 등)
 // 기본(변수 없음)은 아무것도 쓰지 않는다. 테스트의 통과·실패 판정이나 대기 시간은 바꾸지 않는다 (재시도·대기 늘리기 장치가 아니다).
-// 앱 stderr에는 경로가 들어갈 수 있다. 저장소 밖 폴더를 쓴다.
+// 기록은 best-effort다: 폴더가 없으면 만들고, 그래도 쓸 수 없으면(경로가 파일, 권한, 지워짐) 조용히 건너뛴다.
+// 진단 장애가 테스트 결과·원래 오류·서버 동작을 바꾸지 않게 한다. 앱 stderr에는 경로가 들어갈 수 있다. 저장소 밖 폴더를 쓴다.
 
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const diagDir: string | null = process.env['E2E_DIAG_DIR'] || null;
+/** 진단 기록 폴더 (호출할 때마다 환경 변수를 읽는다). 없으면 null */
+export function diagDir(): string | null {
+  return process.env['E2E_DIAG_DIR'] || null;
+}
 
-export function diag(file: string, line: string): void {
-  if (!diagDir) return;
-  appendFileSync(join(diagDir, file), `${new Date().toISOString()} ${line}\n`);
+/** 한 줄을 남긴다. 쓰지 못해도 던지지 않는다. 썼으면 true */
+export function diag(file: string, line: string): boolean {
+  const dir = diagDir();
+  if (!dir) return false;
+  try {
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, file), `${new Date().toISOString()} ${line}\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 실패 순간의 상태를 남긴다 (best-effort). describe가 실패해도 던지지 않으므로, 부른 쪽은 원래 오류를 그대로 다시 던질 수 있다 */
+export async function diagFailure(file: string, describe: () => Promise<string>): Promise<void> {
+  if (!diagDir()) return;
+  let line: string;
+  try {
+    line = await describe();
+  } catch (e) {
+    line = `(상태를 읽지 못함: ${e instanceof Error ? e.message : String(e)})`;
+  }
+  diag(file, line);
 }
