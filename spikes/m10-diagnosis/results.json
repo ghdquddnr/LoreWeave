@@ -1,0 +1,195 @@
+{
+ "note": "M10 저장 결과(runner-sent 입력, 회차별 저장 응답, 정답표, M8 출력)만 다시 읽은 진단. 유료 호출 0. 비식별: 오류 ID·화 번호·묶음 위치·수·라벨만",
+ "sources": "M10 승인 실행(m10-repeat-20261026-1730)의 real-1·real-2 평가기 출력(context_source runner-sent)과 ai.db 복사본, M8 평가기 출력, M8 복사본 정답표. 모두 읽기 전용",
+ "cases": {
+  "S05": {
+   "designatedInInput": "both runs, batch 4/4 (1,222개 중 1,218번째)",
+   "altEvidenceInInput": null,
+   "targetChapterOutputs": {
+    "real-1": [],
+    "real-2": [
+     "unlabeled (다른 주제)"
+    ]
+   },
+   "droppedByVerify": {
+    "real-1": 0,
+    "real-2": 1,
+    "m8": 3
+   },
+   "m8Found": false,
+   "class": "근거 있음에도 누락",
+   "notes": [
+    "real-2에 위치 검증으로 버린 결과 1개 (내용 미저장 → 불명)",
+    "M9 진단: 바뀐 이름을 이을 단서가 약함 (정보 부족 성격)",
+    "M7·M8·M10 네 회 모두 놓침"
+   ]
+  },
+  "S07": {
+   "designatedInInput": "both runs, batch 4/4",
+   "altEvidenceInInput": null,
+   "targetChapterOutputs": {
+    "real-1": [],
+    "real-2": [
+     "unlabeled (다른 주제)"
+    ]
+   },
+   "droppedByVerify": {
+    "real-1": 0,
+    "real-2": 0
+   },
+   "m8Found": false,
+   "class": "정보 부족",
+   "notes": [
+    "M9 진단: 근거 내용이 얇고 모호함"
+   ]
+  },
+  "S08": {
+   "designatedInInput": "both runs, batch 1/5",
+   "altEvidenceInInput": null,
+   "targetChapterOutputs": {
+    "real-1": [
+     "unlabeled (다른 주제)"
+    ],
+    "real-2": []
+   },
+   "droppedByVerify": {
+    "real-1": 0,
+    "real-2": 0
+   },
+   "m8Found": false,
+   "class": "근거 있음에도 누락",
+   "notes": [
+    "시간 배속 계산이 필요함 (M9 진단: 추론 필요)"
+   ]
+  },
+  "S20": {
+   "designatedInInput": "both runs, batch 5/12",
+   "altEvidenceInInput": "M8이 쓴 근거(1개)가 두 회 입력에 있음",
+   "targetChapterOutputs": {
+    "real-1": [],
+    "real-2": [
+     "unlabeled (다른 주제)"
+    ]
+   },
+   "droppedByVerify": {
+    "real-1": 0,
+    "real-2": 1,
+    "m8": 0
+   },
+   "m8Found": true,
+   "class": "근거 있음에도 누락 (회 간 변동)",
+   "notes": [
+    "real-2에 위치 검증으로 버린 결과 1개 (내용 미저장 → 불명)",
+    "두 목록(두 회 모두 놓침, M8 찾음→이번 놓침)에 다 해당. 한 번만 다룸"
+   ]
+  },
+  "S09": {
+   "designatedInInput": "없음 (두 회, M8 모두)",
+   "altEvidenceInInput": "M8이 쓴 근거(1개)가 두 회 입력에 있음",
+   "targetChapterOutputs": {
+    "real-1": [],
+    "real-2": []
+   },
+   "droppedByVerify": {
+    "real-1": 0,
+    "real-2": 0
+   },
+   "m8Found": true,
+   "class": "근거 있음에도 누락 (회 간 변동, 대체 근거)"
+  },
+  "S18": {
+   "designatedInInput": "없음 (두 회, M8 모두)",
+   "altEvidenceInInput": "M8이 쓴 근거(1개)가 두 회 입력에 있음",
+   "targetChapterOutputs": {
+    "real-1": [
+     "맞는 지적 (정답표 밖, 다른 주제)"
+    ],
+    "real-2": []
+   },
+   "droppedByVerify": {
+    "real-1": 0,
+    "real-2": 0
+   },
+   "m8Found": true,
+   "class": "근거 있음에도 누락 (회 간 변동, 대체 근거)"
+  }
+ },
+ "classCounts": {
+  "근거 미포함": 0,
+  "정보 부족": 1,
+  "근거 있음에도 누락": 5,
+  "유효 결과인데 평가기 불일치": 0,
+  "불명(부분)": "S05·S20에 내용 미저장 버린 결과 각 1"
+ },
+ "runVariance": {
+  "oneRunOnly": [
+   "S04 (real-1)",
+   "S10 (real-2, 대체 근거)",
+   "S11 (real-2)",
+   "S12 (real-1)",
+   "S14 (real-2)",
+   "S17 (real-2, 대체 근거)",
+   "S19 (real-1)"
+  ],
+  "bothRuns": [
+   "S01",
+   "S03",
+   "S06",
+   "S13",
+   "S15"
+  ],
+  "note": "S15는 두 회 모두 각자 유효 결과로 찾음 (아래 정정)"
+ },
+ "mergeArtifact": {
+  "case": "합친 결과 F24 (S15 문장, 숫자 종류)",
+  "observed": "real-1의 같은 종류·같은 문장 결과는 확신도 0.1, claim이 모순을 부정 (0.7 미만이라 real-1 화면에서는 숨김). real-2의 결과는 확신도 0.99, claim이 모순을 제대로 짚음. 합치기 규칙(설명은 먼저 나온 결과, 확신도는 최댓값)이 real-1의 부정 claim에 real-2의 0.99를 붙였다",
+  "deterministic": true,
+  "sameKeyPairsAcrossRuns": 42,
+  "crossingThreshold": 1,
+  "claimWouldChangeUnderMaxConfidenceRule": 14,
+  "claimWouldChangeByPair": {
+   "real 1+2": 2,
+   "m4 1+2": 8,
+   "m4 3+4": 4
+  },
+  "productRelevance": "제품의 한 검사 안 묶음 합치기(mergeFindings)도 같은 규칙이다. 묶음별 원래 결과를 저장하지 않아 제품에서 얼마나 생기는지는 불명",
+  "evaluatorNote": "평가기는 claim을 읽지 않고 위치만 맞춘다. 부정 claim도 위치가 맞으면 tp·duplicate로 센다. 부정 표현 정규식으로 찾은 결과: M8 0, real-1 2 (하나는 이 숨긴 결과), real-2 0, 합친 결과 2, M4 4회 0"
+ },
+ "erratumM10Report": {
+  "wrong": "PR #79는 회별 판정을 합친 항목의 내용으로 셌다. F24는 회마다 내용이 달랐다",
+  "corrected": {
+   "real-1": {
+    "found": 8,
+    "fp": 5,
+    "hiddenBelow07": 2
+   },
+   "real-2": {
+    "found": 9,
+    "fp": 6,
+    "note": "S15를 유효 결과로 찾음"
+   },
+   "falsePositiveOverlapAcrossRuns": 0,
+   "bothRunsFound": 5,
+   "oneRunOnly": 7
+  },
+  "unchanged": "합친 결과의 판정(R1 12, R2 6/9, R3 12, R4 17, R5 0)은 그대로다. 합친 화면에는 F24가 부정 claim·0.99로 보이므로 확정 오탐이 맞다"
+ },
+ "candidates": {
+  "pairHint": {
+   "reachInPersistentList": "0/6 (짝이 생기는 오류는 S04·S15·S19뿐, M10-PLAN 2절)",
+   "verdict": "제외"
+  },
+  "detect2": {
+   "newEvidence": "없음. 실제 원고 미실행. M4에서 계산 필요 오류(E24)·함의(E26)를 찾은 근거 없음. 회별 M4 관문 미달은 detect-1도 13/20이 나와 판별력이 없었음",
+   "verdict": "불명 (지금 근거로 선정 불가)"
+  },
+  "moreRepeats": {
+   "verdict": "제외",
+   "reason": "합친 오탐 12(한도 14)에서 회를 늘리면 R3를 넘을 위험, 비용 회 수만큼 증가"
+  },
+  "mergeClaimAlignment": {
+   "verdict": "선정 (검증 계획만)",
+   "reason": "결정적이고 직접 관측됨. 호출 0으로 검증 가능"
+  }
+ }
+}
