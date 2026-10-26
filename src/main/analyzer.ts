@@ -1,6 +1,7 @@
 // 화별 사실 추출 실행 (M3-PLAN 1·4절). 작가가 버튼을 눌렀을 때만 실행한다.
 //   - 두 화씩 동시에 보낸다 (M3 실측에서 한 화씩은 15화에 약 3분). 취소하면 다음 화를 보내지 않는다 (끝난 화는 저장돼 있다)
 //   - 키·모델·한도 문제는 나머지 화도 실패할 것이므로 멈추고, 그 밖의 실패는 그 화만 실패로 남긴다
+//   - 취소했거나 멈춘 뒤에 늦게 온 성공 응답은 저장하지 않는다 (기존 분석을 덮어쓰지 않는다)
 //   - 인용이 본문에 없는 사실은 버린다 (ADR 0001 결정 2)
 //   - 화 파일은 읽기만 한다
 
@@ -132,6 +133,9 @@ export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promi
         modelVersion = result.modelVersion;
         parts.push(parseExtraction(result.data));
       }
+      // 마지막 조각을 기다리는 동안 취소했거나 다른 화가 멈췄을 수 있다. 늦게 온 성공 응답으로 기존 분석을 덮어쓰지 않는다
+      // (이 화는 저장하지 않고 완료로 세지 않는다. 보낸 조각의 호출 기록과 비용은 위에서 남겼다)
+      if (!mayContinue()) return;
       const extraction = mergeExtractions(parts);
       const { facts, dropped } = checkQuotes(extraction, lines);
       o.store.saveAnalysis({
