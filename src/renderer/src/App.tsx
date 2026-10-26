@@ -53,6 +53,47 @@ export function App() {
    */
   const [switching, setSwitching] = useState(false);
   const switchingRef = useRef(false);
+  /** 새 화·id 재발급을 처리하는 중. 같은 조작을 겹쳐 시작하지 않고, 화 이동도 막는다 (프로젝트 전환은 막지 않는다) */
+  const [acting, setActing] = useState(false);
+  const actingRef = useRef(false);
+  /**
+   * 에디터 잠금의 깊이. 전환·새 화·id 재발급이 겹칠 수 있어 깊이가 0이 될 때만 푼다.
+   * editorLocked는 새로 마운트되는 에디터가 잠긴 채 시작하게 한다 (setLocked는 지금 에디터를 바로 잠근다)
+   */
+  const lockDepth = useRef(0);
+  const [editorLocked, setEditorLocked] = useState(false);
+  const lockEditor = () => {
+    if (lockDepth.current++ === 0) {
+      editor.current?.setLocked(true);
+      setEditorLocked(true);
+    }
+  };
+  /** replaced: 이 조작이 에디터를 새로 만들게 했다 (화 이동·다시 읽기·프로젝트 전환). 그러면 사라질 지금 에디터는 다시 열지 않는다 */
+  const unlockEditor = (replaced: boolean) => {
+    if (--lockDepth.current === 0) {
+      setEditorLocked(false);
+      if (!replaced) editor.current?.setLocked(false);
+    }
+  };
+  /**
+   * 새 화·id 재발급: 시작하자마자(마지막 저장 전에) 에디터를 잠근다. 응답을 기다리는 동안 받은 입력이
+   * 화 이동이나 다시 읽기로 저장되지 않고 사라지는 일이 없게 한다. task는 에디터를 새로 만들게 했으면 true를 돌려준다
+   */
+  const lockedAction = (task: (gen: number) => Promise<boolean>) =>
+    run(async (gen) => {
+      if (switchingRef.current || actingRef.current) return;
+      actingRef.current = true;
+      setActing(true);
+      lockEditor();
+      let replaced = false;
+      try {
+        replaced = await task(gen);
+      } finally {
+        actingRef.current = false;
+        setActing(false);
+        unlockEditor(replaced);
+      }
+    });
   const [save, setSave] = useState<{ status: SaveStatus; changesOnReopen: number | null }>({
     status: { kind: 'saved' },
     changesOnReopen: null,
@@ -146,7 +187,7 @@ export function App() {
 
   const openChapter = (next: string) =>
     run(async (gen) => {
-      if (switchingRef.current || next === file || !(await leave()) || !isCurrent(gen)) return;
+      if (switchingRef.current || actingRef.current || next === file || !(await leave()) || !isCurrent(gen)) return;
       setJump(null);
       setFile(next);
     });
@@ -154,7 +195,7 @@ export function App() {
   /** 검색 결과로 이동: 그 화를 열고 찾은 글자를 선택한다 */
   const openResult = (hit: SearchHit, match: SearchHit['matches'][number]) =>
     run(async (gen) => {
-      if (switchingRef.current || (hit.file !== file && !(await leave())) || !isCurrent(gen)) return;
+      if (switchingRef.current || actingRef.current || (hit.file !== file && !(await leave())) || !isCurrent(gen)) return;
       setFile(hit.file);
       setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
     });
@@ -162,30 +203,33 @@ export function App() {
   /** 검사 근거로 이동: 그 화를 열고 근거 문장을 선택한다 */
   const openEvidence = (target: string, at: QuoteLocation) =>
     run(async (gen) => {
-      if (switchingRef.current || (target !== file && !(await leave())) || !isCurrent(gen)) return;
+      if (switchingRef.current || actingRef.current || (target !== file && !(await leave())) || !isCurrent(gen)) return;
       setFile(target);
       setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }));
     });
 
   /** 중복 id 해결: 고른 화에 새 id를 넣는다. 그 화가 열려 있으면 저장한 뒤 다시 연다 */
   const reissueId = (target: string) =>
-    run(async (gen) => {
-      if (switchingRef.current || !project || !(await leave()) || !isCurrent(gen)) return;
+    lockedAction(async (gen) => {
+      if (!project || !(await leave()) || !isCurrent(gen)) return false;
       const list = await api.chapters.reissueId(target, project.token);
-      if (!isCurrent(gen)) return;
+      if (!isCurrent(gen)) return false;
       setProject((p) => p && { ...p, list });
-      if (target === file) setReloadKey((k) => k + 1);
+      if (target !== file) return false;
+      setReloadKey((k) => k + 1);
+      return true;
     });
 
   const newChapter = () =>
-    run(async (gen) => {
-      if (switchingRef.current || !project || !(await leave()) || !isCurrent(gen)) return;
+    lockedAction(async (gen) => {
+      if (!project || !(await leave()) || !isCurrent(gen)) return false;
       const created = await api.chapters.create(project.token);
-      if (!isCurrent(gen)) return;
+      if (!isCurrent(gen)) return false;
       const list = await api.chapters.list(project.token);
-      if (!isCurrent(gen)) return;
+      if (!isCurrent(gen)) return false;
       setProject((p) => p && { ...p, list });
       setFile(created.file);
+      return true;
     });
 
   const chooseFolder = () =>
@@ -194,7 +238,7 @@ export function App() {
       // 마지막 저장 전에 먼저 잠근다: 이 뒤의 입력은 문서에 들어가지 않고, 그 전의 입력은 아래 leave()가 지금 프로젝트에 저장한다
       switchingRef.current = true;
       setSwitching(true);
-      editor.current?.setLocked(true);
+      lockEditor();
       let opened = false;
       try {
         if (!(await leave())) return;
@@ -207,7 +251,7 @@ export function App() {
         switchingRef.current = false;
         setSwitching(false);
         // 취소·실패·저장 확인 거절이면 지금 에디터를 다시 연다. 열렸으면 새 프로젝트의 새 에디터가 대신한다
-        if (!opened) editor.current?.setLocked(false);
+        unlockEditor(opened);
       }
     });
 
@@ -263,7 +307,7 @@ export function App() {
             설정
           </button>
         </header>
-        <button className="new-chapter" onClick={newChapter} disabled={switching}>
+        <button className="new-chapter" onClick={newChapter} disabled={switching || acting}>
           + 새 화
         </button>
         {ai && !switching && (
@@ -333,7 +377,7 @@ export function App() {
             ref={editor}
             file={file}
             projectToken={project.token}
-            locked={switching}
+            locked={editorLocked}
             onStatus={onStatus}
             onSaved={onSaved}
             onReload={onReload}
