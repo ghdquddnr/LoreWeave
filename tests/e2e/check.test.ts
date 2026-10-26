@@ -69,22 +69,22 @@ test('검사: 앞 화를 먼저 분석하고, 결과·상태·무시를 main에�
     assert.deepEqual({ checked: outcome.checked, findings: outcome.findings, stopped: outcome.stopped }, { checked: true, findings: 1, stopped: null });
     assert.equal(fake.requests.filter((r) => r.path.endsWith('/responses')).length, 4);
 
-    const result = await page.evaluate(() => window.loreweave.ai.checkResult('003.md'));
+    const result = await page.evaluate(() => window.loreweave.ai.checkResult('003.md', 1));
     assert.ok(result);
     assert.deepEqual(
       result.findings.map((f) => [f.category, f.dismissed, f.evidence.map((e) => e.file)]),
       [['age', false, ['001.md']]],
     );
-    const status = await page.evaluate(() => window.loreweave.ai.analysisStatus());
+    const status = await page.evaluate(() => window.loreweave.ai.analysisStatus(1));
     assert.deepEqual(status.checkStates, { '001.md': 'none', '002.md': 'none', '003.md': 'fresh' });
 
-    await page.evaluate(() => window.loreweave.ai.dismiss('003.md', 0));
-    assert.equal((await page.evaluate(() => window.loreweave.ai.checkResult('003.md')))!.findings[0]!.dismissed, true);
+    await page.evaluate(() => window.loreweave.ai.dismiss('003.md', 0, 1));
+    assert.equal((await page.evaluate(() => window.loreweave.ai.checkResult('003.md', 1)))!.findings[0]!.dismissed, true);
     // 다시 검사해도 숨는다 (분석은 다시 하지 않는다)
     const again = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1));
     assert.equal(again.analysis, null);
     assert.equal(fake.requests.filter((r) => r.path.endsWith('/responses')).length, 5);
-    assert.equal((await page.evaluate(() => window.loreweave.ai.checkResult('003.md')))!.findings[0]!.dismissed, true);
+    assert.equal((await page.evaluate(() => window.loreweave.ai.checkResult('003.md', 1)))!.findings[0]!.dismissed, true);
   } finally {
     await closeWindow(app);
   }

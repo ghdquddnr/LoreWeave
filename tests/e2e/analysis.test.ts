@@ -42,7 +42,7 @@ test('키 없이, 동의 없이는 분석하지 않고, AI를 쓰기 전에는 a
     await stubFolderDialog(app, project);
     await page.getByRole('button', { name: '원고 폴더 열기' }).click();
     await page.locator('.ProseMirror').waitFor();
-    const status = await page.evaluate(() => window.loreweave.ai.analysisStatus());
+    const status = await page.evaluate(() => window.loreweave.ai.analysisStatus(1));
     const none = { '001.md': 'none', '002.md': 'none' };
     assert.deepEqual(status, { states: none, checkStates: none, totalCostUsd: 0, recoveredFrom: null, consent: false });
     const noConsent = await page.evaluate(() => window.loreweave.ai.analyze(['001.md'], 1).then(() => '', (e: Error) => e.message));
@@ -94,11 +94,11 @@ test('분석: 키를 붙여 요청하고, 인용이 있는 사실만 저장하�
     assert.equal(calls.length, 2);
     for (const r of fake.requests) assert.equal(r.authorization, `Bearer ${KEY}`);
 
-    const analysis = await page.evaluate(() => window.loreweave.ai.analysis('001.md'));
+    const analysis = await page.evaluate(() => window.loreweave.ai.analysis('001.md', 1));
     assert.ok(analysis);
     assert.equal(analysis.droppedQuotes, 1);
     assert.deepEqual(analysis.facts.map((f) => f.quote), ['둘 다 스무 살이었다.']);
-    const status = await page.evaluate(() => window.loreweave.ai.analysisStatus());
+    const status = await page.evaluate(() => window.loreweave.ai.analysisStatus(1));
     assert.deepEqual(status.states, { '001.md': 'fresh', '002.md': 'fresh' });
     assert.equal(status.totalCostUsd.toFixed(4), '0.0010');
   } finally {

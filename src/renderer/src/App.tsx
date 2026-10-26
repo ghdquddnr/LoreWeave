@@ -47,6 +47,8 @@ export function App() {
    */
   const [projectGen, setProjectGen] = useState(0);
   const projectGenRef = useRef(0);
+  /** 지금 화면의 프로젝트 token (AI 상태 읽기에 함께 보낸다) */
+  const projectTokenRef = useRef(0);
   /**
    * 프로젝트를 바꾸는 중 (마지막 저장 직전부터 새 프로젝트를 보일 때까지). 그동안 에디터 입력과 원고 조작을 막는다.
    * main은 열기 처리 중에 root를 먼저 바꾸므로, 이 사이 이전 화면에서 받은 입력은 어디에도 안전하게 저장할 수 없다
@@ -111,17 +113,22 @@ export function App() {
   const search = useRef<SearchPanelHandle>(null);
 
   const refreshAi = useCallback(() => {
-    // 프로젝트를 바꾼 뒤에 도착한 이전 프로젝트의 응답은 버린다
+    // 프로젝트를 바꾼 뒤에 도착한 이전 프로젝트의 응답은 버린다. main도 이전 token의 요청은 거절한다:
+    // 전환 중이면 끝나기를 기다려, 새 프로젝트가 열렸으면 그 거절을 오류로 보이지 않는다
     const gen = projectGenRef.current;
-    api.ai.analysisStatus().then(
+    api.ai.analysisStatus(projectTokenRef.current).then(
       (s) => gen === projectGenRef.current && setAi(s),
-      (e: Error) => gen === projectGenRef.current && setError(e.message),
+      async (e: Error) => {
+        if (switchDone.current) await switchDone.current;
+        if (gen === projectGenRef.current) setError(e.message);
+      },
     );
   }, []);
 
   const showProject = useCallback(
     (p: ProjectOpened) => {
       projectGenRef.current += 1;
+      projectTokenRef.current = p.token;
       setProjectGen(projectGenRef.current);
       setError(p.rememberError ? `폴더는 열었지만 다음 실행 때 다시 열 폴더로 기억하지 못했습니다: ${p.rememberError}` : null);
       setProject(p);
@@ -407,8 +414,11 @@ export function App() {
       {file && (
         <div className="ai-panel">
           <IssuesPanel
-            key={projectGen}
+            // 형제(FactsPanel)와 key가 같으면 React가 이전 프로젝트의 패널을 지우지 못하고 새 패널 옆에 남긴다
+            key={`issues:${projectGen}`}
             file={file}
+            projectToken={project.token}
+            locked={switching}
             state={ai?.checkStates[file]}
             version={aiVersion}
             currentLines={() => editor.current?.lines() ?? null}
@@ -416,8 +426,10 @@ export function App() {
             onOpenEvidence={openEvidence}
           />
           <FactsPanel
-            key={projectGen}
+            key={`facts:${projectGen}`}
             file={file}
+            projectToken={project.token}
+            locked={switching}
             state={ai?.states[file]}
             version={aiVersion}
             currentLines={() => editor.current?.lines() ?? null}

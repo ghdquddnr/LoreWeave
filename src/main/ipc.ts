@@ -261,28 +261,41 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.aiSetConsent, async (_e, consent: boolean) => {
     await updateSettings(userData(), { aiSendConsent: consent === true });
   });
-  ipcMain.handle(CHANNELS.aiAnalysisStatus, async () => {
-    const path = requireRoot();
+  /**
+   * token: 요청한 화면의 프로젝트. 기다리는 사이 다른 프로젝트(같은 폴더 다시 열기 포함)를 열면 이 저장소는 닫혔을 수 있다.
+   * 그러면 결과든 닫힌 저장소의 오류든 돌려주지 않고 STALE_PROJECT로 끝낸다 (이전 화면의 응답이 새 화면을 덮거나 새 프로젝트의 오류가 되지 않게)
+   */
+  ipcMain.handle(CHANNELS.aiAnalysisStatus, async (_e, token: number) => {
+    const path = requireProject(token);
     const store = openAiStore(path, false);
-    const settings = await readSettings(userData());
-    if (!store) {
-      const files = await chapterFileNames(path);
-      const none = Object.fromEntries(files.map((f) => [f, 'none' as const]));
-      return { states: none, checkStates: none, totalCostUsd: 0, recoveredFrom: null, consent: settings.aiSendConsent };
-    }
-    return {
-      states: await analysisStates(path, store),
-      checkStates: await checkStates(path, store),
-      totalCostUsd: store.totalCost(),
-      recoveredFrom: store.recoveredFrom,
-      consent: settings.aiSendConsent,
+    const read = async () => {
+      const settings = await readSettings(userData());
+      if (!store) {
+        const files = await chapterFileNames(path);
+        const none = Object.fromEntries(files.map((f) => [f, 'none' as const]));
+        return { states: none, checkStates: none, totalCostUsd: 0, recoveredFrom: null, consent: settings.aiSendConsent };
+      }
+      return {
+        states: await analysisStates(path, store),
+        checkStates: await checkStates(path, store),
+        totalCostUsd: store.totalCost(),
+        recoveredFrom: store.recoveredFrom,
+        consent: settings.aiSendConsent,
+      };
     };
+    try {
+      const status = await read();
+      if (stillOpen(token)) return status;
+    } catch (e) {
+      if (stillOpen(token)) throw e;
+    }
+    throw new Error(STALE_PROJECT);
   });
   ipcMain.handle(CHANNELS.aiEstimate, async (_e, files: string[], token: number) => {
     const path = requireProject(token);
     return estimate(path, files, (await readSettings(userData())).aiModel);
   });
-  ipcMain.handle(CHANNELS.aiAnalysis, (_e, file: string) => openAiStore(requireRoot(), false)?.analysis(file) ?? null);
+  ipcMain.handle(CHANNELS.aiAnalysis, (_e, file: string, token: number) => openAiStore(requireProject(token), false)?.analysis(file) ?? null);
   ipcMain.handle(CHANNELS.aiCancel, () => analyzing?.abort());
   /**
    * 분석·검사를 한 번에 하나만, 키와 전송 동의가 있을 때만 실행한다.
@@ -334,9 +347,10 @@ export function registerIpc(): void {
     return planCheck(path, openAiStore(path, false), file, (await readSettings(userData())).aiModel);
   });
   ipcMain.handle(CHANNELS.aiRunCheck, (event, file: string, token: number) => runAi(event.sender, token, (o) => checkChapter(file, o)));
-  ipcMain.handle(CHANNELS.aiCheckResult, (_e, file: string) => openAiStore(requireRoot(), false)?.check(file) ?? null);
-  ipcMain.handle(CHANNELS.aiDismiss, (_e, file: string, ord: number) => {
-    const store = openAiStore(requireRoot(), false);
+  ipcMain.handle(CHANNELS.aiCheckResult, (_e, file: string, token: number) => openAiStore(requireProject(token), false)?.check(file) ?? null);
+  /** token: 무시를 누른 화면의 프로젝트. 다른 프로젝트가 열린 뒤의 요청은 거절한다 (ord는 그 화면의 검사 결과 번호라 새 프로젝트의 결과를 무시하게 된다) */
+  ipcMain.handle(CHANNELS.aiDismiss, (_e, file: string, ord: number, token: number) => {
+    const store = openAiStore(requireProject(token), false);
     const finding = store?.check(file)?.findings.find((f) => f.ord === ord);
     if (!store || !finding) throw new Error('무시할 검사 결과가 없습니다');
     store.dismiss(file, finding.category, finding.key, new Date().toISOString());
