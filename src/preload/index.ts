@@ -27,8 +27,8 @@ const api: LoreweaveApi = {
     check: () => ipcRenderer.invoke(CHANNELS.aiCheck),
     setConsent: (consent) => ipcRenderer.invoke(CHANNELS.aiSetConsent, consent),
     analysisStatus: () => ipcRenderer.invoke(CHANNELS.aiAnalysisStatus),
-    estimate: (files) => ipcRenderer.invoke(CHANNELS.aiEstimate, files),
-    analyze: (files) => ipcRenderer.invoke(CHANNELS.aiAnalyze, files),
+    estimate: (files, token) => ipcRenderer.invoke(CHANNELS.aiEstimate, files, token),
+    analyze: (files, token) => ipcRenderer.invoke(CHANNELS.aiAnalyze, files, token),
     cancel: () => ipcRenderer.invoke(CHANNELS.aiCancel),
     onProgress(listener) {
       const handler = (_e: Electron.IpcRendererEvent, progress: Parameters<typeof listener>[0]) => listener(progress);
@@ -36,8 +36,8 @@ const api: LoreweaveApi = {
       return () => ipcRenderer.off(CHANNELS.aiProgress, handler);
     },
     analysis: (file) => ipcRenderer.invoke(CHANNELS.aiAnalysis, file),
-    planCheck: (file) => ipcRenderer.invoke(CHANNELS.aiPlanCheck, file),
-    runCheck: (file) => ipcRenderer.invoke(CHANNELS.aiRunCheck, file),
+    planCheck: (file, token) => ipcRenderer.invoke(CHANNELS.aiPlanCheck, file, token),
+    runCheck: (file, token) => ipcRenderer.invoke(CHANNELS.aiRunCheck, file, token),
     checkResult: (file) => ipcRenderer.invoke(CHANNELS.aiCheckResult, file),
     dismiss: (file, ord) => ipcRenderer.invoke(CHANNELS.aiDismiss, file, ord),
   },

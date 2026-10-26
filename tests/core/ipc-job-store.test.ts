@@ -103,14 +103,15 @@ function loadIpc(client: AiClient) {
   new Function('require', 'module', 'exports', code)((k: string) => fakes[k] ?? (k.startsWith('.') ? real(join(__dirname, '../../src/main', k)) : real(k)), mod, mod.exports);
   mod.exports.registerIpc();
   const event = { sender: { send() {} } };
+  let token = 0;
   return {
     stores,
     open: async (dir: string) => {
       choose.push(dir);
-      await (handlers.get('projectChoose')!(event) as Promise<unknown>);
+      token = ((await handlers.get('projectChoose')!(event)) as { token: number }).token;
     },
-    analyze: (files: string[]) => (handlers.get('aiAnalyze')!(event, files) as Promise<{ stopped: string | null; done: number }>),
-    check: (file: string) => (handlers.get('aiRunCheck')!(event, file) as Promise<{ checked: boolean; stopped: string | null }>),
+    analyze: (files: string[]) => (handlers.get('aiAnalyze')!(event, files, token) as Promise<{ stopped: string | null; done: number }>),
+    check: (file: string) => (handlers.get('aiRunCheck')!(event, file, token) as Promise<{ checked: boolean; stopped: string | null }>),
   };
 }
 

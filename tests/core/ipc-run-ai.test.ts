@@ -39,7 +39,7 @@ function loadIpc() {
       BrowserWindow: { fromWebContents: () => ({}) },
       dialog: { showOpenDialog: async () => ({ filePaths: ['fake-project'], canceled: false }) },
     },
-    '../preload/api.ts': { CHANNELS: new Proxy({}, { get: (_t, key) => key }) },
+    '../preload/api.ts': { CHANNELS: new Proxy({}, { get: (_t, key) => key }), STALE_PROJECT: '원고 폴더가 바뀌어 이 요청을 처리하지 않았습니다' },
     './settings.ts': {
       // 프로젝트 열기·기타 경로는 바로 답하고, runAi의 설정 읽기만 테스트가 풀어 준다
       readSettings: (_dir: string) => later(settingsQueue),
@@ -68,6 +68,8 @@ function loadIpc() {
   new Function('require', 'module', 'exports', code)((name: string) => fakes[name] ?? (name.startsWith('node:') ? real(name) : {}), mod, mod.exports);
   mod.exports.registerIpc();
   const sender = { send() {} };
+  /** 마지막으로 연 프로젝트의 token (분석·검사 요청에 함께 보낸다) */
+  let token = 0;
   return {
     handlers,
     settingsQueue,
@@ -76,10 +78,13 @@ function loadIpc() {
     clients: () => clients,
     open: async () => {
       // 프로젝트를 연다 (openProject의 설정 쓰기는 바로 끝난다)
-      await (handlers.get('projectChoose')!({ sender }) as Promise<unknown>);
+      token = ((await handlers.get('projectChoose')!({ sender })) as { token: number }).token;
+      return token;
     },
-    analyze: () => handlers.get('aiAnalyze')!({ sender }, ['001.md']) as Promise<unknown>,
-    check: () => handlers.get('aiRunCheck')!({ sender }, '003.md') as Promise<unknown>,
+    analyze: (t = token) => handlers.get('aiAnalyze')!({ sender }, ['001.md'], t) as Promise<unknown>,
+    check: (t = token) => handlers.get('aiRunCheck')!({ sender }, '003.md', t) as Promise<unknown>,
+    estimate: (t: number) => handlers.get('aiEstimate')!({ sender }, ['001.md'], t) as Promise<unknown>,
+    planCheck: (t: number) => handlers.get('aiPlanCheck')!({ sender }, '003.md', t) as Promise<unknown>,
     cancel: () => handlers.get('aiCancel')!({}),
   };
 }
@@ -193,4 +198,30 @@ test('취소 (작업 중): 진행 중인 작업의 신호로 전달되고, 끝�
   assert.equal(ipc.work[1]!.signal.aborted, false);
   ipc.work[1]!.finish();
   assert.equal((await next).ok, true);
+});
+
+test('이전 프로젝트 token: 같은 폴더를 다시 연 뒤 이전 화면의 분석·검사·예상 비용·검사 계획 요청은 설정·키를 읽기 전에 거절되고, 자리를 잡지 않아 새 token 요청은 정상 실행된다', { timeout: 10_000 }, async () => {
+  const ipc = loadIpc();
+  const old = await ipc.open();
+  const now = await ipc.open();
+  assert.notEqual(old, now);
+  for (const call of [() => ipc.analyze(old), () => ipc.check(old), () => ipc.estimate(old), () => ipc.planCheck(old)]) {
+    const r = await settle(call());
+    assert.deepEqual(r, { ok: false, e: '원고 폴더가 바뀌어 이 요청을 처리하지 않았습니다' });
+  }
+  // 거절된 요청은 설정·키를 읽지 않았고, 작업·클라이언트·저장소를 만들지 않았다
+  assert.equal(ipc.settingsQueue.length, 0);
+  assert.equal(ipc.keyQueue.length, 0);
+  assert.equal(ipc.work.length, 0);
+  assert.equal(ipc.clients(), 0);
+  // 지금 token의 분석은 정상 실행된다 (이전 요청이 자리를 잡지 않았다)
+  const run = settle(ipc.analyze(now));
+  await tick();
+  ipc.settingsQueue.shift()!.resolve(ok);
+  await tick();
+  ipc.keyQueue.shift()!.resolve('sk-test');
+  for (let i = 0; i < 20 && ipc.work.length === 0; i++) await tick();
+  assert.equal(ipc.work.length, 1);
+  ipc.work[0]!.finish();
+  assert.deepEqual(await run, { ok: true, v: { kind: 'analyze' } });
 });

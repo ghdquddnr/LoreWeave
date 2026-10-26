@@ -43,6 +43,8 @@ after(async () => {
   await fake.close();
 });
 
+// 분석·검사 IPC에는 요청한 화면의 프로젝트 token을 함께 보낸다. 새 사용자 데이터에서 처음 연 프로젝트는 token 1이다
+
 test('검사: 앞 화를 먼저 분석하고, 결과·상태·무시를 main에서 처리하며, 원고는 바꾸지 않는다', async () => {
   const before = await readFile(join(project, 'chapters', '003.md'));
   const { app, page } = await launch(await tempDir('ud-check'), { OPENAI_BASE_URL: fake.baseUrl });
@@ -51,19 +53,19 @@ test('검사: 앞 화를 먼저 분석하고, 결과·상태·무시를 main에�
     await page.getByRole('button', { name: '원고 폴더 열기' }).click();
     await page.locator('.ProseMirror').waitFor();
 
-    const noConsent = await page.evaluate(() => window.loreweave.ai.runCheck('003.md').then(() => '', (e: Error) => e.message));
+    const noConsent = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1).then(() => '', (e: Error) => e.message));
     assert.match(noConsent, /원고 전송에 동의해야/);
     await page.evaluate(() => window.loreweave.ai.setKey('sk-check-test'));
     await page.evaluate(() => window.loreweave.ai.setConsent(true));
 
-    const firstPlan = await page.evaluate(() => window.loreweave.ai.planCheck('001.md').then(() => '', (e: Error) => e.message));
+    const firstPlan = await page.evaluate(() => window.loreweave.ai.planCheck('001.md', 1).then(() => '', (e: Error) => e.message));
     assert.match(firstPlan, /앞 화가 없어/);
-    const plan = await page.evaluate(() => window.loreweave.ai.planCheck('003.md'));
+    const plan = await page.evaluate(() => window.loreweave.ai.planCheck('003.md', 1));
     assert.deepEqual(plan.analyze, ['001.md', '002.md', '003.md']);
     assert.equal(plan.priors, 2);
     assert.equal(fake.requests.length, 0);
 
-    const outcome = await page.evaluate(() => window.loreweave.ai.runCheck('003.md'));
+    const outcome = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1));
     assert.deepEqual({ checked: outcome.checked, findings: outcome.findings, stopped: outcome.stopped }, { checked: true, findings: 1, stopped: null });
     assert.equal(fake.requests.filter((r) => r.path.endsWith('/responses')).length, 4);
 
@@ -79,7 +81,7 @@ test('검사: 앞 화를 먼저 분석하고, 결과·상태·무시를 main에�
     await page.evaluate(() => window.loreweave.ai.dismiss('003.md', 0));
     assert.equal((await page.evaluate(() => window.loreweave.ai.checkResult('003.md')))!.findings[0]!.dismissed, true);
     // 다시 검사해도 숨는다 (분석은 다시 하지 않는다)
-    const again = await page.evaluate(() => window.loreweave.ai.runCheck('003.md'));
+    const again = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1));
     assert.equal(again.analysis, null);
     assert.equal(fake.requests.filter((r) => r.path.endsWith('/responses')).length, 5);
     assert.equal((await page.evaluate(() => window.loreweave.ai.checkResult('003.md')))!.findings[0]!.dismissed, true);
