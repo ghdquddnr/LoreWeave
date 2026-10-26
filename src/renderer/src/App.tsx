@@ -47,6 +47,12 @@ export function App() {
    */
   const [projectGen, setProjectGen] = useState(0);
   const projectGenRef = useRef(0);
+  /**
+   * 프로젝트를 바꾸는 중 (마지막 저장 직전부터 새 프로젝트를 보일 때까지). 그동안 에디터 입력과 원고 조작을 막는다.
+   * main은 열기 처리 중에 root를 먼저 바꾸므로, 이 사이 이전 화면에서 받은 입력은 어디에도 안전하게 저장할 수 없다
+   */
+  const [switching, setSwitching] = useState(false);
+  const switchingRef = useRef(false);
   const [save, setSave] = useState<{ status: SaveStatus; changesOnReopen: number | null }>({
     status: { kind: 'saved' },
     changesOnReopen: null,
@@ -129,7 +135,7 @@ export function App() {
 
   const openChapter = (next: string) =>
     run(async () => {
-      if (next === file || !(await leave())) return;
+      if (switchingRef.current || next === file || !(await leave())) return;
       setJump(null);
       setFile(next);
     });
@@ -137,7 +143,7 @@ export function App() {
   /** 검색 결과로 이동: 그 화를 열고 찾은 글자를 선택한다 */
   const openResult = (hit: SearchHit, match: SearchHit['matches'][number]) =>
     run(async () => {
-      if (hit.file !== file && !(await leave())) return;
+      if (switchingRef.current || (hit.file !== file && !(await leave()))) return;
       setFile(hit.file);
       setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
     });
@@ -145,7 +151,7 @@ export function App() {
   /** 검사 근거로 이동: 그 화를 열고 근거 문장을 선택한다 */
   const openEvidence = (target: string, at: QuoteLocation) =>
     run(async () => {
-      if (target !== file && !(await leave())) return;
+      if (switchingRef.current || (target !== file && !(await leave()))) return;
       setFile(target);
       setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }));
     });
@@ -153,25 +159,41 @@ export function App() {
   /** 중복 id 해결: 고른 화에 새 id를 넣는다. 그 화가 열려 있으면 저장한 뒤 다시 연다 */
   const reissueId = (target: string) =>
     run(async () => {
-      if (!project || !(await leave())) return;
-      const list = await api.chapters.reissueId(target);
+      if (switchingRef.current || !project || !(await leave())) return;
+      const list = await api.chapters.reissueId(target, project.token);
       setProject({ ...project, list });
       if (target === file) setReloadKey((k) => k + 1);
     });
 
   const newChapter = () =>
     run(async () => {
-      if (!project || !(await leave())) return;
-      const created = await api.chapters.create();
+      if (switchingRef.current || !project || !(await leave())) return;
+      const created = await api.chapters.create(project.token);
       setProject({ ...project, list: await api.chapters.list() });
       setFile(created.file);
     });
 
   const chooseFolder = () =>
     run(async () => {
-      if (!(await leave())) return;
-      const p = await api.project.choose();
-      if (p) showProject(p);
+      if (switchingRef.current) return;
+      // 마지막 저장 전에 먼저 잠근다: 이 뒤의 입력은 문서에 들어가지 않고, 그 전의 입력은 아래 leave()가 지금 프로젝트에 저장한다
+      switchingRef.current = true;
+      setSwitching(true);
+      editor.current?.setLocked(true);
+      let opened = false;
+      try {
+        if (!(await leave())) return;
+        const p = await api.project.choose();
+        if (p) {
+          showProject(p);
+          opened = true;
+        }
+      } finally {
+        switchingRef.current = false;
+        setSwitching(false);
+        // 취소·실패·저장 확인 거절이면 지금 에디터를 다시 연다. 열렸으면 새 프로젝트의 새 에디터가 대신한다
+        if (!opened) editor.current?.setLocked(false);
+      }
     });
 
   const onStatus = useCallback((status: SaveStatus, changesOnReopen: number | null) => {
@@ -219,17 +241,17 @@ export function App() {
       <aside className="sidebar">
         <header>
           <strong title={project.name}>{project.name}</strong>
-          <button onClick={chooseFolder} title="다른 원고 폴더 열기">
+          <button onClick={chooseFolder} title="다른 원고 폴더 열기" disabled={switching}>
             열기
           </button>
           <button onClick={() => setSettingsOpen(true)} title="AI 설정">
             설정
           </button>
         </header>
-        <button className="new-chapter" onClick={newChapter}>
+        <button className="new-chapter" onClick={newChapter} disabled={switching}>
           + 새 화
         </button>
-        {ai && (
+        {ai && !switching && (
           <AnalysisBar
             file={file}
             states={ai.states}
@@ -295,6 +317,8 @@ export function App() {
             key={`${projectGen}:${file}:${reloadKey}`}
             ref={editor}
             file={file}
+            projectToken={project.token}
+            locked={switching}
             onStatus={onStatus}
             onSaved={onSaved}
             onReload={onReload}

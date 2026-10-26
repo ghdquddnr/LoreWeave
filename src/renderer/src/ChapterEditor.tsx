@@ -33,15 +33,21 @@ export interface ChapterEditorHandle {
   flush(): Promise<boolean>;
   /** 지금 에디터 본문의 줄별 글자 (M2 줄 주소). 아직 열리는 중이면 null */
   lines(): string[] | null;
+  /** 입력·붙여넣기를 바로 막거나 푼다 (프로젝트를 바꾸는 동안). React 다시 그리기를 기다리지 않는다 */
+  setLocked(locked: boolean): void;
 }
 
 interface Props {
   file: string;
+  /** 이 화를 연 프로젝트의 token. 읽기·쓰기에 함께 보낸다 (프로젝트가 바뀌면 main이 거절한다) */
+  projectToken: number;
   onStatus(status: SaveStatus, changesOnReopen: number | null): void;
   onSaved(text: string): void;
   /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다). outside: 다른 프로그램의 변경 때문에 자동으로 */
   onReload(outside?: boolean): void;
   jump?: Jump | null;
+  /** true면 읽기 전용 (프로젝트를 바꾸는 동안 열린 에디터) */
+  locked?: boolean;
 }
 
 interface Loaded {
@@ -56,7 +62,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
 
   useEffect(() => {
     let cancelled = false;
-    window.loreweave.chapters.read(props.file).then(
+    window.loreweave.chapters.read(props.file, props.projectToken).then(
       ({ text, hash }) => {
         if (!cancelled) setLoaded({ ...openManuscript(text), hash });
       },
@@ -67,7 +73,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
     return () => {
       cancelled = true;
     };
-  }, [props.file]);
+  }, [props.file, props.projectToken]);
 
   if (loadError) return <p className="editor-message">이 화를 열 수 없습니다: {loadError}</p>;
   if (!loaded) return <p className="editor-message">여는 중…</p>;
@@ -75,7 +81,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
 });
 
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
-  { file, loaded, onStatus, onSaved, onReload, jump },
+  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, locked = false },
   ref,
 ) {
   const editorRef = useRef<Editor | null>(null);
@@ -127,6 +133,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
             file,
             result.text,
             expected === undefined ? hash.current : expected,
+            projectToken,
           );
           if (write.status === 'conflict') {
             report({ kind: 'conflict', diskHash: write.diskHash });
@@ -152,7 +159,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
         saving.current = null;
       }
     },
-    [file, loaded.envelope, onSaved, report, schedule],
+    [file, projectToken, loaded.envelope, onSaved, report, schedule],
   );
   const saveRef = useRef(save);
   saveRef.current = save;
@@ -166,6 +173,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     shouldRerenderOnTransaction: false,
     // 이동할 곳이 있으면 처음 자리로 포커스를 옮기지 않는다 (나중에 실행돼 선택을 덮어쓴다)
     autofocus: jump ? false : 'start',
+    editable: !locked,
     onUpdate: () => {
       version.current++;
       if (status.current.kind === 'conflict') return;
@@ -180,9 +188,15 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     () => ({
       flush: () => saveRef.current(),
       lines: () => (editor ? visibleLines(editor.getJSON() as Doc) : null),
+      // 편집 가능 여부만 바꾸고 변경 알림(onUpdate)은 내지 않는다
+      setLocked: (on) => editor?.setEditable(!on, false),
     }),
     [editor],
   );
+
+  useEffect(() => {
+    editor?.setEditable(!locked, false);
+  }, [editor, locked]);
 
   useEffect(() => {
     if (!editor || !jump) return;

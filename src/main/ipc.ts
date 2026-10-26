@@ -6,7 +6,7 @@ import { basename, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { MODELS } from '../core/ai/models.ts';
 import { CHAPTERS_DIR } from '../core/project/chapters.ts';
-import { CHANNELS, type AiStatus, type ProjectOpened } from '../preload/api.ts';
+import { CHANNELS, STALE_PROJECT, type AiStatus, type ProjectOpened } from '../preload/api.ts';
 import { createOpenAiClient, toAiError } from './ai-client.ts';
 import { AiStore } from './ai-db.ts';
 import { analysisStates, analyzeChapters, estimate } from './analyzer.ts';
@@ -111,23 +111,36 @@ async function isDirectory(path: string): Promise<boolean> {
   }
 }
 
+/** 프로젝트를 연 차례. 열 때마다 1씩 는다 (ProjectOpened.token) */
+let projectToken = 0;
+
 async function openProject(path: string): Promise<ProjectOpened> {
   const list = await listChapters(path);
   analyzing?.abort();
   // 진행 중인 작업이 쓰는 저장소는 그 작업이 끝날 때 닫는다 (runAi). 새 프로젝트는 새 저장소를 연다
   if (aiStore !== jobStore) aiStore?.close();
   aiStore = null;
+  // root와 token은 await 없이 함께 바꾼다. 이 뒤로 이전 token의 화 읽기·쓰기는 거절된다
   root = path;
+  projectToken += 1;
+  const token = projectToken;
   ownWrites.clear();
   startWatching(path);
   openIndex(path);
   await updateSettings(userData(), { lastProject: path });
-  return { name: basename(path), list };
+  return { name: basename(path), list, token };
 }
 
 function requireRoot(): string {
   if (!root) throw new Error('열린 프로젝트가 없습니다');
   return root;
+}
+
+/** 요청을 보낸 화면의 프로젝트(token)가 지금 열린 프로젝트일 때만 그 root를 돌려준다 */
+function requireProject(token: unknown): string {
+  const path = requireRoot();
+  if (token !== projectToken) throw new Error(STALE_PROJECT);
+  return path;
 }
 
 const CLOSE_TIMEOUT_MS = 10_000;
@@ -173,9 +186,10 @@ export function registerIpc(): void {
   });
 
   ipcMain.handle(CHANNELS.chaptersList, () => listChapters(requireRoot()));
-  ipcMain.handle(CHANNELS.chapterRead, (_e, file: string) => readChapter(requireRoot(), file));
-  ipcMain.handle(CHANNELS.chapterWrite, async (_e, file: string, text: string, expectedHash: string | null) => {
-    const path = requireRoot();
+  ipcMain.handle(CHANNELS.chapterRead, (_e, file: string, token: number) => readChapter(requireProject(token), file));
+  ipcMain.handle(CHANNELS.chapterWrite, async (_e, file: string, text: string, expectedHash: string | null, token: number) => {
+    // root는 await 전에 정한다: 이미 시작한 저장은 프로젝트를 바꿔도 원래 폴더에서 끝난다
+    const path = requireProject(token);
     const result = await writeChapter(path, file, text, expectedHash);
     if (result.status === 'saved') {
       ownWrites.set(file, result.hash);
@@ -186,8 +200,8 @@ export function registerIpc(): void {
     }
     return result;
   });
-  ipcMain.handle(CHANNELS.chapterCreate, async () => {
-    const path = requireRoot();
+  ipcMain.handle(CHANNELS.chapterCreate, async (_e, token: number) => {
+    const path = requireProject(token);
     const created = await createChapter(path);
     ownWrites.set(created.file, created.hash);
     await updateIndex((i) => reindexChapter(i, path, created.file));
@@ -195,8 +209,8 @@ export function registerIpc(): void {
     startWatching(path);
     return created;
   });
-  ipcMain.handle(CHANNELS.chapterReissueId, async (_e, file: string) => {
-    const path = requireRoot();
+  ipcMain.handle(CHANNELS.chapterReissueId, async (_e, file: string, token: number) => {
+    const path = requireProject(token);
     const { hash } = await reissueChapterId(path, file);
     ownWrites.set(file, hash);
     await updateIndex((i) => reindexChapter(i, path, file));
