@@ -34,6 +34,11 @@ let indexReady: Promise<void> = Promise.resolve();
 let indexError: string | null = null;
 /** AI 분석 결과 저장소. 처음 분석할 때 만든다 (AI를 쓰지 않으면 ai.db가 생기지 않는다) */
 let aiStore: AiStore | null = null;
+/**
+ * 진행 중인 분석·검사가 쓰는 저장소. 프로젝트를 바꿔도 이 저장소는 닫지 않고, 그 작업이 이미 보낸 요청을 정산하고 끝날 때 닫는다
+ * (취소 신호로 새 요청은 보내지 않는다. 늦게 온 응답의 호출 기록·비용은 원래 프로젝트의 ai.db에 남는다)
+ */
+let jobStore: AiStore | null = null;
 /** 진행 중인 분석·검사의 취소 장치. 한 번에 하나만 */
 let analyzing: AbortController | null = null;
 
@@ -109,7 +114,8 @@ async function isDirectory(path: string): Promise<boolean> {
 async function openProject(path: string): Promise<ProjectOpened> {
   const list = await listChapters(path);
   analyzing?.abort();
-  aiStore?.close();
+  // 진행 중인 작업이 쓰는 저장소는 그 작업이 끝날 때 닫는다 (runAi). 새 프로젝트는 새 저장소를 연다
+  if (aiStore !== jobStore) aiStore?.close();
   aiStore = null;
   root = path;
   ownWrites.clear();
@@ -263,14 +269,23 @@ export function registerIpc(): void {
       if (!key) throw new Error('API 키가 없습니다. 설정에서 키를 넣으세요.');
       // 설정·키를 읽는 동안 취소했으면(또는 프로젝트를 바꿨으면) 작업을 시작하지 않는다
       if (controller.signal.aborted) throw new Error('취소했습니다');
-      return await work({
-        root: path,
-        store: openAiStore(path, true)!,
-        client: createOpenAiClient(key),
-        model: settings.aiModel,
-        signal: controller.signal,
-        onProgress: (p) => sender.send(CHANNELS.aiProgress, p),
-      });
+      // 이 작업이 끝날 때까지 쓸 저장소. 도중에 프로젝트를 바꾸면 aiStore는 새 저장소로 바뀌지만 이 저장소는 열린 채 남는다
+      const store = openAiStore(path, true)!;
+      jobStore = store;
+      try {
+        return await work({
+          root: path,
+          store,
+          client: createOpenAiClient(key),
+          model: settings.aiModel,
+          signal: controller.signal,
+          onProgress: (p) => sender.send(CHANNELS.aiProgress, p),
+        });
+      } finally {
+        jobStore = null;
+        // 프로젝트를 바꿔 지금 열린 저장소가 아니게 됐으면, 정산이 끝난 지금 닫는다
+        if (store !== aiStore) store.close();
+      }
     } finally {
       // 자기 자리만 비운다
       if (analyzing === controller) analyzing = null;
