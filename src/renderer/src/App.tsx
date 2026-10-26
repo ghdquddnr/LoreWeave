@@ -154,7 +154,7 @@ export function App() {
   const reissueId = (target: string) =>
     run(async () => {
       if (!project || !(await leave())) return;
-      const list = await api.chapters.reissueId(target);
+      const list = await api.chapters.reissueId(target, project.token);
       setProject({ ...project, list });
       if (target === file) setReloadKey((k) => k + 1);
     });
@@ -162,7 +162,7 @@ export function App() {
   const newChapter = () =>
     run(async () => {
       if (!project || !(await leave())) return;
-      const created = await api.chapters.create();
+      const created = await api.chapters.create(project.token);
       setProject({ ...project, list: await api.chapters.list() });
       setFile(created.file);
     });
@@ -295,6 +295,7 @@ export function App() {
             key={`${projectGen}:${file}:${reloadKey}`}
             ref={editor}
             file={file}
+            projectToken={project.token}
             onStatus={onStatus}
             onSaved={onSaved}
             onReload={onReload}

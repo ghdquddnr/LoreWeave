@@ -37,6 +37,8 @@ export interface ChapterEditorHandle {
 
 interface Props {
   file: string;
+  /** 이 화를 연 프로젝트의 token. 읽기·쓰기에 함께 보낸다 (프로젝트가 바뀌면 main이 거절한다) */
+  projectToken: number;
   onStatus(status: SaveStatus, changesOnReopen: number | null): void;
   onSaved(text: string): void;
   /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다). outside: 다른 프로그램의 변경 때문에 자동으로 */
@@ -56,7 +58,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
 
   useEffect(() => {
     let cancelled = false;
-    window.loreweave.chapters.read(props.file).then(
+    window.loreweave.chapters.read(props.file, props.projectToken).then(
       ({ text, hash }) => {
         if (!cancelled) setLoaded({ ...openManuscript(text), hash });
       },
@@ -67,7 +69,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
     return () => {
       cancelled = true;
     };
-  }, [props.file]);
+  }, [props.file, props.projectToken]);
 
   if (loadError) return <p className="editor-message">이 화를 열 수 없습니다: {loadError}</p>;
   if (!loaded) return <p className="editor-message">여는 중…</p>;
@@ -75,7 +77,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
 });
 
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
-  { file, loaded, onStatus, onSaved, onReload, jump },
+  { file, projectToken, loaded, onStatus, onSaved, onReload, jump },
   ref,
 ) {
   const editorRef = useRef<Editor | null>(null);
@@ -127,6 +129,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
             file,
             result.text,
             expected === undefined ? hash.current : expected,
+            projectToken,
           );
           if (write.status === 'conflict') {
             report({ kind: 'conflict', diskHash: write.diskHash });
@@ -152,7 +155,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
         saving.current = null;
       }
     },
-    [file, loaded.envelope, onSaved, report, schedule],
+    [file, projectToken, loaded.envelope, onSaved, report, schedule],
   );
   const saveRef = useRef(save);
   saveRef.current = save;

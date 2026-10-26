@@ -8,11 +8,11 @@ const api: LoreweaveApi = {
   },
   chapters: {
     list: () => ipcRenderer.invoke(CHANNELS.chaptersList),
-    read: (file) => ipcRenderer.invoke(CHANNELS.chapterRead, file),
-    write: (file, text, expectedHash) => ipcRenderer.invoke(CHANNELS.chapterWrite, file, text, expectedHash),
-    create: () => ipcRenderer.invoke(CHANNELS.chapterCreate),
+    read: (file, token) => ipcRenderer.invoke(CHANNELS.chapterRead, file, token),
+    write: (file, text, expectedHash, token) => ipcRenderer.invoke(CHANNELS.chapterWrite, file, text, expectedHash, token),
+    create: (token) => ipcRenderer.invoke(CHANNELS.chapterCreate, token),
     search: (query) => ipcRenderer.invoke(CHANNELS.chaptersSearch, query),
-    reissueId: (file) => ipcRenderer.invoke(CHANNELS.chapterReissueId, file),
+    reissueId: (file, token) => ipcRenderer.invoke(CHANNELS.chapterReissueId, file, token),
     onChangedOutside(listener) {
       const handler = (_e: Electron.IpcRendererEvent, change: { file: string; hash: string | null }) => listener(change);
       ipcRenderer.on(CHANNELS.chapterChangedOutside, handler);

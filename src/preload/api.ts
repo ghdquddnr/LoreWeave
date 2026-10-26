@@ -19,7 +19,15 @@ export interface ProjectOpened {
   /** 프로젝트 폴더 이름 (표시용) */
   name: string;
   list: ChapterList;
+  /**
+   * 이 프로젝트를 연 차례 (main이 프로젝트를 열 때마다 바뀐다). 화 읽기·쓰기·새 화·id 재발급에 함께 보내면,
+   * 그사이 다른 프로젝트가 열렸을 때 main이 거절한다 (이전 프로젝트 화면의 저장이 새 프로젝트 파일에 쓰이지 않게)
+   */
+  token: number;
 }
+
+/** 요청한 프로젝트가 지금 열린 프로젝트가 아닐 때 main이 돌려주는 오류 문구 */
+export const STALE_PROJECT = '원고 폴더가 바뀌어 이 요청을 처리하지 않았습니다';
 
 export interface AiStatus {
   /** 키가 저장돼 있는가 (키 자체는 renderer로 오지 않는다) */
@@ -39,14 +47,15 @@ export interface LoreweaveApi {
   };
   chapters: {
     list(): Promise<ChapterList>;
-    read(file: string): Promise<ChapterContent>;
+    /** token: 이 화를 연 프로젝트의 token (ProjectOpened.token). 지금 열린 프로젝트가 아니면 거절한다 */
+    read(file: string, token: number): Promise<ChapterContent>;
     /** expectedHash: 마지막으로 읽거나 저장한 내용의 해시. null이면 파일이 없어야 한다 (지워진 화를 다시 만들 때) */
-    write(file: string, text: string, expectedHash: string | null): Promise<WriteResult>;
-    create(): Promise<{ file: string } & ChapterContent>;
+    write(file: string, text: string, expectedHash: string | null, token: number): Promise<WriteResult>;
+    create(token: number): Promise<{ file: string } & ChapterContent>;
     /** 원고 전체 검색. 색인이 준비될 때까지 기다린다 */
     search(query: string): Promise<SearchResult>;
     /** frontmatter id를 새로 발급한다 (중복 id 해결). 새 화 목록을 돌려준다 */
-    reissueId(file: string): Promise<ChapterList>;
+    reissueId(file: string, token: number): Promise<ChapterList>;
     /** 다른 프로그램이 화 파일을 바꾸거나 지웠을 때 (지웠으면 hash는 null). 이 앱이 쓴 변경은 알리지 않는다 */
     onChangedOutside(listener: (change: { file: string; hash: string | null }) => void): () => void;
   };
