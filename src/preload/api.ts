@@ -46,7 +46,8 @@ export interface LoreweaveApi {
     reopenLast(): Promise<ProjectOpened | null>;
   };
   chapters: {
-    list(): Promise<ChapterList>;
+    /** token: 요청한 화면의 프로젝트 token. 지금 열린 프로젝트가 아니면 거절한다 (다른 프로젝트의 목록을 받지 않게) */
+    list(token: number): Promise<ChapterList>;
     /** token: 이 화를 연 프로젝트의 token (ProjectOpened.token). 지금 열린 프로젝트가 아니면 거절한다 */
     read(file: string, token: number): Promise<ChapterContent>;
     /** expectedHash: 마지막으로 읽거나 저장한 내용의 해시. null이면 파일이 없어야 한다 (지워진 화를 다시 만들 때) */
