@@ -1,4 +1,4 @@
-// 새 잠금(PR #71)의 경계: 원고 조작과 프로젝트 열기 응답이 겹칠 때, 저장 충돌로 버림을 거절할 때, 재발급이 실패할 때.
+// 새 잠금(PR #71)의 경계: 원고 조작과 프로젝트 열기 응답이 겹칠 때(열기 성공·취소·실패), 저장 충돌로 버림을 거절할 때, 재발급이 실패할 때.
 // 실제 앱(Electron + Playwright). 판정은 시간 대신 IPC 장벽(붙잡은 응답)·호출 수·contenteditable·디스크 바이트로 한다. 실제 API는 쓰지 않는다.
 
 import assert from 'node:assert/strict';
@@ -39,17 +39,48 @@ async function wrap(app: ElectronApplication, channel: string, mode: Mode | 'cou
       handlers.set(channel, async (...args: unknown[]) => {
         g.calls[channel]!++;
         if (mode === 'count') return original(...args);
-        const result = mode === 'fail-before' ? undefined : await original(...args);
+        // 처리기 자체의 실패도 붙잡았다가 그대로 돌려준다
+        const outcome =
+          mode === 'fail-before' ? null : await original(...args).then((value) => ({ value }), (error: unknown) => ({ error }));
         g.held[channel] = true;
         await new Promise<void>((resolve) => (g.release[channel] = resolve));
         handlers.set(channel, original);
         if (mode !== 'hold') throw new Error(`늦게 실패한 ${channel}`);
-        return result;
+        if (outcome && 'error' in outcome) throw outcome.error;
+        return outcome?.value;
       });
     },
     { channel, mode },
   );
 }
+/** 화 읽기·목록 요청 중 main이 이전 프로젝트 token이라 거절한 수를 센다 */
+async function countStale(app: ElectronApplication) {
+  await app.evaluate(({ ipcMain }) => {
+    const g = globalThis as unknown as { stale: Record<string, number> };
+    g.stale = { 'chapter:read': 0, 'chapters:list': 0 };
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
+    for (const channel of Object.keys(g.stale)) {
+      const original = handlers.get(channel)!;
+      handlers.set(channel, async (...args: unknown[]) => {
+        try {
+          return await original(...args);
+        } catch (e) {
+          if (String((e as Error).message).includes('원고 폴더가 바뀌어')) g.stale[channel]!++;
+          throw e;
+        }
+      });
+    }
+  });
+}
+const stale = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { stale: Record<string, number> }).stale);
+/** 거짓 오류가 없다: 이전 token으로 거절된 읽기·목록 0, 상태 줄·에디터 자리에 오류 없음 */
+async function assertNoStale(app: ElectronApplication, page: Page) {
+  assert.deepEqual(await stale(app), { 'chapter:read': 0, 'chapters:list': 0 });
+  assert.equal(await page.getByText('원고 폴더가 바뀌어', { exact: false }).count(), 0);
+  assert.equal(await page.getByText('이 화를 열 수 없습니다', { exact: false }).count(), 0);
+}
+/** main에 한 번 다녀온다. 그 전에 보낸 응답은 같은 IPC 통로로 먼저 도착해 처리된 뒤다 */
+const roundTrip = (page: Page) => page.evaluate('window.loreweave.ai.analysisStatus().then(() => true, () => true)');
 const calls = (app: ElectronApplication, channel: string) =>
   app.evaluate((_e, c) => (globalThis as unknown as { calls: Record<string, number> }).calls?.[c] ?? 0, channel);
 const isHeld = (app: ElectronApplication, channel: string) =>
@@ -119,6 +150,7 @@ for (const name of ['create', 'reissue'] as const) {
       const { app, page } = await launch(await tempDir(`overlap-${name}-userdata`));
       try {
         await open(app, page, A, true);
+        await countStale(app);
         await wrap(app, op.channel, 'hold');
         await op.start(page);
         await waitHeld(app, page, op.channel);
@@ -131,17 +163,14 @@ for (const name of ['create', 'reissue'] as const) {
 
         if (order === '조작 먼저') {
           await release(app, op.channel);
-          // 조작 응답이 처리된 것을 확인한다 (장벽). main은 이미 B라 이어지는 A 요청은 이전 token으로 거절된다
-          if (name === 'create') {
-            // 새 화 뒤 목록 요청이 거절된다. 프로젝트 열기가 남아 있으므로 여전히 잠겨 있다 (화면은 아직 A)
-            await page.getByRole('status').getByText('원고 폴더가 바뀌어', { exact: false }).waitFor({ timeout: 5000 });
-            await waitEditable(page, 'false');
-            await assertRejectsInput(page, 'AFTER-OP');
-          } else {
-            // 열린 화를 다시 읽으려다 이전 token으로 거절된다: 편집할 수 있는 에디터 자체가 없다 (원고는 재발급 전에 저장됨)
-            await page.locator('.editor-pane').getByText('원고 폴더가 바뀌어', { exact: false }).waitFor({ timeout: 5000 });
-            assert.equal(await editor(page).count(), 0);
-          }
+          // 조작 응답이 renderer에 도착해 처리된 뒤다 (장벽). main은 이미 B지만 화면은 아직 A:
+          // 이어지는 목록·다시 읽기를 이전 token으로 보내 거절당하지 않고, 에디터도 사라지지 않은 채 잠겨 있다
+          await roundTrip(page);
+          await waitEditable(page, 'false');
+          await assertRejectsInput(page, 'AFTER-OP');
+          await roundTrip(page);
+          assert.equal(await editor(page).count(), 1);
+          await assertNoStale(app, page);
           await release(app, 'project:choose');
           await editor(page).getByText('beta').waitFor({ timeout: 5000 });
         } else {
@@ -153,6 +182,7 @@ for (const name of ['create', 'reissue'] as const) {
           await release(app, op.channel);
         }
         await waitEditable(page, 'true');
+        await assertNoStale(app, page);
         assert.equal(await page.locator('.sidebar header strong').innerText(), basename(B));
         assert.deepEqual(await list(page).getByRole('button').allTextContents(), ['B']);
         assert.equal(await read(B), '# B\n\nbeta\n');
@@ -174,6 +204,106 @@ for (const name of ['create', 'reissue'] as const) {
     });
   }
 }
+
+// ---- 1-2) 조작이 남은 채 프로젝트 열기가 취소·실패하면, A의 성공한 조작이 화면에 반영되고 A를 계속 편집한다
+
+const cancelDialog = (app: ElectronApplication) =>
+  app.evaluate(({ dialog }) => {
+    dialog.showOpenDialog = (async () => ({ canceled: true, filePaths: [] })) as typeof dialog.showOpenDialog;
+  });
+
+for (const name of ['create', 'reissue'] as const) {
+  for (const outcome of ['취소', '실패'] as const) {
+    test(`열기 ${outcome} (${name}, 조작 먼저 해제): 이전 token 요청·거짓 오류 없이 잠금이 유지되다가, 열기가 끝나면 A의 성공한 조작이 화면에 반영되고 편집·저장된다`, { timeout: 90_000 }, async () => {
+      const op = ops[name];
+      const A = await project(`keep-${name}-${outcome === '취소' ? 'cancel' : 'fail'}`, op.files);
+      // chapters가 폴더가 아니라 파일이면 화 목록을 읽지 못해 열기가 실패한다 (main은 A 그대로)
+      const broken = await tempDir('keep-broken');
+      await writeFile(join(broken, 'chapters'), 'not a folder');
+      const { app, page } = await launch(await tempDir(`keep-${name}-userdata`));
+      try {
+        await open(app, page, A, true);
+        await countStale(app);
+        await wrap(app, op.channel, 'hold');
+        await op.start(page);
+        await waitHeld(app, page, op.channel);
+        await wrap(app, 'project:choose', 'hold');
+        if (outcome === '취소') {
+          await cancelDialog(app);
+          await page.getByRole('button', { name: '열기', exact: true }).click();
+        } else await open(app, page, broken);
+        await waitHeld(app, page, 'project:choose');
+        await release(app, op.channel);
+        await roundTrip(page);
+        await waitEditable(page, 'false');
+        await assertRejectsInput(page, 'AFTER-OP');
+        await assertNoStale(app, page);
+        await release(app, 'project:choose');
+        // A의 성공한 조작이 화면에 반영된다 (새 화가 열린다 / 중복 경고가 사라지고 같은 화를 다시 읽는다)
+        if (name === 'create') {
+          await list(page).getByRole('button').nth(1).waitFor({ timeout: 5000 });
+          assert.equal(await list(page).getByRole('button').count(), 2);
+        } else {
+          await page.getByText(/같은 id를 쓰는 화가 있습니다/).waitFor({ state: 'detached', timeout: 5000 });
+          await editor(page).getByText('둘째 본문').waitFor();
+        }
+        await waitEditable(page, 'true');
+        // 열기 실패는 진짜 실패라 보인다. 이전 token 거절은 없다
+        if (outcome === '실패') assert.equal(await page.getByRole('status').getByText(/ENOTDIR|not a directory/i).count(), 1);
+        await assertNoStale(app, page);
+        await op.assertA(A);
+        // 열린 화(새 화 / 새 id를 받은 화)를 편집·저장한다. 새 id는 저장으로 되돌아가지 않는다
+        const id = /id: (.+)/.exec(await read(A, '002.md'))?.[1];
+        await editor(page).click();
+        await page.keyboard.press('Control+End');
+        await page.keyboard.type(' saved-after');
+        await page.keyboard.press('Control+S');
+        await saved(page);
+        const after = await read(A, '002.md');
+        assert.match(after, /saved-after\n$/);
+        assert.equal(/id: (.+)/.exec(after)?.[1], id);
+        assert.equal(await read(A), op.files['001.md']);
+      } finally {
+        await release(app, op.channel).catch(() => {});
+        await release(app, 'project:choose').catch(() => {});
+        await closeWindow(app);
+      }
+    });
+  }
+}
+
+test('조작 실패 + 열기 취소: 진짜 조작 실패는 열기가 끝난 뒤에도 보이고, 잠금이 풀려 A를 편집·저장한다', { timeout: 60_000 }, async () => {
+  const A = await project('opfail-cancel', { '001.md': '# A\n\nalpha\n' });
+  const { app, page } = await launch(await tempDir('opfail-cancel-userdata'));
+  try {
+    await open(app, page, A, true);
+    await editor(page).getByText('alpha').waitFor();
+    await wrap(app, 'chapter:create', 'fail-before');
+    await page.getByRole('button', { name: '+ 새 화', exact: true }).click();
+    await waitHeld(app, page, 'chapter:create');
+    await wrap(app, 'project:choose', 'hold');
+    await cancelDialog(app);
+    await page.getByRole('button', { name: '열기', exact: true }).click();
+    await waitHeld(app, page, 'project:choose');
+    await release(app, 'chapter:create');
+    await page.getByRole('status').getByText('늦게 실패한 chapter:create', { exact: false }).waitFor({ timeout: 5000 });
+    await waitEditable(page, 'false');
+    await release(app, 'project:choose');
+    await waitEditable(page, 'true');
+    assert.equal(await page.getByRole('status').getByText('늦게 실패한 chapter:create', { exact: false }).count(), 1);
+    assert.deepEqual(await readdir(join(A, 'chapters')), ['001.md']);
+    await editor(page).getByText('alpha').click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' kept');
+    await page.keyboard.press('Control+S');
+    await saved(page);
+    assert.equal(await read(A), '# A\n\nalpha kept\n');
+  } finally {
+    await release(app, 'chapter:create').catch(() => {});
+    await release(app, 'project:choose').catch(() => {});
+    await closeWindow(app);
+  }
+});
 
 // ---- 2) 저장 충돌 중 버림 확인을 거절하면 조작을 보내지 않는다
 
