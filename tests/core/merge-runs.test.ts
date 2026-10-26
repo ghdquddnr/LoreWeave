@@ -23,11 +23,11 @@ const f = (over: Partial<KeyedFinding> & { key: string }): KeyedFinding => ({
 });
 const run = (findings: KeyedFinding[], chapter = 2): RunFindings => new Map([[chapter, findings]]);
 
-test('합치기 규칙: 같은 종류·같은 문장은 하나로, 설명은 1회 것, 근거는 겹치지 않게 모으고, 확신도는 가장 높은 것', () => {
+test('합치기 규칙: 같은 종류·같은 문장은 하나로, 근거는 겹치지 않게 모으고, 확신도와 설명은 확신도가 가장 높은 회의 것', () => {
   const e2 = { file: '001.md', chapter: 1, quote: '다른 근거', line: 3, start: 0, end: 5 };
   const merged = mergeRuns([run([f({ key: 'A', claim: '1회 설명', confidence: 0.75 })]), run([f({ key: 'A', claim: '2회 설명', confidence: 0.95, evidence: [f({ key: 'A' }).evidence[0]!, e2] })])]).get(2)!;
   assert.equal(merged.length, 1);
-  assert.equal(merged[0]!.claim, '1회 설명');
+  assert.equal(merged[0]!.claim, '2회 설명');
   assert.equal(merged[0]!.confidence, 0.95);
   assert.deepEqual(merged[0]!.evidence.map((e) => e.line), [0, 3]);
 });

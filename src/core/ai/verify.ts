@@ -67,7 +67,9 @@ export function verifyFindings(
 
 /**
  * 나눠 검사한 결과를 합친다: 같은 종류·같은 이 화 문장(key)의 결과는 하나로, 근거는 겹치지 않게 모은다.
- * 설명은 먼저 나온 결과의 것을, 확신도는 가장 높은 것을 쓴다.
+ * 확신도는 가장 높은 것을 쓰고, 설명도 그 결과(확신도가 같으면 먼저 나온 결과)의 것을 쓴다.
+ * 설명과 확신도를 다른 결과에서 가져오면, 숨겨질 낮은 확신도의 설명(예: "모순이라고 단정할 수 없다")이
+ * 다른 결과의 높은 확신도로 화면에 보일 수 있다 (M10-DIAGNOSIS.md 2절).
  */
 export function mergeFindings<T extends LocatedFinding & { key: string }>(findings: T[]): T[] {
   const merged = new Map<string, T>();
@@ -81,7 +83,10 @@ export function mergeFindings<T extends LocatedFinding & { key: string }>(findin
     for (const e of f.evidence) {
       if (!seen.evidence.some((x) => x.chapter === e.chapter && x.line === e.line && x.start === e.start)) seen.evidence.push(e);
     }
-    seen.confidence = Math.max(seen.confidence, f.confidence);
+    if (f.confidence > seen.confidence) {
+      seen.confidence = f.confidence;
+      seen.claim = f.claim;
+    }
   }
   return [...merged.values()];
 }

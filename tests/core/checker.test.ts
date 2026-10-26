@@ -202,6 +202,39 @@ test('나눠 검사: 사실이 batchSize보다 많으면 묶음마다 따로 묻
   assert.equal(saved.costUsd.toFixed(5), ((2 * (2000 * 0.1 + 300 * 0.5)) / 1e6).toFixed(5));
 });
 
+test('나눠 검사: 두 묶음이 같은 결과를 다른 설명·확신도로 내면, 저장·화면에는 확신도가 높은 묶음의 설명이 남는다 (낮은 확신도의 부정 설명이 높은 확신도로 보이지 않는다)', async () => {
+  const many = (n: number): Extraction =>
+    n === 1
+      ? {
+          summary: '입학',
+          entities: [minsu],
+          facts: [
+            { entity: '김민수', predicate: '나이', value: '스무 살', quote: '둘 다 스무 살이었다.' },
+            { entity: '김민수', predicate: '첫날', value: '대학생이 된 첫날', quote: '대학생이 된 첫날이었다.' },
+            { entity: '김민수', predicate: '친구', value: '성진', quote: '성진은 민수 옆에 털썩 앉았다.' },
+          ],
+        }
+      : extractionOf(n);
+  // 첫 묶음: 낮은 확신도의 부정 설명, 둘째 묶음: 높은 확신도의 유효 설명
+  const client = fakeClient(
+    (call) => ({
+      findings: [
+        call.user.includes('둘 다 스무 살이었다.')
+          ? { ...ageFinding, claim: '모순이라고 단정할 수 없다', confidence: 0.1 }
+          : { ...ageFinding, claim: '나이가 맞지 않는다', confidence: 0.95 },
+      ],
+    }),
+    (_c, n) => many(n),
+  );
+  const outcome = await checkChapter('003.md', { ...options(client), batchSize: 2 });
+  assert.equal(outcome.findings, 1);
+  assert.equal(outcome.lowConfidence, 0);
+  const saved = store!.check('003.md')!;
+  assert.equal(saved.findings.length, 1);
+  assert.equal(saved.findings[0]!.claim, '나이가 맞지 않는다');
+  assert.equal(saved.findings[0]!.confidence, 0.95);
+});
+
 test('나눠 검사: 묶음 하나라도 실패하면 저장하지 않는다', async () => {
   let n = 0;
   const client = fakeClient(() => {
