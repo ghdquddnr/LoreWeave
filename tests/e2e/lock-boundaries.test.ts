@@ -2,7 +2,7 @@
 // 실제 앱(Electron + Playwright). 판정은 시간 대신 IPC 장벽(붙잡은 응답)·호출 수·contenteditable·디스크 바이트로 한다. 실제 API는 쓰지 않는다.
 
 import assert from 'node:assert/strict';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
@@ -142,12 +142,15 @@ const ops = {
 } as const;
 
 for (const name of ['create', 'reissue'] as const) {
-  for (const order of ['조작 먼저', '프로젝트 먼저'] as const) {
-    test(`겹침 (${name}, ${order} 해제): 남은 조작이 있는 동안 잠금이 유지되고, 모두 끝나면 B는 편집·저장되며 A의 성공한 조작은 남고 B에는 원치 않는 쓰기가 없다`, { timeout: 90_000 }, async () => {
+  // 설정 저장 실패: B를 열 때 다음 실행 때 다시 열 폴더(settings.json)를 기억하지 못한다. 그래도 열기는 성공한다
+  const cases = (['조작 먼저', '프로젝트 먼저'] as const).flatMap((order) => (['정상', '설정 저장 실패'] as const).map((settings) => [order, settings] as const));
+  for (const [order, settings] of cases) {
+    test(`겹침 (${name}, ${order} 해제${settings === '정상' ? '' : `, ${settings}`}): 남은 조작이 있는 동안 잠금이 유지되고, 모두 끝나면 B는 편집·저장되며 A의 성공한 조작은 남고 B에는 원치 않는 쓰기가 없다`, { timeout: 90_000 }, async () => {
       const op = ops[name];
       const A = await project(`overlap-${name}-A`, op.files);
       const B = await project(`overlap-${name}-B`, { '001.md': '# B\n\nbeta\n' });
-      const { app, page } = await launch(await tempDir(`overlap-${name}-userdata`));
+      const userData = await tempDir(`overlap-${name}-userdata`);
+      const { app, page } = await launch(userData);
       try {
         await open(app, page, A, true);
         await countStale(app);
@@ -155,6 +158,11 @@ for (const name of ['create', 'reissue'] as const) {
         await op.start(page);
         await waitHeld(app, page, op.channel);
         await waitEditable(page, 'false');
+        if (settings !== '정상') {
+          // A 열기는 끝났다 (화면에 A 화가 열렸다). settings.json 자리에 폴더를 만들어 B를 열 때 쓰기가 실패하게 한다
+          await rm(join(userData, 'settings.json'), { force: true });
+          await mkdir(join(userData, 'settings.json'));
+        }
         // 원고 조작이 남은 채 B를 연다 (main의 열기 처리기는 끝내고 응답만 붙잡는다)
         await wrap(app, 'project:choose', 'hold');
         await open(app, page, B);
@@ -183,6 +191,8 @@ for (const name of ['create', 'reissue'] as const) {
         }
         await waitEditable(page, 'true');
         await assertNoStale(app, page);
+        const remembered = page.getByRole('status').getByText('다음 실행 때 다시 열 폴더로 기억하지 못했습니다', { exact: false });
+        assert.equal(await remembered.count(), settings === '정상' ? 0 : 1);
         assert.equal(await page.locator('.sidebar header strong').innerText(), basename(B));
         assert.deepEqual(await list(page).getByRole('button').allTextContents(), ['B']);
         assert.equal(await read(B), '# B\n\nbeta\n');

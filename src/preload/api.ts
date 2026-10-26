@@ -24,6 +24,8 @@ export interface ProjectOpened {
    * 그사이 다른 프로젝트가 열렸을 때 main이 거절한다 (이전 프로젝트 화면의 저장이 새 프로젝트 파일에 쓰이지 않게)
    */
   token: number;
+  /** 열기는 성공했지만 다음 실행 때 다시 열 폴더로 기억하지 못했다 (설정 저장 실패의 오류 문구) */
+  rememberError?: string;
 }
 
 /** 요청한 프로젝트가 지금 열린 프로젝트가 아닐 때 main이 돌려주는 오류 문구 */
