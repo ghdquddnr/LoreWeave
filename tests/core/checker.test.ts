@@ -359,3 +359,62 @@ test('정상: 5묶음은 동시에 최대 2개씩 모두 보내고 결과를 합
   assert.equal(store!.check('003.md')!.findings.length, 1);
   assert.equal(store!.check('003.md')!.factCount, 5);
 });
+
+test('취소: API 응답이 다 온 뒤 근거 화를 읽는 동안 취소해도 저장하지 않는다 (감독 재현, 호출 기록은 남긴다)', { timeout: 20_000 }, async () => {
+  const { client, pending } = deferredClient();
+  const controller = new AbortController();
+  const run = checkChapter('003.md', { ...options(client as unknown as AiClient, controller.signal), batchSize: 1 });
+  for (let i = 0; i < 5; i++) {
+    await until(() => pending.length > i);
+    pending[i]!.resolve({ findings: [ageFinding] });
+    if (i === 4) setImmediate(() => controller.abort());
+  }
+  const outcome = await run;
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(outcome.checked, false);
+  assert.equal(outcome.stopped, '취소했습니다');
+  assert.equal(store!.check('003.md'), null);
+  // 다섯 묶음 모두 보냈고 끝났으므로 호출 기록과 비용은 모두 남는다
+  const calls = checkCalls();
+  assert.equal(calls.filter((c) => c.ok === 1).length, 5);
+  assert.ok(outcome.costUsd > 0);
+});
+
+test('취소: 마지막 응답 뒤 어느 시점에 취소하든 취소된 상태로 저장하는 일은 없다 (저장 호출을 직접 감시)', { timeout: 60_000 }, async () => {
+  let duringEvidence = 0;
+  for (let ticks = 0; ticks <= 12; ticks++) {
+    // 회마다 새 ai.db로 시작한다 (먼저 닫고 지운다)
+    store?.close();
+    store = null;
+    await rm(join(root, '.loreweave'), { recursive: true, force: true });
+    const { client, pending } = deferredClient();
+    const controller = new AbortController();
+    const opts = { ...options(client as unknown as AiClient, controller.signal), batchSize: 1 };
+    const saves: boolean[] = [];
+    const save = opts.store.saveCheck.bind(opts.store);
+    opts.store.saveCheck = (c) => {
+      saves.push(controller.signal.aborted);
+      save(c);
+    };
+    const run = checkChapter('003.md', opts);
+    for (let i = 0; i < 5; i++) {
+      await until(() => pending.length > i);
+      pending[i]!.resolve({ findings: [ageFinding] });
+    }
+    // 마지막 응답 뒤 ticks번째 이벤트 루프에서 취소한다
+    let n = ticks;
+    const later = () => (n-- <= 0 ? controller.abort() : setImmediate(later));
+    setImmediate(later);
+    const outcome = await run;
+    await new Promise((r) => setTimeout(r, 5));
+    assert.ok(saves.every((aborted) => !aborted), `${ticks}틱: 취소된 상태에서 저장했다`);
+    if (outcome.checked) assert.equal(saves.length, 1);
+    else {
+      assert.equal(saves.length, 0);
+      assert.equal(store!.check('003.md'), null);
+      duringEvidence++;
+    }
+  }
+  // 적어도 한 번은 API 응답 뒤(근거 읽기·저장 전) 취소가 걸려 저장을 막았다
+  assert.ok(duringEvidence > 0);
+});

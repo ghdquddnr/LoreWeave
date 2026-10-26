@@ -265,6 +265,8 @@ export async function runPreparedCheck(
   );
   const keyed = verified.findings.map((f) => ({ ...f, key: quoteKey(target.lines[f.target.line]!.slice(f.target.start, f.target.end)) }));
   const findings = mergeFindings(keyed);
+  // 근거 화를 읽는 동안(비동기) 취소했을 수 있다. 저장 직전에 다시 확인한다
+  if (o.signal.aborted) return { ...outcome, stopped: '취소했습니다' };
   o.store.saveCheck({
     file,
     contentHash: target.hash,
