@@ -218,12 +218,13 @@ export function App() {
       setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
     });
 
-  /** 검사 근거로 이동: 그 화를 열고 근거 문장을 선택한다 */
-  const openEvidence = (target: string, at: QuoteLocation) =>
+  /** 검사 근거로 이동: 그 화를 열고, 저장된 위치 대신 지금 본문에서 근거 문장을 다시 찾아 선택한다 (못 찾으면 알린다) */
+  const openEvidence = (target: string, quote: string) =>
     run(async (gen) => {
       if (switchingRef.current || actingRef.current || (target !== file && !(await leave())) || !isCurrent(gen)) return;
       setFile(target);
-      setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }));
+      setNotice(null);
+      setJump((j) => ({ quote, seq: (j?.seq ?? 0) + 1 }));
     });
 
   /** 중복 id 해결: 고른 화에 새 id를 넣는다. 그 화가 열려 있으면 저장한 뒤 다시 연다 */
@@ -300,6 +301,11 @@ export function App() {
       if (ai && (ai.states[file] === 'fresh' || Object.values(ai.checkStates).includes('fresh'))) refreshAi();
     },
     [file, ai, refreshAi],
+  );
+
+  const onQuoteMissing = useCallback(
+    (quote: string) => setNotice(`근거 문장을 지금 원고에서 찾을 수 없습니다 (지워졌거나 바뀌었습니다): “${quote}”`),
+    [],
   );
 
   const jumpHere = (at: QuoteLocation) => setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }));
@@ -406,6 +412,7 @@ export function App() {
             onSaved={onSaved}
             onReload={onReload}
             jump={jump}
+            onQuoteMissing={onQuoteMissing}
           />
         ) : (
           <p className="editor-message">왼쪽에서 화를 고르거나 새 화를 만드세요.</p>
