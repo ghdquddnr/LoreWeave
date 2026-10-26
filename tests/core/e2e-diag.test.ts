@@ -5,12 +5,13 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { connect } from 'node:net';
+import { createServer } from 'node:http';
+import { connect, type AddressInfo, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
 import { diag, diagFailure } from '../e2e/diag.ts';
-import { startFakeOpenAi } from '../e2e/fake-openai.ts';
+import { defaultClientError, startFakeOpenAi } from '../e2e/fake-openai.ts';
 
 let tmp: string;
 const saved = process.env['E2E_DIAG_DIR'];
@@ -107,4 +108,89 @@ test('실패 기록: 상태 읽기가 실패하거나 기록할 수 없어도 �
     await assert.rejects(rethrowWithDiag(), (e) => e === original);
   }
   assert.match(readFileSync(join(tmp, 'ok', 'fail.log'), 'utf8'), /상태를 읽지 못함: 화면을 읽지 못함/);
+});
+
+// ---- 검토 반영: 서버 쪽 연결 파괴와 진행 중 응답 보존 (Node 기본 socketOnError와 같아야 한다)
+
+/** 송신을 끝내지 않는(allowHalfOpen) 클라이언트가 잘못된 요청을 보낸 뒤, fake.close가 클라이언트 도움 없이 끝나는가 */
+async function halfOpen(dir: string | null) {
+  setDiag(dir);
+  const fake = await startFakeOpenAi(() => ({}));
+  const socket = connect({ port: Number(new URL(fake.baseUrl).port), host: '127.0.0.1', allowHalfOpen: true });
+  let data = '';
+  socket.on('data', (d) => (data += d));
+  socket.on('error', () => {});
+  await new Promise<void>((resolve) => socket.once('connect', () => resolve()));
+  const ended = new Promise<void>((resolve) => socket.once('end', () => resolve()));
+  socket.write('INVALID HTTP\r\n\r\n');
+  await ended;
+  // 클라이언트는 end하지 않는다. 서버가 연결을 파괴하지 않으면 close가 끝나지 않는다
+  let timer: NodeJS.Timeout | undefined;
+  const closed = await Promise.race([
+    fake.close().then(() => true),
+    new Promise<boolean>((resolve) => (timer = setTimeout(() => resolve(false), 5000))),
+  ]);
+  clearTimeout(timer);
+  socket.destroy();
+  if (!closed) await fake.close();
+  return { statusLine: data.split('\r\n')[0], serverClosed: closed };
+}
+
+test('송신을 끝내지 않는 클라이언트: 진단을 켜도 꺼도 400을 받고, 서버가 연결을 파괴해 fake.close가 끝난다', async () => {
+  const off = await halfOpen(null);
+  const on = await halfOpen(join(tmp, 'half'));
+  assert.deepEqual(off, { statusLine: 'HTTP/1.1 400 Bad Request', serverClosed: true });
+  assert.deepEqual(on, off);
+});
+
+/** 응답이 헤더를 보낸 채 진행 중일 때 같은 연결에 잘못된 요청이 오면: 400을 덧붙이지 않고 연결을 끊는다 */
+async function inFlightParserError(withHandler: boolean) {
+  let release = () => {};
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    res.write('partial');
+    release = () => res.end();
+  });
+  if (withHandler) server.on('clientError', (e: NodeJS.ErrnoException, s: Socket) => defaultClientError(e, s));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const socket = connect((server.address() as AddressInfo).port, '127.0.0.1');
+  let data = '';
+  socket.on('error', () => {});
+  const gotPartial = new Promise<void>((resolve) =>
+    socket.on('data', (d) => {
+      data += d;
+      if (data.includes('partial')) resolve();
+    }),
+  );
+  // 처리기가 연결을 끊지 않으면 멈추지 않고 실패한다 (5초)
+  let guard: NodeJS.Timeout | undefined;
+  const closed = new Promise<void>((resolve, reject) => {
+    guard = setTimeout(() => {
+      socket.destroy();
+      reject(new Error('서버가 연결을 끊지 않았습니다'));
+    }, 5000);
+    socket.once('close', () => {
+      clearTimeout(guard);
+      resolve();
+    });
+  });
+  await new Promise<void>((resolve) => socket.once('connect', () => resolve()));
+  socket.write('GET / HTTP/1.1\r\nHost: x\r\n\r\n');
+  await gotPartial;
+  socket.write('INVALID HTTP\r\n\r\n');
+  try {
+    await closed;
+  } finally {
+    release();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  return { started: data.startsWith('HTTP/1.1 200'), partial: data.includes('partial'), appended400: data.includes('HTTP/1.1 400') };
+}
+
+test('진행 중인 응답 뒤의 잘못된 요청: 기록 처리기(defaultClientError)가 Node 기본과 같게 400을 덧붙이지 않고 연결을 끊는다', async () => {
+  const node = await inFlightParserError(false);
+  const ours = await inFlightParserError(true);
+  assert.deepEqual(node, { started: true, partial: true, appended400: false });
+  assert.deepEqual(ours, node);
 });
