@@ -185,7 +185,7 @@ export function registerIpc(): void {
     return path && (await isDirectory(path)) ? openProject(path) : null;
   });
 
-  ipcMain.handle(CHANNELS.chaptersList, () => listChapters(requireRoot()));
+  ipcMain.handle(CHANNELS.chaptersList, (_e, token: number) => listChapters(requireProject(token)));
   ipcMain.handle(CHANNELS.chapterRead, (_e, file: string, token: number) => readChapter(requireProject(token), file));
   ipcMain.handle(CHANNELS.chapterWrite, async (_e, file: string, text: string, expectedHash: string | null, token: number) => {
     // root는 await 전에 정한다: 이미 시작한 저장은 프로젝트를 바꿔도 원래 폴더에서 끝난다

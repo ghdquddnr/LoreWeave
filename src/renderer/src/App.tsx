@@ -80,6 +80,7 @@ export function App() {
     (p: ProjectOpened) => {
       projectGenRef.current += 1;
       setProjectGen(projectGenRef.current);
+      setError(null);
       setProject(p);
       setFile(firstReadable(p));
       // 이전 프로젝트의 이동 위치·저장 상태·알림·AI 상태를 지운다 (새 에디터와 AI 상태가 다시 알린다)
@@ -131,45 +132,59 @@ export function App() {
     };
   }, [leave, refreshAi]);
 
-  const run = (task: () => Promise<void>) => task().catch((e: Error) => setError(e.message));
+  /**
+   * 원고 조작을 실행한다. 조작은 시작할 때의 프로젝트 세대(gen)를 받고, 각 await 뒤에 isCurrent(gen)로 확인한 뒤에만 화면을 바꾼다.
+   * 그사이 다른 프로젝트를 열었으면 늦게 온 응답·오류는 지금 화면에 적용하지 않는다 (이미 성공한 생성·id 변경은 원래 프로젝트 파일에 남는다)
+   */
+  const run = (task: (gen: number) => Promise<void>) => {
+    const gen = projectGenRef.current;
+    return task(gen).catch((e: Error) => {
+      if (gen === projectGenRef.current) setError(e.message);
+    });
+  };
+  const isCurrent = (gen: number) => gen === projectGenRef.current;
 
   const openChapter = (next: string) =>
-    run(async () => {
-      if (switchingRef.current || next === file || !(await leave())) return;
+    run(async (gen) => {
+      if (switchingRef.current || next === file || !(await leave()) || !isCurrent(gen)) return;
       setJump(null);
       setFile(next);
     });
 
   /** 검색 결과로 이동: 그 화를 열고 찾은 글자를 선택한다 */
   const openResult = (hit: SearchHit, match: SearchHit['matches'][number]) =>
-    run(async () => {
-      if (switchingRef.current || (hit.file !== file && !(await leave()))) return;
+    run(async (gen) => {
+      if (switchingRef.current || (hit.file !== file && !(await leave())) || !isCurrent(gen)) return;
       setFile(hit.file);
       setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
     });
 
   /** 검사 근거로 이동: 그 화를 열고 근거 문장을 선택한다 */
   const openEvidence = (target: string, at: QuoteLocation) =>
-    run(async () => {
-      if (switchingRef.current || (target !== file && !(await leave()))) return;
+    run(async (gen) => {
+      if (switchingRef.current || (target !== file && !(await leave())) || !isCurrent(gen)) return;
       setFile(target);
       setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }));
     });
 
   /** 중복 id 해결: 고른 화에 새 id를 넣는다. 그 화가 열려 있으면 저장한 뒤 다시 연다 */
   const reissueId = (target: string) =>
-    run(async () => {
-      if (switchingRef.current || !project || !(await leave())) return;
+    run(async (gen) => {
+      if (switchingRef.current || !project || !(await leave()) || !isCurrent(gen)) return;
       const list = await api.chapters.reissueId(target, project.token);
-      setProject({ ...project, list });
+      if (!isCurrent(gen)) return;
+      setProject((p) => p && { ...p, list });
       if (target === file) setReloadKey((k) => k + 1);
     });
 
   const newChapter = () =>
-    run(async () => {
-      if (switchingRef.current || !project || !(await leave())) return;
+    run(async (gen) => {
+      if (switchingRef.current || !project || !(await leave()) || !isCurrent(gen)) return;
       const created = await api.chapters.create(project.token);
-      setProject({ ...project, list: await api.chapters.list() });
+      if (!isCurrent(gen)) return;
+      const list = await api.chapters.list(project.token);
+      if (!isCurrent(gen)) return;
+      setProject((p) => p && { ...p, list });
       setFile(created.file);
     });
 

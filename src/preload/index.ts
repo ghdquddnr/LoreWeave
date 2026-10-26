@@ -7,7 +7,7 @@ const api: LoreweaveApi = {
     reopenLast: () => ipcRenderer.invoke(CHANNELS.projectReopenLast),
   },
   chapters: {
-    list: () => ipcRenderer.invoke(CHANNELS.chaptersList),
+    list: (token) => ipcRenderer.invoke(CHANNELS.chaptersList, token),
     read: (file, token) => ipcRenderer.invoke(CHANNELS.chapterRead, file, token),
     write: (file, text, expectedHash, token) => ipcRenderer.invoke(CHANNELS.chapterWrite, file, text, expectedHash, token),
     create: (token) => ipcRenderer.invoke(CHANNELS.chapterCreate, token),
