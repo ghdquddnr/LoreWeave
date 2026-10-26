@@ -185,16 +185,59 @@ test('사실 줄이기: 전부 / 첫 값과 최신 값 / 최근 N개 / 둘을 �
   for (const s of SELECTIONS) assert.ok(selectFacts(facts, s, 4).length <= (s === 'all' || s === 'first-latest' ? facts.length : 4));
 });
 
-test('결과 합치기: 같은 종류·같은 문장은 하나로, 근거는 겹치지 않게 모으고 확신도는 높은 쪽', () => {
-  const base = { category: 'age' as const, claim: '첫 설명', key: '스물두 살입니다.', target: { quote: '스물두 살입니다.', line: 2, start: 1, end: 10 } };
-  const ev = (chapter: number, line: number) => ({ file: `00${chapter}.md`, chapter, quote: 'q', line, start: 0, end: 1 });
+const mergeBase = { category: 'age' as const, claim: '첫 설명', key: '스물두 살입니다.', target: { quote: '스물두 살입니다.', line: 2, start: 1, end: 10 } };
+const mergeEv = (chapter: number, line: number) => ({ file: `00${chapter}.md`, chapter, quote: 'q', line, start: 0, end: 1 });
+
+test('결과 합치기: 같은 종류·같은 문장은 하나로, 근거는 겹치지 않게 모으고, 확신도와 설명은 확신도가 가장 높은 결과의 것 (낮음 → 높음)', () => {
   const merged = mergeFindings([
-    { ...base, confidence: 0.6, evidence: [ev(1, 2)] },
-    { ...base, claim: '두 번째 설명', confidence: 0.9, evidence: [ev(1, 2), ev(2, 5)] },
-    { ...base, category: 'number' as const, confidence: 0.5, evidence: [ev(1, 3)] },
+    { ...mergeBase, confidence: 0.6, evidence: [mergeEv(1, 2)] },
+    { ...mergeBase, claim: '두 번째 설명', confidence: 0.9, evidence: [mergeEv(1, 2), mergeEv(2, 5)] },
+    { ...mergeBase, category: 'number' as const, confidence: 0.5, evidence: [mergeEv(1, 3)] },
   ]);
   assert.equal(merged.length, 2);
-  assert.equal(merged[0]!.claim, '첫 설명');
+  assert.equal(merged[0]!.claim, '두 번째 설명');
   assert.equal(merged[0]!.confidence, 0.9);
   assert.deepEqual(merged[0]!.evidence.map((e) => [e.chapter, e.line]), [[1, 2], [2, 5]]);
+  // 위치·키·종류와 결과 순서(처음 나온 순서)는 그대로다
+  assert.deepEqual(merged.map((m) => m.category), ['age', 'number']);
+  assert.deepEqual(merged[0]!.target, mergeBase.target);
+  assert.equal(merged[0]!.key, mergeBase.key);
+});
+
+test('결과 합치기: 높음 → 낮음이면 첫 설명이 남고, 확신도가 같으면 먼저 나온 결과의 설명이 남는다', () => {
+  const down = mergeFindings([
+    { ...mergeBase, claim: '확신 높은 설명', confidence: 0.95, evidence: [mergeEv(1, 2)] },
+    { ...mergeBase, claim: '모순이라고 단정할 수 없다', confidence: 0.1, evidence: [mergeEv(3, 1)] },
+  ]);
+  assert.equal(down[0]!.claim, '확신 높은 설명');
+  assert.equal(down[0]!.confidence, 0.95);
+  assert.equal(down[0]!.evidence.length, 2);
+  const tie = mergeFindings([
+    { ...mergeBase, claim: '먼저', confidence: 0.8, evidence: [mergeEv(1, 2)] },
+    { ...mergeBase, claim: '나중', confidence: 0.8, evidence: [mergeEv(1, 2)] },
+  ]);
+  assert.equal(tie[0]!.claim, '먼저');
+  assert.equal(tie[0]!.evidence.length, 1);
+});
+
+test('결과 합치기: 셋 이상이면 직전이 아니라 전체에서 확신도가 가장 높은 결과의 설명이다. 낮은 확신도의 부정 설명이 높은 확신도로 보이지 않는다 (M10 F24)', () => {
+  const merged = mergeFindings([
+    { ...mergeBase, claim: '모순이라고 단정할 수 없다', confidence: 0.1, evidence: [mergeEv(1, 2)] },
+    { ...mergeBase, claim: '가장 높은 설명', confidence: 0.99, evidence: [mergeEv(2, 5)] },
+    { ...mergeBase, claim: '중간 설명', confidence: 0.7, evidence: [mergeEv(1, 2), mergeEv(3, 1)] },
+  ]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0]!.claim, '가장 높은 설명');
+  assert.equal(merged[0]!.confidence, 0.99);
+  assert.deepEqual(merged[0]!.evidence.map((e) => [e.chapter, e.line]), [[1, 2], [2, 5], [3, 1]]);
+});
+
+test('결과 합치기: 넘긴 결과(설명·확신도·근거 목록)는 바꾸지 않는다', () => {
+  const input = [
+    { ...mergeBase, claim: '낮음', confidence: 0.2, evidence: [mergeEv(1, 2)] },
+    { ...mergeBase, claim: '높음', confidence: 0.9, evidence: [mergeEv(2, 5)] },
+  ];
+  const before = JSON.stringify(input);
+  mergeFindings(input);
+  assert.equal(JSON.stringify(input), before);
 });

@@ -1,0 +1,318 @@
+{
+ "note": "mergeFindings 설명 출처 변경(첫 결과 → 최고 확신도 결과, 동률은 첫 결과)의 고정 오프라인 비교 (M10-DIAGNOSIS 4절). 유료 호출 0. 저장 결과의 비공개 복사본을 읽기 전용으로. [옛 규칙, 새 규칙] 순. 오탐은 확신도 0.7 적용 뒤 평가기 기준",
+ "pairs": [
+  {
+   "group": "m9-m0a-d1",
+   "pair": "m0a-r0+m0a-r1",
+   "testTp": [
+    18,
+    18
+   ],
+   "fp": [
+    2,
+    2
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 24,
+    "unlabeled": 2,
+    "duplicate": 3,
+    "echo": 1
+   },
+   "claimChanged": 5,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m9-m0a-d1",
+   "pair": "m0a-r0+m0a-r2",
+   "testTp": [
+    18,
+    18
+   ],
+   "fp": [
+    1,
+    1
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 25,
+    "duplicate": 5,
+    "echo": 1,
+    "unlabeled": 1
+   },
+   "claimChanged": 3,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m9-m0a-d1",
+   "pair": "m0a-r1+m0a-r2",
+   "testTp": [
+    17,
+    17
+   ],
+   "fp": [
+    2,
+    2
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 23,
+    "unlabeled": 2,
+    "echo": 1,
+    "duplicate": 4
+   },
+   "claimChanged": 1,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m9-d2",
+   "pair": "d2-1+d2-2",
+   "testTp": [
+    18,
+    18
+   ],
+   "fp": [
+    1,
+    1
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 25,
+    "unlabeled": 1,
+    "duplicate": 3,
+    "echo": 2
+   },
+   "claimChanged": 7,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m9-d2",
+   "pair": "d2-1+d2-3",
+   "testTp": [
+    17,
+    17
+   ],
+   "fp": [
+    2,
+    2
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 25,
+    "unlabeled": 2,
+    "duplicate": 3,
+    "echo": 1
+   },
+   "claimChanged": 4,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m9-d2",
+   "pair": "d2-2+d2-3",
+   "testTp": [
+    18,
+    18
+   ],
+   "fp": [
+    1,
+    1
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 26,
+    "duplicate": 2,
+    "unlabeled": 1,
+    "echo": 1
+   },
+   "claimChanged": 3,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m9-p",
+   "pair": "p-1+p-2",
+   "testTp": [
+    18,
+    18
+   ],
+   "fp": [
+    0,
+    0
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 25,
+    "duplicate": 4,
+    "echo": 2
+   },
+   "claimChanged": 4,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m9-p",
+   "pair": "p-1+p-3",
+   "testTp": [
+    19,
+    19
+   ],
+   "fp": [
+    2,
+    2
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 26,
+    "unlabeled": 2,
+    "duplicate": 5,
+    "echo": 1
+   },
+   "claimChanged": 4,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m9-p",
+   "pair": "p-2+p-3",
+   "testTp": [
+    18,
+    18
+   ],
+   "fp": [
+    2,
+    2
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 26,
+    "unlabeled": 2,
+    "duplicate": 2,
+    "echo": 2
+   },
+   "claimChanged": 5,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m10-m4",
+   "pair": "m4-1+m4-2",
+   "testTp": [
+    17,
+    17
+   ],
+   "fp": [
+    0,
+    0
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 25,
+    "duplicate": 3,
+    "echo": 2
+   },
+   "claimChanged": 8,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m10-m4",
+   "pair": "m4-3+m4-4",
+   "testTp": [
+    17,
+    17
+   ],
+   "fp": [
+    1,
+    1
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 25,
+    "unlabeled": 1,
+    "duplicate": 2,
+    "echo": 3
+   },
+   "claimChanged": 4,
+   "promotedBelow07": [
+    0,
+    0
+   ]
+  },
+  {
+   "group": "m10-real",
+   "pair": "real-1+real-2",
+   "testTp": [
+    12,
+    12
+   ],
+   "fp": [
+    20,
+    20
+   ],
+   "labelsSame": true,
+   "labels": {
+    "tp": 12,
+    "unlabeled": 20,
+    "duplicate": 4
+   },
+   "claimChanged": 2,
+   "promotedBelow07": [
+    1,
+    0
+   ]
+  }
+ ],
+ "totals": {
+  "pairs": 12,
+  "labelsSameAll": true,
+  "claimChanged": 50,
+  "claimChangedM10": 14,
+  "claimChangedM9": 36,
+  "promotedBelow07": [
+   1,
+   0
+  ]
+ },
+ "humanFirstPass": {
+  "by": "Claude 1차 판정 (사용자 확인 아님)",
+  "changedClaims": 50,
+  "equivalentBothValid": 49,
+  "improved": 1,
+  "improvedNote": "M10 실제 원고 F24: 0.1 결과의 부정 claim → 0.99 결과의 유효 claim",
+  "worsened": 0,
+  "newClaimNegatesContradiction": 0,
+  "fpChange": "없음 (평가기 라벨 12쌍 모두 같음, 사람 판정으로도 오탐이 된 항목 0)",
+  "echoNote": "echo 1개(M4 13화)는 두 claim 모두 같은 삽입 오류를 근거로 해 echo 그대로"
+ },
+ "criteria": {
+  "1 평가기 TP·오탐·중복 불변": "충족 (12쌍)",
+  "2 0.7 미만 원래 claim이 0.7 이상 항목에 쓰임 0": "충족 (옛 규칙 1 → 새 규칙 0)",
+  "3 바뀐 claim 사람 판정·부정 0": "충족 (50개 1차 판정, 부정 0)",
+  "4 단위 테스트 추가·기존 통과": "충족 (단위 276, E2E 76)"
+ }
+}
