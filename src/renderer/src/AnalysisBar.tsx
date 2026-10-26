@@ -10,6 +10,8 @@ const api = window.loreweave;
 
 interface Props {
   file: string | null;
+  /** 이 막대를 띄운 프로젝트의 token. 분석·검사 요청에 함께 보낸다 (그사이 프로젝트가 바뀌면 main이 거절한다) */
+  projectToken: number;
   states: Record<string, AnalysisState>;
   consent: boolean;
   /** 분석 전에 현재 화를 저장한다 (분석은 저장된 파일을 읽는다) */
@@ -25,7 +27,7 @@ type Dialog =
 
 type Result = { kind: 'analysis'; progress: AnalyzeProgress } | { kind: 'check'; outcome: CheckOutcome };
 
-export function AnalysisBar({ file, states, consent, beforeAnalyze, onAnalyzed, onNeedKey }: Props) {
+export function AnalysisBar({ file, projectToken, states, consent, beforeAnalyze, onAnalyzed, onNeedKey }: Props) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [progress, setProgress] = useState<AnalyzeProgress | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -54,8 +56,8 @@ export function AnalysisBar({ file, states, consent, beforeAnalyze, onAnalyzed, 
     }
   };
 
-  const analyze = (files: string[]) => execute('analysis', async () => ({ kind: 'analysis', progress: await api.ai.analyze(files) }));
-  const check = (target: string) => execute('check', async () => ({ kind: 'check', outcome: await api.ai.runCheck(target) }));
+  const analyze = (files: string[]) => execute('analysis', async () => ({ kind: 'analysis', progress: await api.ai.analyze(files, projectToken) }));
+  const check = (target: string) => execute('check', async () => ({ kind: 'check', outcome: await api.ai.runCheck(target, projectToken) }));
 
   /** 키와 전송 동의를 확인한 뒤 next를 한다 */
   const start = async (next: () => Promise<void>) => {
@@ -69,7 +71,7 @@ export function AnalysisBar({ file, states, consent, beforeAnalyze, onAnalyzed, 
     if (files.length === 0) return;
     void start(async () => {
       if (!many) return analyze(files);
-      const { costUsd, chars } = await api.ai.estimate(files);
+      const { costUsd, chars } = await api.ai.estimate(files, projectToken);
       setDialog({ kind: 'confirm', files, costUsd, chars });
     });
   };
@@ -78,7 +80,7 @@ export function AnalysisBar({ file, states, consent, beforeAnalyze, onAnalyzed, 
     void start(async () => {
       await beforeAnalyze();
       try {
-        setDialog({ kind: 'check', file: target, plan: await api.ai.planCheck(target) });
+        setDialog({ kind: 'check', file: target, plan: await api.ai.planCheck(target, projectToken) });
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }

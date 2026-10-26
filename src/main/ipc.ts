@@ -278,18 +278,23 @@ export function registerIpc(): void {
       consent: settings.aiSendConsent,
     };
   });
-  ipcMain.handle(CHANNELS.aiEstimate, async (_e, files: string[]) => {
-    const path = requireRoot();
+  ipcMain.handle(CHANNELS.aiEstimate, async (_e, files: string[], token: number) => {
+    const path = requireProject(token);
     return estimate(path, files, (await readSettings(userData())).aiModel);
   });
   ipcMain.handle(CHANNELS.aiAnalysis, (_e, file: string) => openAiStore(requireRoot(), false)?.analysis(file) ?? null);
   ipcMain.handle(CHANNELS.aiCancel, () => analyzing?.abort());
-  /** 분석·검사를 한 번에 하나만, 키와 전송 동의가 있을 때만 실행한다 */
+  /**
+   * 분석·검사를 한 번에 하나만, 키와 전송 동의가 있을 때만 실행한다.
+   * token: 요청을 시작한 화면의 프로젝트. 화면이 키·동의 확인을 기다리는 사이 다른 프로젝트(같은 폴더 다시 열기 포함)가 열렸으면
+   * await 전에 거절한다 (이전 화면의 요청이 새 프로젝트 원고를 보내거나 새 ai.db에 쓰지 않게)
+   */
   const runAi = async <T>(
     sender: Electron.WebContents,
+    token: number,
     work: (o: Parameters<typeof analyzeChapters>[1]) => Promise<T>,
   ): Promise<T> => {
-    const path = requireRoot();
+    const path = requireProject(token);
     if (analyzing) throw new Error('이미 분석 중입니다');
     // 첫 await 전에 한 작업의 자리를 잡는다. 설정·키를 읽는 동안 들어온 다른 분석·검사 요청은 위에서 거절된다
     const controller = new AbortController();
@@ -323,12 +328,12 @@ export function registerIpc(): void {
       if (analyzing === controller) analyzing = null;
     }
   };
-  ipcMain.handle(CHANNELS.aiAnalyze, (event, files: string[]) => runAi(event.sender, (o) => analyzeChapters(files, o)));
-  ipcMain.handle(CHANNELS.aiPlanCheck, async (_e, file: string) => {
-    const path = requireRoot();
+  ipcMain.handle(CHANNELS.aiAnalyze, (event, files: string[], token: number) => runAi(event.sender, token, (o) => analyzeChapters(files, o)));
+  ipcMain.handle(CHANNELS.aiPlanCheck, async (_e, file: string, token: number) => {
+    const path = requireProject(token);
     return planCheck(path, openAiStore(path, false), file, (await readSettings(userData())).aiModel);
   });
-  ipcMain.handle(CHANNELS.aiRunCheck, (event, file: string) => runAi(event.sender, (o) => checkChapter(file, o)));
+  ipcMain.handle(CHANNELS.aiRunCheck, (event, file: string, token: number) => runAi(event.sender, token, (o) => checkChapter(file, o)));
   ipcMain.handle(CHANNELS.aiCheckResult, (_e, file: string) => openAiStore(requireRoot(), false)?.check(file) ?? null);
   ipcMain.handle(CHANNELS.aiDismiss, (_e, file: string, ord: number) => {
     const store = openAiStore(requireRoot(), false);

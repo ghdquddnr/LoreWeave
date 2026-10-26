@@ -329,6 +329,7 @@ export function App() {
         {ai && !switching && (
           <AnalysisBar
             file={file}
+            projectToken={project.token}
             states={ai.states}
             consent={ai.consent}
             beforeAnalyze={() => editor.current?.flush() ?? Promise.resolve()}
