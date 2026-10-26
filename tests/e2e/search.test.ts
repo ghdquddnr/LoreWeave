@@ -5,6 +5,7 @@ import { access, copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/p
 import { join } from 'node:path';
 import { before, test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
+import { diagFailure } from './diag.ts';
 import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
@@ -33,7 +34,17 @@ async function search(page: Page, query: string): Promise<void> {
   const box = page.getByRole('searchbox', { name: '원고 검색' });
   await box.fill(query);
   await box.press('Enter');
-  await page.locator('.search-summary').filter({ hasText: /찾음|없음|색인/ }).waitFor();
+  try {
+    await page.locator('.search-summary').filter({ hasText: /찾음|없음|색인/ }).waitFor();
+  } catch (e) {
+    // 진단 기록(선택): 기다리던 요약 대신 무엇이 보였는지 남기고 같은 실패를 그대로 던진다
+    await diagFailure('fail.log', async () => {
+      const summaries = await page.locator('.search-summary').allTextContents();
+      const header = await page.locator('.sidebar header').allTextContents();
+      return `search query=${query} summaries=${JSON.stringify(summaries)} header=${JSON.stringify(header)}`;
+    });
+    throw e;
+  }
 }
 
 const results = (page: Page) => page.getByRole('list', { name: '검색 결과' }).getByRole('button');

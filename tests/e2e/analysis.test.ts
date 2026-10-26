@@ -5,6 +5,7 @@ import { copyFile, mkdir, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { AnalyzeProgress } from '../../src/preload/api.ts';
+import { diag } from './diag.ts';
 import { startFakeOpenAi, type FakeOpenAi } from './fake-openai.ts';
 import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
 
@@ -63,7 +64,10 @@ test('분석: 키를 붙여 요청하고, 인용이 있는 사실만 저장하�
     await page.locator('.ProseMirror').waitFor();
     await page.evaluate((key) => window.loreweave.ai.setKey(key), KEY);
     await page.evaluate(() => window.loreweave.ai.setConsent(true));
-    assert.deepEqual(await page.evaluate(() => window.loreweave.ai.check()), { ok: true });
+    const checked = await page.evaluate(() => window.loreweave.ai.check());
+    // 진단 기록(선택): 가짜 서버 연결 실패가 있었던 순간에 서버가 받은 요청 수를 남긴다 (fake-openai.log와 시각으로 맞춘다)
+    if (!checked.ok) diag('fail.log', `analysis check=${JSON.stringify(checked)} fakePort=${new URL(fake.baseUrl).port} fakeRequests=${fake.requests.length}`);
+    assert.deepEqual(checked, { ok: true });
 
     const estimate = await page.evaluate(() => window.loreweave.ai.estimate(['001.md', '002.md']));
     assert.ok(estimate.costUsd > 0 && estimate.costUsd < 0.01);
