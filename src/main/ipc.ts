@@ -127,7 +127,13 @@ async function openProject(path: string): Promise<ProjectOpened> {
   ownWrites.clear();
   startWatching(path);
   openIndex(path);
-  await updateSettings(userData(), { lastProject: path });
+  // 열기는 여기서 끝났다 (root·token이 바뀌었다). 다음 실행 때 다시 열 폴더를 기억하지 못해도 열기를 실패로 돌리지 않는다:
+  // 실패로 돌리면 main은 새 프로젝트인데 화면은 이전 프로젝트에 남아, 그 화면의 입력은 저장이 거절된다. 대신 화면에 알린다
+  try {
+    await updateSettings(userData(), { lastProject: path });
+  } catch (e) {
+    return { name: basename(path), list, token, rememberError: e instanceof Error ? e.message : String(e) };
+  }
   return { name: basename(path), list, token };
 }
 

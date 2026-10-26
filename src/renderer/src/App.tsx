@@ -123,7 +123,7 @@ export function App() {
     (p: ProjectOpened) => {
       projectGenRef.current += 1;
       setProjectGen(projectGenRef.current);
-      setError(null);
+      setError(p.rememberError ? `폴더는 열었지만 다음 실행 때 다시 열 폴더로 기억하지 못했습니다: ${p.rememberError}` : null);
       setProject(p);
       setFile(firstReadable(p));
       // 이전 프로젝트의 이동 위치·저장 상태·알림·AI 상태를 지운다 (새 에디터와 AI 상태가 다시 알린다)
