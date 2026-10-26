@@ -2,6 +2,7 @@
 //   - 이 화와 앞 화(파일 이름 번호가 더 작은 화)가 모두 분석돼 있어야 한다. 아니면 먼저 분석한다 (M3)
 //   - 앞 화 분석이 하나라도 실패하면 검사하지 않는다 (빠진 사실로 검사하면 놓친 오류가 "문제 없음"처럼 보인다)
 //   - 이 화 문장과 근거 문장이 원고에 없는 결과는 저장하지 않는다 (ADR 0001 결정 2)
+//   - 나눠 검사할 때 묶음 하나라도 실패하거나 취소하면, 아직 보내지 않은 묶음은 보내지 않고 그 화는 저장하지 않는다 (이미 보낸 묶음은 기다려 기록한다)
 //   - 화 파일은 읽기만 한다
 
 import { costUsd, estimateCheckCost, estimateExtractionTokens } from '../core/ai/cost.ts';
@@ -234,13 +235,21 @@ export async function runPreparedCheck(
   let checkCost = 0;
   const results: Awaited<ReturnType<typeof detect>>[] = [];
   const queue = [...prepared.users.entries()];
+  // 묶음 하나라도 실패했거나 취소했으면 아직 시작하지 않은 묶음은 보내지 않는다 (어차피 저장하지 않으므로 비용만 든다).
+  // 이미 보낸 묶음은 끝까지 기다려 호출 기록과 비용을 남긴다
+  let failedFirst: string | null = null;
   await Promise.all(
     Array.from({ length: Math.min(BATCH_CONCURRENCY, queue.length) }, async () => {
-      for (let next = queue.shift(); next; next = queue.shift()) results[next[0]] = await detect(next[1]);
+      for (let next = queue.shift(); next && failedFirst === null && !o.signal.aborted; next = queue.shift()) {
+        const r = await detect(next[1]);
+        results[next[0]] = r;
+        if (typeof r === 'string') failedFirst ??= r;
+      }
     }),
   );
-  const failed = results.find((r): r is string => typeof r === 'string');
-  if (failed) return { ...outcome, stopped: failed };
+  if (failedFirst !== null) return { ...outcome, stopped: failedFirst };
+  // 취소 뒤에 늦게 성공한 응답도 새 검사로 저장하지 않는다
+  if (o.signal.aborted) return { ...outcome, stopped: '취소했습니다' };
   const done = results as { findings: Finding[]; modelVersion: string }[];
 
   // 근거로 들 수 있는 화는 사실을 넘긴 앞 화뿐이다

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, test } from 'node:test';
 import type { Extraction } from '../../src/core/ai/extraction.ts';
 import { AiError, type AiClient, type JsonCall } from '../../src/main/ai-client.ts';
@@ -231,4 +232,130 @@ test('확신도가 MIN_CONFIDENCE보다 낮은 결과는 저장하되 보이는 
   const outcome = await checkChapter('003.md', options(fakeClient(() => ({ findings: [ageFinding, low] }))));
   assert.deepEqual([outcome.findings, outcome.lowConfidence], [1, 1]);
   assert.deepEqual(store!.check('003.md')!.findings.map((f) => f.confidence), [0.9, 0.1]);
+});
+
+// ---- 묶음 실패·취소 뒤 추가 전송 막기
+
+/** 1화 사실 5개: batchSize 1이면 3화 검사가 5묶음이 된다 */
+const five = (n: number): Extraction =>
+  n === 1 ? { ...extractionOf(1), facts: Array.from({ length: 5 }, (_, i) => ({ entity: '김민수', predicate: '나이', value: `스무 살 ${i}`, quote: '둘 다 스무 살이었다.' })) } : extractionOf(n);
+
+/** 추출은 바로 답하고, 검사 요청은 테스트가 하나씩 풀어 준다. 동시에 진행 중인 검사 수의 최댓값을 센다 */
+function deferredClient() {
+  const pending: { resolve(data: unknown): void; reject(e: unknown): void }[] = [];
+  let inFlight = 0;
+  const client = {
+    detects: 0,
+    maxInFlight: 0,
+    async check() {},
+    async json(call: JsonCall) {
+      const n = Number(/<chapter n="(\d+)">/.exec(call.user)![1]);
+      if (call.schema.name === 'chapter_extraction') return { data: five(n), usage, modelVersion: 'gpt-6-luna-test', latencyMs: 1 };
+      client.detects++;
+      inFlight++;
+      client.maxInFlight = Math.max(client.maxInFlight, inFlight);
+      try {
+        const data = await new Promise<unknown>((resolve, reject) => pending.push({ resolve, reject }));
+        return { data, usage, modelVersion: 'gpt-6-luna-test', latencyMs: 1 };
+      } finally {
+        inFlight--;
+      }
+    },
+  };
+  return { client, pending };
+}
+
+const until = async (cond: () => boolean) => {
+  const end = Date.now() + 10_000;
+  while (!cond() && Date.now() < end) await new Promise((r) => setTimeout(r, 2));
+  assert.ok(cond(), '기다린 조건이 오지 않았습니다');
+};
+
+/** 검사 호출 기록 (ok, 비용) */
+function checkCalls(): { ok: number; cost_usd: number }[] {
+  const db = new DatabaseSync(join(root, '.loreweave', 'ai.db'), { readOnly: true });
+  try {
+    return db.prepare("SELECT ok, cost_usd FROM calls WHERE kind = 'check' ORDER BY id").all() as { ok: number; cost_usd: number }[];
+  } finally {
+    db.close();
+  }
+}
+
+for (const [name, fail] of [
+  ['인증 오류', (p: { reject(e: unknown): void }) => p.reject(Object.assign(new AiError('API 키가 올바르지 않습니다', 'auth'), { usage }))],
+  ['일반 최종 실패', (p: { reject(e: unknown): void }) => p.reject(new AiError('OpenAI 오류 (500)', 'other'))],
+  ['응답 형식 오류', (p: { resolve(d: unknown): void }) => p.resolve({ findings: 'bad' })],
+] as const) {
+  test(`묶음 실패(${name}): 5묶음 중 첫 묶음이 실패하면 이미 보낸 둘째까지만 보내고, 기록은 남기고, 저장하지 않는다`, { timeout: 20_000 }, async () => {
+    // 먼저 정상 검사를 하나 저장해 둔다 (실패한 검사가 지우거나 바꾸지 않아야 한다)
+    const ok = deferredClient();
+    const firstRun = checkChapter('003.md', { ...options(ok.client as unknown as AiClient), batchSize: 1 });
+    for (let i = 0; i < 5; i++) {
+      await until(() => ok.pending.length > i);
+      ok.pending[i]!.resolve({ findings: [] });
+    }
+    assert.equal((await firstRun).checked, true);
+    const saved = store!.check('003.md')!;
+    const callsBefore = checkCalls().length;
+
+    const { client, pending } = deferredClient();
+    const run = checkChapter('003.md', { ...options(client as unknown as AiClient), batchSize: 1 });
+    await until(() => pending.length === 2);
+    fail(pending[0] as never);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(client.detects, 2);
+    pending[1]!.resolve({ findings: [] });
+    const outcome = await run;
+    assert.equal(outcome.checked, false);
+    assert.ok(outcome.stopped);
+    assert.equal(client.detects, 2);
+    assert.equal(client.maxInFlight, 2);
+    assert.deepEqual(store!.check('003.md'), saved);
+    // 둘째 묶음(성공)은 기록된다. 첫 묶음은 usage가 있을 때만 기록된다
+    const calls = checkCalls().slice(callsBefore);
+    assert.ok(calls.some((c) => c.ok === 1 && c.cost_usd > 0));
+    assert.equal(calls.length, name === '일반 최종 실패' ? 1 : 2);
+  });
+}
+
+test('취소: 검사를 시작하기 전에 취소하면 검사 요청을 하나도 보내지 않는다', async () => {
+  const { client } = deferredClient();
+  const controller = new AbortController();
+  controller.abort();
+  const outcome = await checkChapter('003.md', { ...options(client as unknown as AiClient, controller.signal), batchSize: 1 });
+  assert.equal(outcome.checked, false);
+  assert.equal(client.detects, 0);
+  assert.equal(store!.check('003.md'), null);
+});
+
+test('취소: 두 묶음이 나간 뒤 취소하면 새 묶음을 보내지 않고, 늦게 성공한 응답도 저장하지 않는다 (호출 기록은 남긴다)', { timeout: 20_000 }, async () => {
+  const { client, pending } = deferredClient();
+  const controller = new AbortController();
+  const run = checkChapter('003.md', { ...options(client as unknown as AiClient, controller.signal), batchSize: 1 });
+  await until(() => pending.length === 2);
+  controller.abort();
+  // provider가 취소를 무시하고 늦게 성공했다
+  pending[0]!.resolve({ findings: [ageFinding] });
+  pending[1]!.resolve({ findings: [] });
+  const outcome = await run;
+  assert.equal(outcome.checked, false);
+  assert.equal(outcome.stopped, '취소했습니다');
+  assert.equal(client.detects, 2);
+  assert.equal(store!.check('003.md'), null);
+  assert.equal(checkCalls().filter((c) => c.ok === 1).length, 2);
+});
+
+test('정상: 5묶음은 동시에 최대 2개씩 모두 보내고 결과를 합쳐 저장한다', { timeout: 20_000 }, async () => {
+  const { client, pending } = deferredClient();
+  const run = checkChapter('003.md', { ...options(client as unknown as AiClient), batchSize: 1 });
+  for (let i = 0; i < 5; i++) {
+    await until(() => pending.length > i);
+    pending[i]!.resolve({ findings: [ageFinding] });
+  }
+  const outcome = await run;
+  assert.equal(outcome.checked, true);
+  assert.equal(client.detects, 5);
+  assert.equal(client.maxInFlight, 2);
+  assert.equal(store!.check('003.md')!.findings.length, 1);
+  assert.equal(store!.check('003.md')!.factCount, 5);
 });
