@@ -48,6 +48,7 @@ test('검사 결과와 모델이 본 앞 화 사실(context)을 M0-A 형식으�
       run_id: 'run-1',
       strategy: 'product-b',
       model: 'gpt-6-luna',
+      context_source: 'product-selection-recomputed',
       chapters: [
         {
           target_chapter: 3,

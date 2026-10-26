@@ -282,5 +282,26 @@
  "sources": "원본 두 곳과 종료된 M9 장부 해시 292개 실행 전후 동일",
  "unknown": [
   "M8·M4 당시 실제 요청 바이트"
- ]
+ ],
+ "derivedContext": {
+  "source": "reconstructed-from-stored-analyses",
+  "note": "PR #60 실행 뒤, 저장된 분석으로 buildPredicateCheck를 다시 돌려 만든 파생 평가기 출력 (저장소 밖 별도 파일). 당시 전송을 관측한 것이 아니다. 원래 predictions.json과 회차 복사본은 바꾸지 않았다",
+  "retrieval": {
+   "m4-1": "27/30",
+   "m4-2": "27/30",
+   "m4-3": "27/30"
+  },
+  "judge": {
+   "m4-1": 0.8148,
+   "m4-2": 0.8148,
+   "m4-3": 0.7778
+  },
+  "notRetrieved": [
+   "E02",
+   "E23",
+   "E25"
+  ],
+  "testTpUnchanged": true,
+  "originalExportRetrieval": "26/30 (제품 고르기로 재구성한 기준 입력 값, context_source 표시 없음)"
+ }
 }

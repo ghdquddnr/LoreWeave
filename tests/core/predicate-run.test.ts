@@ -11,7 +11,10 @@ import type { Extraction } from '../../src/core/ai/extraction.ts';
 import { AiError, type AiClient, type JsonCall } from '../../src/main/ai-client.ts';
 import { AiStore } from '../../src/main/ai-db.ts';
 import { filesFingerprint } from '../../scripts/lib/m9-preflight.ts';
-import { additionReason, FIXED_JUDGE_SET, PREDICATE_PROMPT, PREDICATE_STAGE, realSummary, runPredicate } from '../../scripts/lib/predicate-run.ts';
+import { additionReason, buildPredicateCheck, FIXED_JUDGE_SET, PREDICATE_PROMPT, PREDICATE_STAGE, realSummary, reconstructPredicateContexts, runPredicate, sentObserver } from '../../scripts/lib/predicate-run.ts';
+import { toPredictions } from '../../scripts/export-predictions.ts';
+import { writeReconstructed } from '../../scripts/m9-reconstruct-context.ts';
+import { prepareCheck, type PreparedCheck } from '../../src/main/checker.ts';
 import { M9_STAGE, StageLedger } from '../../scripts/lib/stage-ledger.ts';
 import { extractionOf, fakeClient, makeBaseline, MANY, REPO, tamper, TARGETS, usage } from './fixtures/m9-fixture.ts';
 
@@ -392,4 +395,88 @@ test('취소: 연결 전에 이미 취소됐으면 연결하지 않는다', asyn
   const r = await runPredicate(o);
   assert.equal(r.stage, 'stopped');
   assert.equal(connected.length, 0);
+});
+
+// ---- 평가기 출력의 context 출처
+
+test('출처: 실험 평가기 출력의 context는 실제로 넘긴 추가 사실 목록이며, 순서와 다중 묶음이 보낸 요청과 같다', async () => {
+  const { o } = runOpts();
+  const r = await runPredicate(o);
+  assert.equal(r.stage, 'done', r.reason ?? '');
+  const p = JSON.parse(readFileSync(join(o.work, 'real', 'run-1', 'eval', 'predictions.json'), 'utf8'));
+  assert.equal(p.context_source, 'runner-sent');
+  const c3 = p.chapters.find((c: { target_chapter: number }) => c.target_chapter === 3);
+  // 기준 450개 + 더한 30개 = 480개, 400개씩 2묶음
+  assert.equal(c3.context.length, MANY + 30);
+  assert.equal(c3.context.filter((x: { text: string }) => x.text === PLACE).length, 30);
+  // 같은 저장 분석으로 runner 함수를 다시 돌린 목록과 순서까지 같다
+  const s = AiStore.open(join(o.work, 'real', 'run-1'));
+  try {
+    const base = await prepareCheck('003.md', { root: join(o.work, 'real', 'run-1'), store: s });
+    assert.ok(typeof base !== 'string');
+    const plus = buildPredicateCheck(base, s);
+    assert.ok(typeof plus !== 'string');
+    assert.equal(plus.batches.length, 2);
+    assert.deepEqual(c3.context, plus.batches.flat().map((f) => ({ chapter: f.chapter, text: f.quote })));
+  } finally {
+    s.close();
+  }
+  // 2화는 더한 사실이 없어 기준과 같다
+  const c2 = p.chapters.find((c: { target_chapter: number }) => c.target_chapter === 2);
+  assert.equal(c2.context.length, MANY);
+});
+
+test('출처: 기본(제품) 내보내기는 제품 고르기로 다시 만든 것이라고 표시하고, 실험 사실은 들어가지 않는다', async () => {
+  const { o } = runOpts();
+  await runPredicate(o);
+  const p = toPredictions(join(o.work, 'real', 'run-1', '.loreweave', 'ai.db'), 'product').predictions;
+  assert.equal(p.context_source, 'product-selection-recomputed');
+  assert.equal(p.chapters.find((c) => c.target_chapter === 3)!.context.length, MANY);
+});
+
+test('출처: 명시한 context가 화를 빠뜨리거나, 수가 다르거나, 검사하지 않은 화를 담으면 제품 고르기로 대신하지 않고 오류를 낸다', async () => {
+  const { o } = runOpts();
+  await runPredicate(o);
+  const db = join(o.work, 'real', 'run-1', '.loreweave', 'ai.db');
+  const facts = (n: number) => Array.from({ length: n }, () => ({ chapter: 1, quote: 'q' }));
+  const ok = new Map([[2, facts(MANY)], [3, facts(MANY + 30)]]);
+  assert.equal(toPredictions(db, 'x', 'all', { source: 'runner-sent', byChapter: ok }).predictions.context_source, 'runner-sent');
+  assert.throws(() => toPredictions(db, 'x', 'all', { source: 'runner-sent', byChapter: new Map([[2, facts(MANY)]]) }), /3화의 context 출처가 없습니다/);
+  assert.throws(() => toPredictions(db, 'x', 'all', { source: 'runner-sent', byChapter: new Map([[2, facts(MANY)], [3, facts(MANY)]]) }), /사실 수/);
+  assert.throws(() => toPredictions(db, 'x', 'all', { source: 'runner-sent', byChapter: new Map([...ok, [9, facts(1)]]) }), /검사 기록이 없는 9화/);
+});
+
+test('출처: 보낸 기록에 없는 묶음이 있으면 context를 만들지 않고, 회차마다 기록을 비운다', async () => {
+  const obs = sentObserver();
+  const client = obs.wrap(fakeClient(undefined, usage, extract));
+  const prepared = { file: '003.md', users: ['<chapter n="3">a', '<chapter n="3">b'], facts: [{ chapter: 1, entity: 'e', predicate: 'p', value: 'v', quote: 'q' }] } as unknown as PreparedCheck;
+  await client.json({ model: 'gpt-6-luna', system: DETECT_SYSTEM, user: prepared.users[0]!, schema: DETECT_SCHEMA });
+  assert.match(obs.contextOf(prepared) as string, /2개 중 1개/);
+  await client.json({ model: 'gpt-6-luna', system: DETECT_SYSTEM, user: prepared.users[1]!, schema: DETECT_SCHEMA });
+  assert.deepEqual(obs.contextOf(prepared), [{ chapter: 1, quote: 'q' }]);
+  obs.reset();
+  assert.equal(typeof obs.contextOf(prepared), 'string');
+});
+
+test('출처: 끝난 회차의 재구성은 별도 파일에 재구성이라고 표시하고, 원래 평가기 출력은 바꾸지 않는다', async () => {
+  const { o } = runOpts();
+  await runPredicate(o);
+  const root = join(o.work, 'real', 'run-1');
+  const original = join(root, 'eval', 'predictions.json');
+  const sidecars = () => ['ai.db-wal', 'ai.db-shm'].filter((f) => existsSync(join(root, '.loreweave', f)));
+  const before = filesFingerprint([original, join(root, '.loreweave', 'ai.db')]);
+  const sidecarsBefore = sidecars();
+  const out = join(tmp, 'reconstructed.json');
+  await writeReconstructed(root, out, 'recon');
+  const r = JSON.parse(readFileSync(out, 'utf8'));
+  assert.equal(r.context_source, 'reconstructed-from-stored-analyses');
+  const sent = JSON.parse(readFileSync(original, 'utf8'));
+  assert.deepEqual(r.chapters.map((c: { context: unknown }) => c.context), sent.chapters.map((c: { context: unknown }) => c.context));
+  assert.equal(filesFingerprint([original, join(root, '.loreweave', 'ai.db')]), before);
+  // 회차 복사본에 WAL 파일도 새로 생기지 않는다
+  assert.deepEqual(sidecars(), sidecarsBefore);
+  await assert.rejects(writeReconstructed(root, original, 'recon'), /덮어쓰지 않습니다/);
+  await assert.rejects(writeReconstructed(root, out, 'recon'), /이미 있습니다/);
+  // 이 실험의 검사 기록이 아닌 복사본(기준 detect-1)은 재구성하지 않는다
+  await assert.rejects(reconstructPredicateContexts(join(o.work, 'real', 'snapshot')), /이 실험의 검사 기록이 아닙니다/);
 });

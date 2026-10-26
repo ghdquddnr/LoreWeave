@@ -22,7 +22,7 @@ import { AiStore } from '../../src/main/ai-db.ts';
 import { prepareCheck, runPreparedCheck, type PreparedCheck } from '../../src/main/checker.ts';
 import { toPredictions } from '../export-predictions.ts';
 import type { Predictions } from '../../spikes/m0a-ai-feasibility/src/schema.ts';
-import { analysesFingerprint, filesFingerprint, preflight, publicSummary, requestFingerprint, type PreflightReport } from './m9-preflight.ts';
+import { analysesFingerprint, filesFingerprint, preflight, publicSummary, requestFingerprint, sha256, type PreflightReport } from './m9-preflight.ts';
 import { copyProject, inside, M9_MODEL, overlapReason, projectFiles, realPath } from './m9-run.ts';
 import { withPredicateMatches } from './predicate-addition.ts';
 import { withReservation, type ReservedLedger } from './reserve.ts';
@@ -129,6 +129,31 @@ export function haltGate(signal: AbortSignal) {
     },
   });
   return { inner, outer, halted };
+}
+
+/**
+ * 실제로 API 클라이언트에 넘긴 묶음 입력을 이 프로세스 안에서 센다 (원문은 남기지 않고 sha256만 센다).
+ * 공유 중단 게이트 안쪽, 원래 클라이언트 바로 앞에 씌우므로 막힌 요청은 세지 않는다
+ */
+export function sentObserver() {
+  const sent = new Map<string, number>();
+  const wrap = (client: AiClient): AiClient => ({
+    check: (m) => client.check(m),
+    json(call: JsonCall) {
+      const k = sha256(call.user);
+      sent.set(k, (sent.get(k) ?? 0) + 1);
+      return client.json(call);
+    },
+  });
+  /** 이 요청의 모든 묶음 입력이 넘어갔으면 그 사실 목록을, 아니면 그 이유를 돌려준다 */
+  const contextOf = (p: PreparedCheck): { chapter: number; quote: string }[] | string => {
+    const missing = p.users.filter((u) => !sent.has(sha256(u))).length;
+    if (missing) return `${p.file}: 묶음 ${p.users.length}개 중 ${missing}개가 보낸 기록에 없습니다`;
+    return p.facts.map((f) => ({ chapter: f.chapter, quote: f.quote }));
+  };
+  /** 회차를 시작할 때 비운다 (같은 입력 문자열이 다른 회차에도 나오므로, 그 회차에 보낸 것만 센다) */
+  const reset = () => sent.clear();
+  return { wrap, contextOf, reset };
 }
 
 export interface ChapterPlan {
@@ -318,7 +343,10 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
     const gate = haltGate(controller.signal);
     const raw = await o.connect();
     result.connected = true;
-    const client = gate.outer(withReservation(gate.inner(raw), { model: M9_MODEL, budget: stageLedger, retries: 1 }));
+    const observer = sentObserver();
+    const client = gate.outer(withReservation(gate.inner(observer.wrap(raw)), { model: M9_MODEL, budget: stageLedger, retries: 1 }));
+    /** 회차마다 실제로 넘긴 사실 목록 (평가기 출력의 context) */
+    const sentContexts = new Map<string, Map<number, { chapter: number; quote: string }[]>>();
 
     /** 대조 때와 같은 분석·기준 요청·추가 요청인가. 같으면 추가 요청을 돌려준다 */
     const verify = async (run: RunCopy, file: string): Promise<PreparedCheck | string> => {
@@ -345,6 +373,7 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
       const before = gate.halted();
       if (before) return `${run.label}: ${before === '취소' ? '취소했습니다' : `중단했습니다 (${before})`}`;
       stageLedger.startRun(run.label);
+      observer.reset();
       for (const file of o[run.dataset].targets) {
         const why = gate.halted();
         if (why) {
@@ -359,6 +388,15 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
         }
         const outcome = await runPreparedCheck(verified.get(`${run.label}|${file}`)!, { root: run.root, store: run.store, client, model: M9_MODEL, signal, prompt: PREDICATE_PROMPT });
         log(`${run.label} ${file}: 결과 ${outcome.findings}개 (숨김 ${outcome.lowConfidence}) · 단계 누적 $${stageLedger.committed().toFixed(4)}`);
+        if (!outcome.stopped && !gate.halted()) {
+          const ctx = observer.contextOf(verified.get(`${run.label}|${file}`)!);
+          if (typeof ctx === 'string') {
+            stageLedger.finishRun(run.label, 'stopped', ctx);
+            return `${run.label} ${ctx}`;
+          }
+          if (!sentContexts.has(run.label)) sentContexts.set(run.label, new Map());
+          sentContexts.get(run.label)!.set(chapterNumber(file)!, ctx);
+        }
         // 게이트가 멈췄으면 checker가 저장했더라도 실패로 본다 (응답 형식 오류는 checker도 저장하지 않는다)
         const halted = gate.halted();
         if (outcome.stopped || halted) {
@@ -372,20 +410,37 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
     };
     const exportRun = (run: RunCopy): Predictions => {
       run.store.close();
-      const { predictions, usage } = toPredictions(join(run.root, '.loreweave', 'ai.db'), `m9p-${run.label}`);
-      const out = join(run.root, 'eval');
-      mkdirSync(out, { recursive: true });
-      writeFileSync(join(out, 'predictions.json'), JSON.stringify(predictions, null, 2) + '\n');
-      writeFileSync(join(out, 'usage.json'), JSON.stringify(usage, null, 2) + '\n');
-      run.store = AiStore.open(run.root);
-      return predictions as Predictions;
+      try {
+        // context는 이 회차에 실제로 넘긴 사실 목록이다. 화가 하나라도 빠졌거나 수가 다르면 toPredictions가 오류를 낸다
+        const { predictions, usage } = toPredictions(join(run.root, '.loreweave', 'ai.db'), `m9p-${run.label}`, 'all', {
+          source: 'runner-sent',
+          byChapter: sentContexts.get(run.label) ?? new Map(),
+        });
+        const out = join(run.root, 'eval');
+        mkdirSync(out, { recursive: true });
+        writeFileSync(join(out, 'predictions.json'), JSON.stringify(predictions, null, 2) + '\n');
+        writeFileSync(join(out, 'usage.json'), JSON.stringify(usage, null, 2) + '\n');
+        return predictions as Predictions;
+      } finally {
+        run.store = AiStore.open(run.root);
+      }
     };
 
     // 5) M4 3회. 회마다 기준 8로 채점하고, 하나라도 미달이면 실제 원고로 가지 않는다
+    /** 내보내기에 실패하면(context 출처 불일치) 그 이유. 제품 고르기로 대신하지 않는다 */
+    const exported = (run: RunCopy): Predictions | string => {
+      try {
+        return exportRun(run);
+      } catch (e) {
+        return `${run.label}: 평가기 출력을 만들 수 없습니다 (${e instanceof Error ? e.message : String(e)})`;
+      }
+    };
     for (const run of runs.filter((r) => r.dataset === 'm4')) {
       const stopped = await send(run);
       if (stopped) return done('stopped', stopped);
-      const score = o.scoreM4(run.label, exportRun(run), o.m4.targets.length);
+      const p = exported(run);
+      if (typeof p === 'string') return done('stopped', p);
+      const score = o.scoreM4(run.label, p, o.m4.targets.length);
       result.m4Scores.push(score);
       writeFileSync(join(o.work, 'm4-scores.json'), JSON.stringify(result.m4Scores, null, 2) + '\n');
       if (!score.pass) return done('m4-failed', `${run.label}이(가) 기준 8에 미달해 실제 원고 회차를 시작하지 않았습니다`);
@@ -394,7 +449,9 @@ export async function runPredicate(o: PredicateOptions): Promise<PredicateResult
     for (const run of runs.filter((r) => r.dataset === 'real')) {
       const stopped = await send(run);
       if (stopped) return done('stopped', stopped);
-      result.realSummaries.push(o.scoreReal(run.label, exportRun(run)));
+      const p = exported(run);
+      if (typeof p === 'string') return done('stopped', p);
+      result.realSummaries.push(o.scoreReal(run.label, p));
       writeFileSync(join(o.work, 'real-summaries.json'), JSON.stringify(result.realSummaries, null, 2) + '\n');
     }
     return done('done', null);
@@ -431,4 +488,29 @@ export function realSummary(
 /** M4 회차마다 E23(내용상 대체 근거 유입과 발견)을 사람이 판정할 틀 */
 export function e23Template(label: string, scorerFound: boolean) {
   return { run: label, error: 'E23', scorerFound, contentEvidenceInInput: null as boolean | null, foundByContent: null as boolean | null, note: '' };
+}
+
+/**
+ * 이미 끝난 회차의 복사본에서, 저장된 분석으로 runner와 같은 함수(buildPredicateCheck)를 다시 돌려 context를 만든다.
+ * 당시 보낸 것을 관측한 것이 아니라 재구성이다. 검사 기록이 이 실험의 것(detect-1+predicate-match)이고 사실 수가 같은 화만 받는다.
+ * root의 ai.db를 쓰기 모드로 열므로(WAL 파일이 생긴다) 원래 결과가 아니라 그 복사본을 넘긴다 (scripts/m9-reconstruct-context.ts)
+ */
+export async function reconstructPredicateContexts(root: string): Promise<Map<number, { chapter: number; quote: string }[]>> {
+  const store = AiStore.open(root);
+  try {
+    const out = new Map<number, { chapter: number; quote: string }[]>();
+    for (const file of store.checkedHashes().keys()) {
+      const check = store.check(file)!;
+      if (check.promptVersion !== PREDICATE_PROMPT.version) throw new Error(`${file}: 이 실험의 검사 기록이 아닙니다 (${check.promptVersion})`);
+      const base = await prepareCheck(file, { root, store });
+      if (typeof base === 'string') throw new Error(`${file}: ${base}`);
+      const plus = buildPredicateCheck(base, store);
+      if (typeof plus === 'string') throw new Error(`${file}: ${plus}`);
+      if (plus.facts.length !== check.factCount) throw new Error(`${file}: 재구성한 사실 수 ${plus.facts.length} ≠ 검사 기록 ${check.factCount}`);
+      out.set(chapterNumber(file)!, plus.facts.map((f) => ({ chapter: f.chapter, quote: f.quote })));
+    }
+    return out;
+  } finally {
+    store.close();
+  }
 }
