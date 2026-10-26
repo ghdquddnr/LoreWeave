@@ -241,7 +241,40 @@
      "hidden": 2
     }
    },
-   "correction": "PR #79 첫 head(fbecb48)의 1차 판정은 S15의 유효 결과를 찾음과 중복 양쪽에 넣고 모순을 부정한 항목을 어느 분류에도 넣지 않았다 (합만 38). 재판정으로 확정 오탐 11→12, 중복 5→4, 두 회 공통 확정 오탐 0→1"
+   "correction": "PR #79 첫 head(fbecb48)의 1차 판정은 S15의 유효 결과를 찾음과 중복 양쪽에 넣고 모순을 부정한 항목을 어느 분류에도 넣지 않았다 (합만 38). 재판정으로 확정 오탐 11→12, 중복 5→4, 두 회 공통 확정 오탐 0→1",
+   "erratum": {
+    "see": "docs/M10-DIAGNOSIS.md 2절",
+    "perRun": {
+     "real-1": {
+      "found": 8,
+      "fp": 5,
+      "hiddenBelow07": 2
+     },
+     "real-2": {
+      "found": 9,
+      "fp": 6
+     }
+    },
+    "falsePositiveOverlapAcrossRuns": 0,
+    "bothRunsFound": [
+     "S01",
+     "S03",
+     "S06",
+     "S13",
+     "S15"
+    ],
+    "oneRunOnly": [
+     "S04",
+     "S10",
+     "S11",
+     "S12",
+     "S14",
+     "S17",
+     "S19"
+    ],
+    "reason": "회별 수를 합친 항목 내용으로 셌다. F24는 real-1(0.1, 부정 claim)과 real-2(0.99, 유효)가 합치기 규칙으로 한 항목이 됐다",
+    "mergedUnchanged": true
+   }
   },
   "criteria": {
    "R1": {
