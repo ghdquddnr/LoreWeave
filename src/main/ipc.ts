@@ -253,13 +253,16 @@ export function registerIpc(): void {
   ): Promise<T> => {
     const path = requireRoot();
     if (analyzing) throw new Error('이미 분석 중입니다');
-    const settings = await readSettings(userData());
-    if (!settings.aiSendConsent) throw new Error('원고 전송에 동의해야 분석할 수 있습니다');
-    const key = await loadApiKey(userData());
-    if (!key) throw new Error('API 키가 없습니다. 설정에서 키를 넣으세요.');
+    // 첫 await 전에 한 작업의 자리를 잡는다. 설정·키를 읽는 동안 들어온 다른 분석·검사 요청은 위에서 거절된다
     const controller = new AbortController();
     analyzing = controller;
     try {
+      const settings = await readSettings(userData());
+      if (!settings.aiSendConsent) throw new Error('원고 전송에 동의해야 분석할 수 있습니다');
+      const key = await loadApiKey(userData());
+      if (!key) throw new Error('API 키가 없습니다. 설정에서 키를 넣으세요.');
+      // 설정·키를 읽는 동안 취소했으면(또는 프로젝트를 바꿨으면) 작업을 시작하지 않는다
+      if (controller.signal.aborted) throw new Error('취소했습니다');
       return await work({
         root: path,
         store: openAiStore(path, true)!,
@@ -269,7 +272,8 @@ export function registerIpc(): void {
         onProgress: (p) => sender.send(CHANNELS.aiProgress, p),
       });
     } finally {
-      analyzing = null;
+      // 자기 자리만 비운다
+      if (analyzing === controller) analyzing = null;
     }
   };
   ipcMain.handle(CHANNELS.aiAnalyze, (event, files: string[]) => runAi(event.sender, (o) => analyzeChapters(files, o)));
