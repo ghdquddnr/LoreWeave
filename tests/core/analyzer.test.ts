@@ -132,17 +132,26 @@ test('형식이 다른 응답은 저장하지 않는다', async () => {
   assert.equal(store!.analysis('001.md'), null);
 });
 
-test('취소: 다음 화를 보내지 않고, 끝난 화는 남는다', async () => {
+test('취소: 다음 화를 보내지 않고, 취소 전에 끝난 화는 남으며, 응답을 기다리던 화는 저장하지 않는다', async () => {
+  // 이전에는 응답을 기다리는 동안 취소한 화의 늦은 성공도 "끝난 화"로 저장했다. 이제는 취소 전에 실제로 끝난 화만 남는다
   const controller = new AbortController();
-  const client = fakeClient(() => {
-    controller.abort();
-    return extraction('x');
+  const client = fakeClient(async (call) => {
+    const n = Number(/<chapter n="(\d+)">/.exec(call.user)![1]);
+    if (n === 2) {
+      // 1화가 저장된 뒤에 취소한다 (타이밍이 아니라 저장을 확인하고)
+      const end = Date.now() + 5_000;
+      while (!store!.analysis('001.md') && Date.now() < end) await new Promise((r) => setTimeout(r, 2));
+      controller.abort();
+    }
+    return extraction('둘 다 스무 살이었다.');
   });
   const result = await analyzeChapters(['001.md', '002.md', '003.md'], options(client, controller.signal));
-  assert.equal(client.calls.length, 1);
+  assert.equal(client.calls.length, 2);
   assert.equal(result.stopped, '취소했습니다');
-  // 두 화를 동시에 읽으므로 먼저 보낸 화가 001이 아닐 수 있다
-  assert.equal(['001.md', '002.md', '003.md'].filter((f) => store!.analysis(f)).length, 1);
+  assert.equal(result.done, 1);
+  assert.ok(store!.analysis('001.md'));
+  assert.equal(store!.analysis('002.md'), null);
+  assert.equal(store!.analysis('003.md'), null);
 });
 
 test('다시 분석하면 그 화의 이전 결과를 바꾼다', async () => {
@@ -266,5 +275,98 @@ for (const kind of ['auth', 'model', 'rate-limit'] as const) {
     const logged = raw.prepare("SELECT count(*) AS n FROM calls WHERE file = '009.md'").get() as { n: number };
     raw.close();
     assert.equal(logged.n, 1);
+  });
+}
+
+// ---- 취소·멈춤 뒤 늦게 온 성공 응답
+
+const loggedCalls = (file: string) => {
+  const raw = new DatabaseSync(join(root, '.loreweave', 'ai.db'), { readOnly: true });
+  try {
+    return raw.prepare('SELECT ok, cost_usd FROM calls WHERE file = ? ORDER BY id').all(file) as { ok: number; cost_usd: number }[];
+  } finally {
+    raw.close();
+  }
+};
+
+test('늦은 성공 (단일 조각): 응답을 기다리는 동안 취소하면 늦게 온 성공으로 기존 분석을 덮어쓰지 않고, 호출 기록은 남긴다', async () => {
+  await analyzeChapters(['001.md'], options(fakeClient(() => extraction('둘 다 스무 살이었다.'))));
+  const before = store!.analysis('001.md');
+  const controller = new AbortController();
+  const client = fakeClient(() => {
+    controller.abort();
+    return { ...extraction('둘 다 스무 살이었다.'), summary: '늦은 응답' };
+  });
+  const result = await analyzeChapters(['001.md'], options(client, controller.signal));
+  assert.equal(result.stopped, '취소했습니다');
+  assert.equal(result.done, 0);
+  assert.deepEqual(result.failed, []);
+  assert.deepEqual(store!.analysis('001.md'), before);
+  // 처음 분석 1건 + 이번 1건, 이번 호출도 성공으로 비용과 함께 남는다
+  const calls = loggedCalls('001.md');
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1]!.ok === 1 && calls[1]!.cost_usd > 0);
+  assert.ok(result.costUsd > 0);
+});
+
+test('늦은 성공 (여러 조각): 마지막 조각을 기다리는 동안 취소하면 저장하지 않고, 더 보내지 않으며, 조각 호출 기록은 모두 남는다', async () => {
+  const long = ['# 9화', '', ...Array.from({ length: 12 }, (_, i) => [`${'가'.repeat(200)} 문장${i}이다.`, '']).flat()].join('\n');
+  await writeFile(join(root, 'chapters', '009.md'), long);
+  store = AiStore.open(root);
+  store.saveAnalysis({ file: '009.md', contentHash: 'old', model: 'gpt-6-luna', modelVersion: 'v', promptVersion: 'extract-1', summary: '이전 분석', droppedQuotes: 0, costUsd: 0, createdAt: 't', entities: [], facts: [] });
+  const before = store.analysis('009.md');
+  // 조각 수를 먼저 센다 (취소 없이 끝까지 보내 보는 별도 폴더 없이, 같은 분할 함수의 결과와 같다)
+  const { splitForExtraction } = await import('../../src/core/ai/extraction.ts');
+  const { chapterLines } = await import('../../src/main/analyzer.ts');
+  const chunks = splitForExtraction((await chapterLines(root, '009.md')).lines).length;
+  assert.ok(chunks >= 2);
+  const controller = new AbortController();
+  const client = fakeClient((call, n) => {
+    if (n === chunks) controller.abort();
+    const i = /문장(\d+)이다/.exec(call.user)![1];
+    return { summary: `조각${i}`, entities: [], facts: [] };
+  });
+  const result = await analyzeChapters(['009.md'], options(client, controller.signal));
+  assert.equal(client.calls.length, chunks);
+  assert.equal(result.stopped, '취소했습니다');
+  assert.equal(result.done, 0);
+  assert.deepEqual(store!.analysis('009.md'), before);
+  assert.equal(loggedCalls('009.md').filter((c) => c.ok === 1).length, chunks);
+});
+
+for (const kind of ['auth', 'model', 'rate-limit'] as const) {
+  test(`늦은 성공 (다른 화 ${kind} 멈춤): 진행 중이던 화의 마지막 응답이 늦게 성공해도 저장하지 않고, 다음 화는 보내지 않는다`, async () => {
+    store = AiStore.open(root);
+    store.saveAnalysis({ file: '002.md', contentHash: 'old', model: 'gpt-6-luna', modelVersion: 'v', promptVersion: 'extract-1', summary: '이전 분석', droppedQuotes: 0, costUsd: 0, createdAt: 't', entities: [], facts: [] });
+    const before = store.analysis('002.md');
+    let release!: () => void;
+    const stopped = new Promise<void>((r) => (release = r));
+    let sent2!: () => void;
+    const started2 = new Promise<void>((r) => (sent2 = r));
+    const calls: number[] = [];
+    const client: AiClient = {
+      async check() {},
+      async json(call) {
+        const n = Number(/<chapter n="(\d+)">/.exec(call.user)![1]);
+        calls.push(n);
+        if (n === 1) {
+          await started2;
+          setTimeout(release, 0);
+          throw new AiError('멈춤', kind);
+        }
+        sent2();
+        await stopped;
+        await new Promise((r) => setTimeout(r, 5));
+        return { data: { ...extraction('둘 다 스무 살이었다.'), summary: '늦은 응답' }, usage, modelVersion: 'v', latencyMs: 1 };
+      },
+    };
+    const result = await analyzeChapters(['001.md', '002.md', '003.md'], options(client));
+    assert.equal(result.stopped, '멈춤');
+    assert.deepEqual(calls.sort(), [1, 2]);
+    assert.equal(result.done, 0);
+    assert.deepEqual(result.failed.map((f) => f.file), ['001.md']);
+    assert.deepEqual(store!.analysis('002.md'), before);
+    assert.equal(store!.analysis('003.md'), null);
+    assert.equal(loggedCalls('002.md').filter((c) => c.ok === 1).length, 1);
   });
 }
