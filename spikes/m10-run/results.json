@@ -1,0 +1,352 @@
+{
+ "note": "M10 같은 입력 반복 검사 1회 실행 결과 (승인 m10-repeat-20261026-1730). 비식별 집계만: 회차·오류 ID·화 번호·수·금액. 원문·인용·이름·경로·fingerprint 없음. 실제 원고 사람 판정은 Claude 1차, 사용자 확인 전",
+ "approval": "m10-repeat-20261026-1730",
+ "commit": "2269db1a2db604cb841006fae07a84866047d232",
+ "fixed": {
+  "model": "gpt-6-luna",
+  "prompt": "detect-1 (복사본 검사 버전 detect-1+m10-repeat)",
+  "batchConcurrency": 2,
+  "maxOutputTokens": 16000,
+  "retriesPerRequest": 1,
+  "sdkRetries": 0,
+  "stage": {
+   "id": "m10-repeat",
+   "limitUsd": 1.2
+  }
+ },
+ "preflight": {
+  "m4": "4회차 각 14/14화, 묶음 14, 순서 대조 생략",
+  "real": "2회차 각 20/20화, 묶음 128",
+  "crossRun": {
+   "m4": null,
+   "real": null
+  },
+  "contextSource": "runner-sent (6회차 모두)"
+ },
+ "m4": {
+  "runs": {
+   "m4-1": {
+    "testTp": 17,
+    "fp": 0,
+    "missedTest": [
+     "E20",
+     "E23",
+     "E26"
+    ],
+    "missedDev": [
+     "E24",
+     "E25",
+     "E28"
+    ]
+   },
+   "m4-2": {
+    "testTp": 13,
+    "fp": 0,
+    "missedTest": [
+     "E02",
+     "E05",
+     "E06",
+     "E08",
+     "E20",
+     "E23",
+     "E26"
+    ],
+    "missedDev": [
+     "E24",
+     "E25"
+    ]
+   },
+   "m4-3": {
+    "testTp": 13,
+    "fp": 0,
+    "missedTest": [
+     "E03",
+     "E05",
+     "E11",
+     "E20",
+     "E23",
+     "E26",
+     "E29"
+    ],
+    "missedDev": [
+     "E09",
+     "E24",
+     "E25"
+    ]
+   },
+   "m4-4": {
+    "testTp": 17,
+    "fp": 1,
+    "missedTest": [
+     "E20",
+     "E23",
+     "E26"
+    ],
+    "missedDev": [
+     "E24",
+     "E25",
+     "E28"
+    ]
+   }
+  },
+  "hiddenBelow07": 0,
+  "pairs": {
+   "m4-1+m4-2": {
+    "testTp": 17,
+    "fp": 0,
+    "precision": 1.0,
+    "fpPerChapter": 0,
+    "duplicates": 3,
+    "missedTest": [
+     "E20",
+     "E23",
+     "E26"
+    ],
+    "pass": true
+   },
+   "m4-3+m4-4": {
+    "testTp": 17,
+    "fp": 1,
+    "precision": 0.9444,
+    "fpPerChapter": 0.0714,
+    "duplicates": 2,
+    "missedTest": [
+     "E20",
+     "E23",
+     "E26"
+    ],
+    "pass": true
+   }
+  },
+  "gate": "pass (두 쌍 모두 test ≥ 17/20, Precision ≥ 85%, 화당 오탐 ≤ 0.3)"
+ },
+ "real": {
+  "scorer": {
+   "real-1": [
+    "S01",
+    "S03",
+    "S04",
+    "S06",
+    "S12",
+    "S13",
+    "S15",
+    "S19"
+   ],
+   "real-2": [
+    "S01",
+    "S03",
+    "S06",
+    "S10",
+    "S11",
+    "S13",
+    "S14",
+    "S15",
+    "S17"
+   ],
+   "merged": [
+    "S01",
+    "S03",
+    "S04",
+    "S06",
+    "S10",
+    "S11",
+    "S12",
+    "S13",
+    "S14",
+    "S15",
+    "S17",
+    "S19"
+   ],
+   "retrieval": "12/20 (세 출력 모두, M8과 같은 12개)",
+   "judgeFixed12": {
+    "real-1": 6,
+    "real-2": 5,
+    "merged": 8
+   }
+  },
+  "humanFirstPass": {
+   "perRun": {
+    "real-1": {
+     "found": 8,
+     "fp": 6,
+     "unclear": 3,
+     "correctOutside": 2
+    },
+    "real-2": {
+     "found": 8,
+     "fp": 7,
+     "unclear": 3,
+     "correctOutside": 0,
+     "note": "평가기는 S15도 찾음으로 셌으나 그 결과의 claim이 스스로 모순으로 단정하지 못한다고 써 사람 판정에서 뺌"
+    },
+    "note": "회별 수는 합친 항목이 그 회에 있었는지로 센다 (두 회에 다 있는 항목은 양쪽에 센다)"
+   },
+   "merged": {
+    "findingsRaw": 38,
+    "visible07": 36,
+    "seedsFound": 12,
+    "duplicates": 4,
+    "echo": 1,
+    "correctOutside": 2,
+    "falsePositive": 12,
+    "unclear": 5,
+    "hiddenBelow07": {
+     "count": 2,
+     "correct": 0
+    }
+   },
+   "bothRunsFound": [
+    "S01",
+    "S03",
+    "S06",
+    "S13"
+   ],
+   "oneRunOnly": [
+    "S04",
+    "S10",
+    "S11",
+    "S12",
+    "S14",
+    "S15",
+    "S17",
+    "S19"
+   ],
+   "retrievedButMissedBoth": [
+    "S05",
+    "S07",
+    "S08",
+    "S20"
+   ],
+   "m8FoundLost": [
+    "S09",
+    "S18",
+    "S20"
+   ],
+   "falsePositiveOverlapAcrossRuns": 1,
+   "falsePositiveOverlapNote": "두 회에 같은 항목으로 나온 확정 오탐은 1개: S15 문장을 가리키지만 claim이 모순을 부정한 결과",
+   "s15": "합친 결과에 S15 문장을 가리키는 항목이 둘이다. 나이 종류·다른 근거의 유효 결과(real-1에만)를 찾음으로 센다. 평가기가 TP로 고른 다른 항목(두 회 모두)은 claim이 시간 경과가 없어 모순이라고 단정할 수 없다고 결론해, 모순을 짚지 않았으므로 찾음도 중복도 아닌 잘못 읽음(확정 오탐)으로 셌다. 근거와 결론이 달라 4-3의 중복 규칙에도 맞지 않는다. real-2는 이 항목만 있어 S15를 찾지 않은 것으로 센다",
+   "partitionCheck": {
+    "items": 38,
+    "missing": 0,
+    "inMoreThanOneClass": 0,
+    "sum": 38,
+    "hiddenMatchesConfidence": true,
+    "classes": {
+     "seedFound": 12,
+     "duplicate": 4,
+     "echo": 1,
+     "correctOutside": 2,
+     "falsePositive": 12,
+     "unclear": 5,
+     "hidden": 2
+    }
+   },
+   "correction": "PR #79 첫 head(fbecb48)의 1차 판정은 S15의 유효 결과를 찾음과 중복 양쪽에 넣고 모순을 부정한 항목을 어느 분류에도 넣지 않았다 (합만 38). 재판정으로 확정 오탐 11→12, 중복 5→4, 두 회 공통 확정 오탐 0→1"
+  },
+  "criteria": {
+   "R1": {
+    "value": "12/20",
+    "limit": ">= 10/20",
+    "pass": true,
+    "note": "S15 처리 정정 뒤에도 12/20 (유효 결과로 찾음)"
+   },
+   "R2": {
+    "value": "6/9 (S09·S18·S20 잃음)",
+    "limit": ">= 8/9",
+    "pass": false
+   },
+   "R3": {
+    "value": 12,
+    "limit": "<= 14",
+    "pass": true
+   },
+   "R4": {
+    "value": 17,
+    "limit": "<= 18",
+    "pass": true
+   },
+   "R5": {
+    "value": 0,
+    "population": "필터 전 합친 결과 중 맞는 결과 14개 (심은 오류 12 + 맞는 지적 2)",
+    "pass": true,
+    "note": "독립 안전 기준 아님, M7 숨기기 회귀 확인. 모순을 부정한 항목은 맞는 결과가 아니라 모집단에 넣지 않는다 (확신도 0.99라 숨김과도 무관)"
+   }
+  },
+  "verdict": "미달 (R2). 두 회 합치기 후보 유지 안 함, 제품 채택 0",
+  "userCheck": "0개 완료. 최소 10개 확인 필요"
+ },
+ "ledger": {
+  "stageId": "m10-repeat",
+  "approvalBound": true,
+  "attempts": 312,
+  "settled": 312,
+  "unknown": 0,
+  "reserved": 0,
+  "lockLeft": false,
+  "committedUsd": 0.550552335,
+  "runs": {
+   "m4-1": 0.0143802,
+   "m4-2": 0.00395618,
+   "m4-3": 0.00359918,
+   "m4-4": 0.00434168,
+   "real-1": 0.468823525,
+   "real-2": 0.05545157
+  },
+  "remainingInStageUsd": 0.649447665
+ },
+ "usage": {
+  "note": "eval/usage.json (이 회차 성공 검사 호출만). 6회차 모두 checks = 시도 수, failed 0, 장부 spentUsd와 같음",
+  "real-1": {
+   "checks": 128,
+   "costUsd": 0.468823525,
+   "maxCostUsd": 0.004228675,
+   "maxLatencyMs": 9997,
+   "maxInputTokens": 32390
+  },
+  "real-2": {
+   "checks": 128,
+   "costUsd": 0.05545157,
+   "maxCostUsd": 0.00075686,
+   "maxLatencyMs": 22114,
+   "maxInputTokens": 32390
+  },
+  "m4": {
+   "checksPerRun": 14,
+   "maxLatencyMs": 12618,
+   "maxInputTokens": 10223
+  }
+ },
+ "time": {
+  "runnerStart": "2026-10-26T08:29:24Z",
+  "runnerEnd": "2026-10-26T08:49:36Z",
+  "runs": {
+   "m4-1": "1분 44초",
+   "m4-2": "1분 29초",
+   "m4-3": "1분 19초",
+   "m4-4": "1분 34초",
+   "real-1": "5분 32초",
+   "real-2": "6분 45초"
+  }
+ },
+ "costsApi": {
+  "before": {
+   "total": 6.9066,
+   "at": "2026-10-26T08:29Z",
+   "supervisorPrecise": 6.906622055
+  },
+  "after": {
+   "total": 7.415,
+   "at": "2026-10-26T08:50Z"
+  },
+  "deltaUsd": 0.5084,
+  "note": "장부 $0.5506보다 $0.0422 작아 반영 중으로 본다. 차이 전부를 이번 실행에 귀속한다는 가정 (같은 조직의 다른 지출은 구분 못 함)",
+  "conservativeRemainingUsd": 2.4977,
+  "remainingFormula": "10 − 7.4150 − (0.5506 − 0.5084) − 0.0451(끝난 M9 장부 두 개 전액, 감독 방식)"
+ },
+ "preservation": "원고·ai.db·끝난 장부 두 개의 해시 292개가 실행 전후로 같다",
+ "comparisonLimits": [
+  "이번 두 회 사이의 요청 동일성은 화 순서를 포함한 요청 fingerprint로 확인했다 (차이 0)",
+  "M8과 같은 입력이라는 것은 사전 대조의 기록 항목(화·앞 화 해시, 사실 수, 묶음 수, 호출 수·입력 토큰 등) 일치에 근거한다. M8 당시 요청 원문은 저장하지 않아 정확한 요청 바이트 동일성은 미확인이다. 이것은 이번 두 회 사이의 동일성과 별개다",
+  "M8은 1회, 이번은 2회다. 모델 세부 버전이 같았는지는 기록이 없다"
+ ]
+}
