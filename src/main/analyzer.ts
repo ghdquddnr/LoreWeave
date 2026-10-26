@@ -2,6 +2,7 @@
 //   - 두 화씩 동시에 보낸다 (M3 실측에서 한 화씩은 15화에 약 3분). 취소하면 다음 화를 보내지 않는다 (끝난 화는 저장돼 있다)
 //   - 키·모델·한도 문제는 나머지 화도 실패할 것이므로 멈추고, 그 밖의 실패는 그 화만 실패로 남긴다
 //   - 취소했거나 멈춘 뒤에 늦게 온 성공 응답은 저장하지 않는다 (기존 분석을 덮어쓰지 않는다)
+//   - 분석하는 동안 그 화 파일이 바뀌거나 없어지면 옛 본문의 응답으로 저장하지 않고, 그 화만 실패로 남긴다 (다른 화는 계속한다)
 //   - 인용이 본문에 없는 사실은 버린다 (ADR 0001 결정 2)
 //   - 화 파일은 읽기만 한다
 
@@ -79,6 +80,9 @@ export interface AnalyzeOptions {
 
 const STOP_KINDS = new Set<AiError['kind']>(['auth', 'model', 'rate-limit']);
 
+/** 분석하는 동안 그 화가 바뀌었을 때 그 화의 실패 이유 */
+export const CHANGED_WHILE_ANALYZING = '분석하는 동안 원고가 바뀌었거나 없어졌습니다. 다시 분석하세요';
+
 /** 동시에 보내는 화 수. 한도(429)에 걸리지 않도록 작게 둔다 */
 export const CONCURRENCY = 2;
 
@@ -117,10 +121,22 @@ export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promi
       const parts: Extraction[] = [];
       let cost = 0;
       let modelVersion = '';
+      /** 읽은 본문(hash)이 지금 파일과 같은가. 확인하는 동안 취소·멈춤이 오면 null (저장도 실패 기록도 하지 않는다) */
+      const stillSame = async (): Promise<boolean | null> => {
+        const now = await chapterHash(o.root, file);
+        if (!mayContinue()) return null;
+        return now === hash;
+      };
       for (const chunk of chunks) {
         // 조각마다 공유 중단을 확인한다: 취소했거나 다른 화가 키·모델·한도 문제로 멈췄으면 다음 조각을 보내지 않고,
         // 이 화는 저장하지 않는다 (일부 조각만 합친 분석을 완성본으로 남기지 않는다). 이미 보낸 조각의 호출 기록은 남아 있다
         if (!mayContinue()) return;
+        // 둘째 조각부터는 앞 조각을 기다리는 동안 이 화가 바뀌지 않았는지 본다. 바뀌었으면 새 조각을 보내지 않는다 (이 화만 실패)
+        if (parts.length > 0) {
+          const same = await stillSame();
+          if (same === null) return;
+          if (!same) throw new AiError(CHANGED_WHILE_ANALYZING, 'other');
+        }
         started = performance.now();
         const result = await o.client.json({
           model: o.model,
@@ -136,6 +152,11 @@ export async function analyzeChapters(files: string[], o: AnalyzeOptions): Promi
       // 마지막 조각을 기다리는 동안 취소했거나 다른 화가 멈췄을 수 있다. 늦게 온 성공 응답으로 기존 분석을 덮어쓰지 않는다
       // (이 화는 저장하지 않고 완료로 세지 않는다. 보낸 조각의 호출 기록과 비용은 위에서 남겼다)
       if (!mayContinue()) return;
+      // 응답을 기다리는 동안 이 화가 바뀌거나 없어졌으면 옛 본문의 응답으로 기존 분석을 바꾸지 않는다 (이 화만 실패, 다시 분석해야 한다).
+      // 이 확인 뒤 저장까지는 await가 없다
+      const same = await stillSame();
+      if (same === null) return;
+      if (!same) throw new AiError(CHANGED_WHILE_ANALYZING, 'other');
       const extraction = mergeExtractions(parts);
       const { facts, dropped } = checkQuotes(extraction, lines);
       o.store.saveAnalysis({

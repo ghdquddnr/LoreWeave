@@ -9,7 +9,7 @@ import { afterEach, beforeEach, test } from 'node:test';
 import type { Extraction } from '../../src/core/ai/extraction.ts';
 import { AiError, type AiClient, type JsonCall } from '../../src/main/ai-client.ts';
 import { AiStore, NewerFormatError } from '../../src/main/ai-db.ts';
-import { analysisStates, analyzeChapters, CONCURRENCY, estimate } from '../../src/main/analyzer.ts';
+import { analysisStates, analyzeChapters, CHANGED_WHILE_ANALYZING, CONCURRENCY, estimate } from '../../src/main/analyzer.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
 const usage = { inputTokens: 1200, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: 1000 };
@@ -80,11 +80,23 @@ test('상태: 분석 없음 / 분석 뒤 그대로 / 분석 뒤 바뀜', async (
 });
 
 test('키·모델·한도 문제는 멈추고, 그 밖의 실패는 그 화만 실패로 남긴다', async () => {
-  const stop = fakeClient((_c, n) => {
-    if (n === 2) throw new AiError('API 키가 올바르지 않습니다.', 'auth');
+  // 1화가 저장되는 순간 2화가 키 문제로 멈춘다. 저장 전에 멈추면 1화도 저장하지 않으므로, 타이밍이 아니라 1화 저장에 맞춰 실패시킨다.
+  // 실패는 microtask로 전파되어, 3화가 파일을 읽고 중단 여부를 확인하기 전에 멈춤이 걸린다
+  let fail2!: () => void;
+  const failed2 = new Promise<void>((_r, reject) => (fail2 = () => reject(new AiError('API 키가 올바르지 않습니다.', 'auth'))));
+  failed2.catch(() => {});
+  const stop = fakeClient(async (c) => {
+    if (c.user.includes('<chapter n="2">')) await failed2;
     return extraction('x');
   });
-  const stopped = await analyzeChapters(['001.md', '002.md', '003.md'], options(stop));
+  const opts = options(stop);
+  const save = opts.store.saveAnalysis.bind(opts.store);
+  opts.store.saveAnalysis = (a) => {
+    save(a);
+    if (a.file === '001.md') fail2();
+  };
+  const stopped = await analyzeChapters(['001.md', '002.md', '003.md'], opts);
+  opts.store.saveAnalysis = save;
   assert.equal(stopped.done, 1);
   assert.equal(stopped.stopped, 'API 키가 올바르지 않습니다.');
   assert.equal(stop.calls.length, 2);
@@ -370,3 +382,105 @@ for (const kind of ['auth', 'model', 'rate-limit'] as const) {
     assert.equal(loggedCalls('002.md').filter((c) => c.ok === 1).length, 1);
   });
 }
+
+// ---- 분석하는 동안 원고가 바뀌거나 없어지면
+
+const priorAnalysis = (file: string) => {
+  store ??= AiStore.open(root);
+  store.saveAnalysis({ file, contentHash: 'old', model: 'gpt-6-luna', modelVersion: 'v', promptVersion: 'extract-1', summary: '이전 분석', droppedQuotes: 0, costUsd: 0.5, createdAt: 't', entities: [], facts: [] });
+  return store.analysis(file);
+};
+
+for (const [name, change] of [
+  ['다른 본문으로 바뀜 (감독 재현)', () => writeFile(join(root, 'chapters', '001.md'), '# 1화\n\n본문을 고쳤다.\n')],
+  ['파일이 없어짐', () => rm(join(root, 'chapters', '001.md'))],
+] as const) {
+  test(`원고 변경 (단일 조각): 응답을 기다리는 동안 ${name}이면 옛 응답으로 기존 분석을 바꾸지 않고 그 화만 실패로 남기며, 호출 기록은 남긴다`, async () => {
+    const before = priorAnalysis('001.md');
+    const client = fakeClient(async () => {
+      await change();
+      return { ...extraction('둘 다 스무 살이었다.'), summary: '옛 본문의 응답' };
+    });
+    const result = await analyzeChapters(['001.md'], options(client));
+    assert.deepEqual(result.failed, [{ file: '001.md', message: CHANGED_WHILE_ANALYZING }]);
+    assert.equal(result.stopped, null);
+    // 그 화만 실패한 경우는 기존 규칙대로 처리한 화 수(done)에 들어간다
+    assert.equal(result.done, 1);
+    assert.deepEqual(store!.analysis('001.md'), before);
+    const calls = loggedCalls('001.md');
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0]!.ok === 1 && calls[0]!.cost_usd > 0);
+  });
+}
+
+const longChapter = (n: number) => ['# 화', '', ...Array.from({ length: 12 }, (_, i) => [`${'가'.repeat(200)} ${n}화문장${i}이다.`, '']).flat()].join('\n');
+async function chunkCount(file: string) {
+  const { splitForExtraction } = await import('../../src/core/ai/extraction.ts');
+  const { chapterLines } = await import('../../src/main/analyzer.ts');
+  return splitForExtraction((await chapterLines(root, file)).lines).length;
+}
+
+for (const at of ['first', 'last'] as const) {
+  test(`원고 변경 (여러 조각, ${at === 'first' ? '첫' : '마지막'} 조각 대기 중): 저장하지 않고, ${at === 'first' ? '새 조각을 더 보내지 않으며' : '조각을 더 보내지 않고'}, 보낸 조각의 기록은 남긴다`, async () => {
+    await writeFile(join(root, 'chapters', '009.md'), longChapter(9));
+    const chunks = await chunkCount('009.md');
+    assert.ok(chunks >= 2);
+    const before = priorAnalysis('009.md');
+    const client = fakeClient(async (_c, n) => {
+      if ((at === 'first' && n === 1) || (at === 'last' && n === chunks)) await writeFile(join(root, 'chapters', '009.md'), longChapter(9) + '\n고친 줄\n');
+      return { summary: 's', entities: [], facts: [] };
+    });
+    const result = await analyzeChapters(['009.md'], options(client));
+    assert.equal(client.calls.length, at === 'first' ? 1 : chunks);
+    assert.deepEqual(result.failed, [{ file: '009.md', message: CHANGED_WHILE_ANALYZING }]);
+    assert.equal(result.stopped, null);
+    assert.deepEqual(store!.analysis('009.md'), before);
+    assert.equal(loggedCalls('009.md').filter((c) => c.ok === 1).length, at === 'first' ? 1 : chunks);
+  });
+}
+
+test('원고 변경: 바뀐 화만 실패로 남기고 다른 화는 계속 분석한다 (전역 중단이 아니다)', async () => {
+  const client = fakeClient(async (call) => {
+    if (call.user.includes('<chapter n="1">')) await writeFile(join(root, 'chapters', '001.md'), '# 1화\n\n고쳤다.\n');
+    return extraction('x');
+  });
+  const result = await analyzeChapters(['001.md', '002.md', '003.md'], options(client));
+  assert.equal(result.stopped, null);
+  assert.deepEqual(result.failed.map((f) => f.file), ['001.md']);
+  assert.equal(store!.analysis('001.md'), null);
+  assert.ok(store!.analysis('002.md'));
+  assert.ok(store!.analysis('003.md'));
+  assert.equal(client.calls.length, 3);
+});
+
+test('원고 확인 뒤 취소: 마지막 응답 뒤 어느 시점에 취소하든 취소된 상태로 저장하는 일은 없다 (저장 호출을 직접 감시)', { timeout: 60_000 }, async () => {
+  let notSaved = 0;
+  for (let ticks = 0; ticks <= 12; ticks++) {
+    store?.close();
+    store = null;
+    await rm(join(root, '.loreweave'), { recursive: true, force: true });
+    const controller = new AbortController();
+    const client = fakeClient(() => {
+      let n = ticks;
+      const later = () => (n-- <= 0 ? controller.abort() : setImmediate(later));
+      setImmediate(later);
+      return extraction('둘 다 스무 살이었다.');
+    });
+    const opts = options(client, controller.signal);
+    const saves: boolean[] = [];
+    const save = opts.store.saveAnalysis.bind(opts.store);
+    opts.store.saveAnalysis = (a) => {
+      saves.push(controller.signal.aborted);
+      save(a);
+    };
+    const result = await analyzeChapters(['001.md'], opts);
+    await new Promise((r) => setTimeout(r, 5));
+    assert.ok(saves.every((aborted) => !aborted), `${ticks}틱: 취소된 상태에서 저장했다`);
+    if (saves.length === 0) {
+      assert.equal(result.stopped, '취소했습니다');
+      assert.equal(store!.analysis('001.md'), null);
+      notSaved++;
+    }
+  }
+  assert.ok(notSaved > 0);
+});
