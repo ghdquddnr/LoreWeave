@@ -398,6 +398,10 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         <button onClick={chooseFolder} title="다른 원고 폴더 열기" disabled={switching}>
           열기
         </button>
+        {/* 활동 막대가 숨는 좁은 창(<760px)에서만 보이는 설정 진입점 (CSS가 넓을 때는 display:none이라 접근 이름이 겹치지 않는다) */}
+        <button type="button" className="titlebar-settings" title="환경설정" onClick={() => setSettingsOpen(true)}>
+          설정
+        </button>
       </header>
       <div className="shell-body">
         <ActivityBar

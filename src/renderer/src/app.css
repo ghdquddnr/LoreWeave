@@ -775,6 +775,10 @@ button {
   border-bottom: 1px solid var(--lw-line);
 }
 
+.titlebar-settings {
+  display: none;
+}
+
 .titlebar .brand {
   font-weight: 600;
 }
@@ -1053,5 +1057,9 @@ button {
 
   .titlebar .search-trigger kbd {
     display: none;
+  }
+
+  .titlebar-settings {
+    display: inline-block;
   }
 }

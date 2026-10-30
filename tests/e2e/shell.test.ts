@@ -352,3 +352,84 @@ test('시작 화면과 환경설정: 프로젝트 없이도 환경설정을 열�
     await closeWindow(app);
   }
 });
+
+test('좁은 창(700px)에서도 설정에 들어갈 수 있다: 활동 막대가 숨어도 헤더의 설정 버튼 하나, 클릭·키보드로 열고 Esc로 닫으면 연 버튼으로 포커스가 돌아오며 미저장 입력·선택·undo가 그대로다 (빈 프로젝트 포함)', { timeout: 90_000 }, async () => {
+  const dir = await project('shell-narrow-settings');
+  const emptyDir = await tempDir('shell-narrow-empty');
+  await mkdir(join(emptyDir, 'chapters'));
+  const { app, page } = await launch(await tempDir('shell-narrow-settings-ud'));
+  try {
+    await setSize(app, 700, 800);
+    await page.waitForFunction(() => window.innerWidth === 700);
+    await open(app, page, dir);
+    const settings = page.getByRole('button', { name: '설정', exact: true });
+    const dialog = page.getByRole('dialog', { name: '환경설정' });
+    assert.equal(await settings.count(), 1, '700px: 설정 진입점은 보이는 버튼 하나');
+    assert.equal(await settings.isVisible(), true);
+    assert.equal(await page.locator('.activitybar').evaluate((el) => getComputedStyle(el).display), 'none', '활동 막대는 숨겨져 있다');
+
+    // 미저장 입력·선택·undo 가능 여부·편집기 노드를 기록한다
+    await typeAtEnd(page, BODY.one, ' UNSAVED');
+    await page.evaluate(() => void ((document.querySelector('.ProseMirror') as unknown as { __marker: number }).__marker = 5));
+    const snapshot = () =>
+      page.evaluate(() => {
+        const pm = document.querySelector('.ProseMirror') as unknown as { editor: { state: { doc: { toJSON(): unknown }; selection: { from: number; to: number } }; can(): { undo(): boolean } }; __marker?: number };
+        return { marker: pm.__marker ?? null, doc: JSON.stringify(pm.editor.state.doc.toJSON()), from: pm.editor.state.selection.from, to: pm.editor.state.selection.to, canUndo: pm.editor.can().undo() };
+      });
+    const before = await snapshot();
+
+    // 클릭으로 열고 Esc로 닫는다: 대화상자는 하나, 닫으면 연 버튼으로 포커스
+    await settings.click();
+    await dialog.waitFor();
+    assert.equal(await dialog.count(), 1);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), '설정');
+    // 키보드로 연다
+    await settings.focus();
+    await page.keyboard.press('Enter');
+    await dialog.waitFor();
+    assert.equal(await dialog.count(), 1);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), '설정');
+    // 닫기 버튼으로도
+    await settings.click();
+    await dialog.getByRole('button', { name: '닫기', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+
+    assert.deepEqual(await snapshot(), before, '설정을 열고 닫아도 편집기 노드·문서·선택·undo가 그대로');
+    // 실제 undo가 입력 한 단계만 되돌린다
+    await editor(page).getByText(`${BODY.one} UNSAVED`, { exact: true }).click();
+    await page.keyboard.press('End');
+    await page.keyboard.press('Control+z');
+    await editor(page).getByText(BODY.one, { exact: true }).waitFor();
+    await page.keyboard.press('Control+Shift+z');
+    await editor(page).getByText(`${BODY.one} UNSAVED`, { exact: true }).waitFor();
+    await page.keyboard.press('Control+s');
+    await saved(page);
+    assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), `${envelope('one', 'ONE')}${BODY.one} UNSAVED\r\n`, '원고 바이트(BOM·CRLF·frontmatter)');
+
+    // 넓은 창에서는 활동 막대의 설정만 보인다 (설정 진입점이 둘로 겹치지 않는다)
+    await setSize(app, 1300, 800);
+    await page.waitForFunction(() => window.innerWidth === 1300);
+    assert.equal(await settings.count(), 1);
+    assert.equal(await page.locator('.activitybar').getByRole('button', { name: '설정', exact: true }).count(), 1);
+
+    // 빈 프로젝트(700px): 화가 없어도 설정에 들어갈 수 있다
+    await setSize(app, 700, 800);
+    await page.waitForFunction(() => window.innerWidth === 700);
+    await stubFolderDialog(app, emptyDir);
+    await page.getByRole('button', { name: '열기', exact: true }).click();
+    await page.getByText('아직 화가 없습니다. 왼쪽 위의 [+ 새 화]로 첫 화를 만드세요.').waitFor();
+    assert.equal(await settings.count(), 1);
+    await settings.click();
+    await dialog.waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), '설정');
+  } finally {
+    page.on('dialog', (d) => void d.accept());
+    await closeWindow(app);
+  }
+});
