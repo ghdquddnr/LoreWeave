@@ -208,3 +208,53 @@ test('대조: 화 목록의 버튼으로 화를 열면 전처럼 편집기가 �
     await cleanup(app, page);
   }
 });
+
+// 편집기가 만들어진 뒤 시작 포커스가 requestAnimationFrame으로 나중에 실행되는 경합: 예약과 실행 사이에 사용자가 검색창에 포커스를 두면, 실행 시점의 현재 포커스를 보존해야 한다.
+// renderer의 requestAnimationFrame을 테스트가 보관해(예약 관측) 실행 시점을 직접 정한다 (합성 스케줄러 제어: 자연 OS/사용자 빈도의 증거가 아니다).
+// 관측 루프는 rAF 대신 polling 간격(25ms)을 쓴다 (기본 rAF polling도 보류되기 때문).
+test('편집기가 예약한 시작 포커스가 실행되기 전에 검색창에 포커스를 두면, 실행 시점에도 검색창 포커스가 유지된다 (예약 → 검색창 선택 → 실행 순서)', { timeout: 120_000 }, async () => {
+  const dir = await tempDir('first-search-raf');
+  await mkdir(join(dir, 'chapters'));
+  await writeFile(join(dir, 'chapters', '001.md'), ONE);
+  const { app, page } = await launch(await tempDir('first-search-raf-userdata'));
+  try {
+    await stubFolderDialog(app, dir);
+    await page.evaluate(() => {
+      const w = window as unknown as { framesHeld: Array<(t: number) => void>; rafOriginal: typeof window.requestAnimationFrame };
+      w.framesHeld = [];
+      w.rafOriginal = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) => {
+        w.framesHeld.push(cb);
+        return w.framesHeld.length;
+      };
+      (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '원고 폴더 열기') as HTMLButtonElement).click();
+    });
+    // 편집기가 만들어지고 포커스(또는 그 밖의) 프레임 예약이 1개 이상 보관될 때까지 (예약이 관측될 때까지가 기준이다)
+    await page.waitForFunction(() => !!document.querySelector('.ProseMirror') && (window as unknown as { framesHeld: unknown[] }).framesHeld.length > 0, null, { polling: 25, timeout: 15_000 });
+    const result = await page.evaluate(async () => {
+      const w = window as unknown as { framesHeld: Array<(t: number) => void>; rafOriginal: typeof window.requestAnimationFrame };
+      const input = document.querySelector('input[aria-label="원고 검색"]') as HTMLInputElement;
+      input.focus(); // 예약과 실행 사이에 사용자가 검색창을 선택한다
+      const before = document.activeElement === input;
+      const reserved = w.framesHeld.length;
+      window.requestAnimationFrame = w.rafOriginal; // 이 뒤의 예약은 정상 실행한다 (라이브러리가 실행 중에 다시 예약해도 막지 않는다)
+      for (let round = 0; round < 5 && w.framesHeld.length > 0; round++) {
+        const frames = w.framesHeld.splice(0);
+        frames.forEach((cb) => cb(performance.now()));
+        await new Promise<void>((resolve) => w.rafOriginal(() => resolve())); // 실행 중에 새로 예약된 프레임도 끝나게 한다
+      }
+      await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+      return { before, reserved, after: document.activeElement === input, active: (document.activeElement as HTMLElement | null)?.outerHTML.slice(0, 120) ?? 'none' };
+    });
+    assert.equal(result.before, true, '예약 뒤 검색창에 포커스를 두었다');
+    assert.ok(result.reserved >= 1, `프레임 예약이 관측됐다 (reserved=${result.reserved})`);
+    assert.equal(result.after, true, `예약된 포커스가 이후의 검색창 선택을 덮어썼다: ${JSON.stringify(result)}`);
+    assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), ONE, '원고 바이트는 그대로다');
+  } finally {
+    await page.evaluate(() => {
+      const w = window as unknown as { rafOriginal?: typeof window.requestAnimationFrame };
+      if (w.rafOriginal) window.requestAnimationFrame = w.rafOriginal;
+    }).catch(() => {});
+    await cleanup(app, page);
+  }
+});
