@@ -56,7 +56,11 @@ function openIndex(path: string): void {
   try {
     const opened = ManuscriptIndex.open(path);
     index = opened;
-    indexReady = syncIndex(opened, path).then(
+    indexReady = syncIndex(opened, path, (file) => {
+      // 폴더를 열 때의 초기 맞춤도 다른 색인 작업과 같은 표를 받는다: 읽는 사이 저장·바깥 변경이 더 최신 본문을 색인했다면 옛 읽기는 건너뛴다
+      const ticket = takeIndexTicket(file);
+      return () => latestIndexTicket.get(file) === ticket;
+    }).then(
       () => undefined,
       (e: Error) => {
         indexError = e.message;
