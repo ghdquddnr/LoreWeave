@@ -5,6 +5,7 @@ import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path';
 import { before, test } from 'node:test';
 import type { Page } from 'playwright';
+import { diagFailure } from './diag.ts';
 import { closeWindow, killApp, launch, stubFolderDialog, tempDir } from './launch.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
@@ -125,6 +126,12 @@ test('입력 중 앱이 강제로 꺼져도 잃는 것은 마지막 자동 저�
   await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: '1화. 입학' }).click();
   await page.locator('.ProseMirror').getByText(/북적였다/).click();
   await page.keyboard.press('End');
+  // 진단 (E2E_DIAG_DIR가 있을 때만 기록): 입력 직전 캐럿이 문단 끝인지. 판정·대기는 바꾸지 않는다. 본문은 남기지 않고 길이·위치만 쓴다
+  const caret = await page.evaluate(() => {
+    const s = window.getSelection();
+    const p = s?.anchorNode?.parentElement?.closest('p');
+    return `focused=${document.activeElement?.className.includes('ProseMirror')} offset=${s?.anchorOffset} paragraphLength=${p?.textContent?.length}`;
+  });
   await page.keyboard.type(' 앞부분');
   await saved(page);
   await page.keyboard.type(' 뒷부분');
@@ -132,7 +139,9 @@ test('입력 중 앱이 강제로 꺼져도 잃는 것은 마지막 자동 저�
   // 살아남은 프로세스가 자동 저장(1.5초)을 하지 않는지 확인할 만큼 기다린다
   await new Promise((r) => setTimeout(r, 2500));
   const text = await readFile(chapterFile('001.md'), 'utf8');
+  const expected = originals.get('001.md')!.toString('utf8').replace('북적였다.', '북적였다. 앞부분');
+  if (text !== expected) await diagFailure('fail.log', async () => `editing force-kill: caretBeforeTyping(${caret}) insertedAt=${text.indexOf(' 앞부분')} expectedAt=${expected.indexOf(' 앞부분')}`);
   // 원자적 쓰기라 파일이 반쯤 쓰인 채로 남지 않는다: 마지막 자동 저장 그대로다
-  assert.equal(text, originals.get('001.md')!.toString('utf8').replace('북적였다.', '북적였다. 앞부분'));
+  assert.equal(text, expected);
   assert.deepEqual((await readdir(join(project, 'chapters'))).filter((f) => f.endsWith('.tmp')), []);
 });

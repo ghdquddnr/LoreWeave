@@ -7,6 +7,7 @@ import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
+import { diagFailure } from './diag.ts';
 import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
 
 async function project(prefix: string, text: string): Promise<string> {
@@ -40,9 +41,17 @@ async function typeAndSave(page: Page, dir: string, before: string, add: string)
   await editor(page).getByText(before).click();
   await page.keyboard.press('End');
   await page.keyboard.type(add);
+  // 진단 (E2E_DIAG_DIR가 있을 때만 기록): 입력 직후·저장 직후 상태 줄. 판정·대기는 바꾸지 않는다
+  const statusAfterType = await page.getByRole('status').allInnerTexts();
   await page.keyboard.press('Control+S');
+  const statusAfterSave = await page.getByRole('status').allInnerTexts();
   await saved(page);
-  assert.match(await read(dir), new RegExp(`${before}${add}\\n$`));
+  const text = await read(dir);
+  const expected = new RegExp(`${before}${add}\\n$`);
+  if (!expected.test(text)) {
+    await diagFailure('fail.log', async () => `remember typeAndSave: statusAfterType=${JSON.stringify(statusAfterType)} statusAfterSave=${JSON.stringify(statusAfterSave)} fileLength=${text.length} hasAdd=${text.includes(add)}`);
+  }
+  assert.match(text, expected);
 }
 
 test('설정 저장 실패 중 전환 (감독 재현): B가 열리고 화면·main이 같은 B이며 입력·저장되고, 실패는 보이며, A로 다시 전환·취소·실패해도 저장되고, 설정이 돌아오면 다시 기억한다', { timeout: 90_000 }, async () => {
