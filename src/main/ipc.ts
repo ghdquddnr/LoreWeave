@@ -57,13 +57,16 @@ function openIndex(path: string): void {
     const opened = ManuscriptIndex.open(path);
     index = opened;
     indexReady = syncIndex(opened, path, (file) => {
-      // 폴더를 열 때의 초기 맞춤도 다른 색인 작업과 같은 표를 받는다: 읽는 사이 저장·바깥 변경이 더 최신 본문을 색인했다면 옛 읽기는 건너뛴다
+      // 폴더를 열 때의 초기 맞춤도 다른 색인 작업과 같은 표를 받는다: 읽는 사이 저장·바깥 변경이 더 최신 본문을 색인했다면 옛 읽기는 건너뛴다.
+      // 그 사이 다른 프로젝트가 열려 이 색인이 닫혔다면(index !== opened) 표를 받지 않고 건너뛴다: 같은 파일 이름의 새 프로젝트 작업이 가진 표를 가로채지 않는다
+      if (index !== opened) return () => false;
       const ticket = takeIndexTicket(file);
-      return () => latestIndexTicket.get(file) === ticket;
+      return () => index === opened && latestIndexTicket.get(file) === ticket;
     }).then(
       () => undefined,
       (e: Error) => {
-        indexError = e.message;
+        // 닫힌 옛 색인의 실패는 새 프로젝트의 색인 상태로 남기지 않는다
+        if (index === opened) indexError = e.message;
       },
     );
   } catch (e) {
