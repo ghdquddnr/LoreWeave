@@ -179,8 +179,15 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     enableInputRules: false,
     enablePasteRules: false,
     shouldRerenderOnTransaction: false,
-    // 이동할 곳이 있으면 처음 자리로 포커스를 옮기지 않는다 (나중에 실행돼 선택을 덮어쓴다)
-    autofocus: jump ? false : 'start',
+    // 이동할 곳이 있으면 처음 자리로 포커스를 옮기지 않는다 (나중에 실행돼 선택을 덮어쓴다).
+    // 시작 포커스는 TipTap의 autofocus 대신 onCreate에서 준다: autofocus는 편집기가 만들어진 뒤(본문 읽기가 끝난 뒤) 무조건 포커스를 가져가서,
+    // 그 사이 사용자가 검색창에 쓰던 글자나 Enter가 원고에 들어간다. 검색창 같은 입력란에 포커스가 있으면 가져가지 않는다 (버튼 등에서 화를 연 경우는 전처럼 편집기가 받는다)
+    autofocus: false,
+    onCreate: ({ editor: created }) => {
+      if (jump) return;
+      const active = document.activeElement;
+      if (!(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)) created.commands.focus('start');
+    },
     editable: !locked,
     onUpdate: () => {
       version.current++;

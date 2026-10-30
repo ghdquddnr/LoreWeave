@@ -12,11 +12,14 @@ export async function tempDir(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), `loreweave-${prefix}-`));
 }
 
-/** env: 앱에 더할 환경 변수 (예: 가짜 OpenAI 서버 주소 OPENAI_BASE_URL) */
-export async function launch(userData: string, env: Record<string, string> = {}): Promise<{ app: ElectronApplication; page: Page }> {
+/**
+ * env: 앱에 더할 환경 변수 (예: 가짜 OpenAI 서버 주소 OPENAI_BASE_URL)
+ * entry: 앱 시작 파일 (기본 '.' = package.json의 main). 제품보다 먼저 main 프로세스 훅을 걸어야 하는 테스트가 훅을 불러온 뒤 제품 main을 불러오는 얇은 시작 파일을 넘긴다
+ */
+export async function launch(userData: string, env: Record<string, string> = {}, entry = '.'): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await _electron.launch({
     executablePath: electronPath as unknown as string,
-    args: ['.', `--user-data-dir=${userData}`],
+    args: [entry, `--user-data-dir=${userData}`],
     env: { ...(process.env as Record<string, string>), ...env },
   });
   if (diagDir()) {
