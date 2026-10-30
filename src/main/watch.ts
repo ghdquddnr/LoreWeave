@@ -27,8 +27,10 @@ export function watchChapters(root: string, onChange: (file: string) => void, on
         }, DEBOUNCE_MS),
       );
     });
-  } catch {
-    // chapters 폴더가 아직 없다. 새 화를 만들 때 다시 시작한다
+  } catch (error) {
+    // chapters 폴더가 아직 없다(ENOENT)는 정상 초기 상태다: 새 화를 만들 때 다시 시작한다.
+    // 그 밖의 생성 실패(권한·시스템 한도)는 감시 없이 열리는 것이므로 알린다 (이후 바깥 변경을 놓칠 수 있다)
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') onError?.(error as Error);
     return () => {};
   }
   watcher.on('error', (error) => {
