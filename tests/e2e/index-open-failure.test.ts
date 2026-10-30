@@ -6,6 +6,7 @@
 // 실제 앱(Electron + Playwright). 합성 원고(BOM + CRLF + frontmatter). 실제 API는 쓰지 않는다.
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -80,7 +81,8 @@ test('색인 DB를 열 수 없어도 원고 열기·편집·저장은 정상이�
     await chapter(page, 'One').click();
     await editor(page).getByText('Alpha originalword mine', { exact: true }).waitFor();
     assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), TWO, '다른 화 원고는 바뀌지 않는다');
-    // 바깥 수정: 감시는 정상이다. 저장하지 않은 입력이 있는 채 바깥에서 바꾸면 덮어쓰지 않고 충돌로 알린다 (바깥 바이트·입력 보존)
+    // 바깥 수정: 감시는 정상이다. 저장하지 않은 입력이 있는 채 바깥에서 바꾸면 watcher 알림이 충돌 상태로 만들고(UI 저장은 그 상태에서 IPC 전에 막힌다), 바깥 바이트·입력은 보존된다.
+    // (main의 저장 해시 확인(expectedHash)은 이 테스트가 아니라 아래 IPC 직접 요청 테스트가 따로 본다.)
     await editor(page).getByText('Alpha originalword mine', { exact: true }).click();
     await page.keyboard.press('End');
     await page.keyboard.type(' more');
@@ -100,6 +102,74 @@ test('색인 DB를 열 수 없어도 원고 열기·편집·저장은 정상이�
     });
     assert.deepEqual(await searchApi(page, 'twoword'), { ok: true, total: 1 });
     assert.equal(await readFile(one, 'utf8'), EXTERNAL);
+  } finally {
+    await cleanup(app, page);
+  }
+});
+
+type WriteLog = { calls: number; done: number; last: string | null };
+/** chapter:write 처리기를 감싸 main에 실제로 도달한 요청 수와 응답을 돌려주기 직전의 결과(status)를 기록한다 */
+async function spyWrite(app: ElectronApplication) {
+  await app.evaluate(({ ipcMain }) => {
+    const g = globalThis as unknown as { writeLog: WriteLog };
+    g.writeLog = { calls: 0, done: 0, last: null };
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
+    const original = handlers.get('chapter:write')!;
+    handlers.set('chapter:write', async (...args: unknown[]) => {
+      g.writeLog.calls++;
+      const result = await original(...args);
+      g.writeLog.last = (result as { status: string }).status;
+      g.writeLog.done++;
+      return result;
+    });
+  });
+}
+const writeLog = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { writeLog: WriteLog }).writeLog);
+const sha = (text: string) => createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex');
+
+// 이 테스트는 UI가 아니라 renderer의 IPC(window.loreweave.chapters.write)를 직접 부른다 (UI 저장은 충돌 상태면 IPC 전에 막히므로 main의 해시 보호를 따로 봐야 한다).
+// 프로젝트 token은 새 사용자 데이터에서 처음 연 프로젝트이므로 1이다.
+test('색인을 열 수 없는 같은 상황에서, 바깥 수정 전 해시로 보낸 저장 요청은 main이 conflict로 거절하고 바깥 바이트·화면 입력은 보존되며, 최신 해시로는 저장된다', { timeout: 150_000 }, async () => {
+  const dir = await project(true);
+  const one = join(dir, 'chapters', '001.md');
+  const { app, page } = await launch(await tempDir('index-open-fail-userdata'));
+  try {
+    await spyWrite(app);
+    await stubFolderDialog(app, dir);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await chapter(page, 'One').click();
+    await editor(page).getByText('originalword').waitFor();
+    assert.equal((await searchApi(page, 'originalword')).ok, false, '색인 open 실패(EEXIST)가 유지된 상황이다');
+    assert.equal((await stat(join(dir, '.loreweave'))).isFile(), true);
+    const read = (await page.evaluate(`window.loreweave.chapters.read('001.md', 1)`)) as { text: string; hash: string };
+    assert.equal(read.hash, sha(ONE), '읽은 해시는 지금 디스크 바이트의 해시다');
+    // 수락한 화면 입력 (저장하지 않는다: 아래 직접 요청까지 곧바로 진행한다)
+    await editor(page).getByText('originalword').click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' mine');
+    // 바깥 수정: 이 뒤의 저장은 옛 해시(read.hash)로 보낸다
+    await writeFile(one, EXTERNAL);
+    const before = await writeLog(app);
+    const staleResult = (await page.evaluate(
+      `window.loreweave.chapters.write('001.md', ${JSON.stringify(doc('one', 'One', 'Alpha mine from stale hash'))}, ${JSON.stringify(read.hash)}, 1)`,
+    )) as { status: string; diskHash?: string | null };
+    // 실제 요청이 main에 도달했고 처리기가 conflict로 끝났다
+    const after = await writeLog(app);
+    assert.equal(after.calls, before.calls + 1, '저장 요청이 main에 도달했다');
+    assert.equal(after.done, before.done + 1, 'main의 저장 처리가 끝났다');
+    assert.equal(after.last, 'conflict');
+    assert.equal(staleResult.status, 'conflict', '옛 해시의 저장은 conflict로 거절된다');
+    assert.equal(staleResult.diskHash, sha(EXTERNAL), 'conflict는 지금 디스크(바깥) 해시를 돌려준다');
+    assert.equal(await readFile(one, 'utf8'), EXTERNAL, '바깥 정확 바이트가 덮이지 않았다');
+    assert.equal(await editor(page).getByText('Alpha originalword mine', { exact: true }).count(), 1, '수락한 화면 입력이 남아야 한다');
+    // 대조(정상 저장): 최신 해시로 보내면 저장된다
+    const fresh = (await page.evaluate(`window.loreweave.chapters.read('001.md', 1)`)) as { hash: string };
+    assert.equal(fresh.hash, sha(EXTERNAL));
+    const okText = doc('one', 'One', 'Alpha mine with fresh hash');
+    const okResult = (await page.evaluate(`window.loreweave.chapters.write('001.md', ${JSON.stringify(okText)}, ${JSON.stringify(fresh.hash)}, 1)`)) as { status: string };
+    assert.equal(okResult.status, 'saved');
+    assert.equal(await readFile(one, 'utf8'), okText);
+    assert.equal((await writeLog(app)).last, 'saved');
   } finally {
     await cleanup(app, page);
   }
