@@ -150,6 +150,10 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const paletteOpener = useRef<HTMLElement | null>(null);
   const aiRef = useRef<AnalysisBarHandle>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // 새 편집기(다른 화·다시 불러오기·다른 프로젝트)는 저장된 디스크 내용으로 시작한다. 편집기는 처음에 상태를 알리지 않으므로, 이전 편집기의 '저장 멈춤'·'저장 실패'가 남아 있지 않게 여기서 되돌린다
+  useEffect(() => {
+    setSave({ status: { kind: 'saved' }, changesOnReopen: null });
+  }, [file, reloadKey, projectGen]);
   const [searching, setSearching] = useState(false);
   const [jump, setJump] = useState<Jump | null>(null);
   /** 본문에 밑줄로 표시할 문장들 (IssuesPanel이 보고하는 최신 검사 결과, 표시 전용). 화를 바꾸면 패널이 비운다 */

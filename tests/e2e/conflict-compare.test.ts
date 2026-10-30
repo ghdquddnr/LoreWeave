@@ -127,3 +127,31 @@ test('디스크가 UTF-8이 아니게 바뀜: 비교는 읽을 수 없다고 알
     await closeWindow(app);
   }
 });
+
+test('충돌을 디스크 내용 불러오기로 풀거나 다른 화로 옮기면 상태줄이 "저장 멈춤"에 머물지 않고 새 편집기의 저장됨으로 돌아온다', { timeout: 90_000 }, async () => {
+  const { app, page, two } = await start();
+  try {
+    await typeIn(page, 'KEEP_A', ' MINE_DISCARDED');
+    const outside = `${envelope('two', 'TWO')}${lines('KEEP_A', '', 'CHANGE_ME', '', 'KEEP_B', 'FROM_DISK')}`;
+    await writeFile(two, outside);
+    await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).waitFor({ timeout: 15_000 });
+    await page.getByRole('status').getByText('저장 멈춤', { exact: false }).waitFor();
+    await page.getByRole('button', { name: /디스크 내용 불러오기/ }).click();
+    await editor(page).getByText('FROM_DISK', { exact: true }).waitFor();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await page.getByRole('status').getByText('저장 멈춤', { exact: false }).count(), 0, '불러온 뒤에는 저장 멈춤이 남지 않는다');
+    assert.equal(await readFile(two, 'utf8'), outside, '디스크는 그대로');
+    // 충돌 상태에서 다른 화로 옮겨도(확인에서 계속) 새 화의 상태줄은 저장됨이다
+    await typeIn(page, 'KEEP_A', ' AGAIN');
+    await writeFile(two, `${outside}\r\nSECOND_OUTSIDE`);
+    await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).waitFor({ timeout: 15_000 });
+    page.once('dialog', (d) => void d.accept());
+    await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: 'ONE' }).click();
+    await editor(page).getByText('ONLY_LINE', { exact: true }).waitFor();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await page.getByRole('status').getByText('저장 멈춤', { exact: false }).count(), 0);
+  } finally {
+    page.on('dialog', (d) => void d.accept());
+    await closeWindow(app);
+  }
+});
