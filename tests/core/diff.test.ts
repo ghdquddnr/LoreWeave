@@ -67,5 +67,9 @@ test('friendlyError: IPC 문구·파일 시스템 코드·절대 경로는 기�
   const index = friendlyError(new Error("색인을 갱신하지 못했습니다: EACCES: permission denied, stat 'C:\\x\\y.md'"));
   assert.equal(index.summary, '색인을 갱신하지 못했습니다');
   assert.match(index.detail, /EACCES/);
+  // 영문 시스템 메시지는 기본 안내에 그대로 두지 않는다
+  const english = friendlyError(new Error('Cannot convert argument to a ByteString because the character at index 10 has a value of 54633'));
+  assert.equal(english.summary, '예상하지 못한 오류가 발생했습니다');
+  assert.match(english.detail, /ByteString/);
   assert.equal(friendlyError(null).summary, '예상하지 못한 오류가 발생했습니다');
 });

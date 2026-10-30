@@ -26,7 +26,8 @@ const KNOWN: [RegExp, string][] = [
 export function friendlyError(error: unknown, fallback = '예상하지 못한 오류가 발생했습니다'): FriendlyError {
   const raw = (error instanceof Error ? error.message : typeof error === 'string' ? error : String(error ?? '')).trim();
   const cleaned = raw.replace(IPC_PREFIX, '').trim();
-  if (!TECHNICAL.test(raw)) return { summary: cleaned || fallback, detail: '' };
+  // 사람이 읽는 한국어 문장이고 기술 문구가 없으면 그대로 쓴다. 영문 시스템 메시지(예: ByteString 변환 오류)는 기본 안내에서 빼고 상세로 보낸다
+  if (!TECHNICAL.test(raw) && /[가-힣]/.test(cleaned)) return { summary: cleaned, detail: '' };
   // 사람이 쓴 한국어 설명이 앞에 있으면 그것을 기본 안내로 쓴다 (기술 문구가 시작되기 전까지). 없으면 알려진 코드의 안내, 그것도 없으면 일반 안내
   const cut = cleaned.search(TECH_START);
   const lead = (cut === -1 ? cleaned : cleaned.slice(0, cut)).replace(/[\s:：,;(（-]+$/u, '').trim();
