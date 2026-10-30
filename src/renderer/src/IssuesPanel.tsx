@@ -23,7 +23,8 @@ interface Props {
   /** 분석·검사가 끝날 때마다 바뀐다 (다시 읽기) */
   version: number;
   currentLines(): string[] | null;
-  onJump(at: QuoteLocation): void;
+  /** at이 null이면 지금 본문에 인용이 없다: 이전 선택만 접는다 */
+  onJump(at: QuoteLocation | null): void;
   /** 다른 화(근거)의 문장으로 이동 */
   /** 다른 화(근거)의 문장으로 이동. 위치는 그 화의 지금 본문에서 quote로 다시 찾는다 */
   onOpenEvidence(file: string, quote: string): void;
@@ -70,7 +71,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
     if (locked) return;
     const at = locateQuote(currentLines() ?? [], quote);
     setMissing(at ? null : quote);
-    if (at) onJump(at);
+    onJump(at);
   };
 
   const dismiss = (f: StoredFinding) => {

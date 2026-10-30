@@ -25,7 +25,8 @@ export type SaveStatus =
  * 본문 줄 line의 글자 범위 [from, to)를 선택한다. 또는 quote를 지금 에디터 본문(저장 전 입력 포함)에서 찾아 그 문장을 선택한다
  * (저장된 위치는 그 뒤 고친 원고와 맞지 않을 수 있다). seq가 바뀔 때마다 다시 이동한다
  */
-export type Jump = ({ line: number; from: number; to: number } | { quote: string }) & { seq: number };
+/** clear: 인용을 지금 본문에서 찾지 못했을 때, 이전 선택이 근거처럼 남지 않게 선택만 접는다 */
+export type Jump = ({ line: number; from: number; to: number } | { quote: string } | { clear: true }) & { seq: number };
 
 export interface ChapterEditorHandle {
   /** 저장할 것이 있으면 저장한다. 끝난 뒤 저장 안 된 변경이 남아 있으면 false */
@@ -201,12 +202,17 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
 
   useEffect(() => {
     if (!editor || !jump) return;
+    // 찾지 못했으면 이전에 선택해 둔 다른 글자가 근거처럼 남지 않게 선택만 접는다 (본문은 그대로)
+    const collapse = () => editor.chain().focus().setTextSelection(editor.state.selection.head).run();
+    if ('clear' in jump) {
+      collapse();
+      return;
+    }
     const at = 'quote' in jump ? locateQuote(visibleLines(editor.getJSON() as Doc), jump.quote) : { line: jump.line, start: jump.from, end: jump.to };
     const range = at && lineRangeToPositions(editor, at.line, at.start, at.end);
     if (!range) {
       if ('quote' in jump) onQuoteMissing?.(jump.quote);
-      // 찾지 못했으면 이전에 선택해 둔 다른 글자가 근거처럼 남지 않게 선택만 접는다 (본문은 그대로)
-      editor.chain().focus().setTextSelection(editor.state.selection.head).run();
+      collapse();
       return;
     }
     editor.chain().focus().setTextSelection(range).run();

@@ -308,7 +308,8 @@ export function App() {
     [],
   );
 
-  const jumpHere = (at: QuoteLocation) => setJump((j) => ({ line: at.line, from: at.start, to: at.end, seq: (j?.seq ?? 0) + 1 }));
+  const jumpHere = (at: QuoteLocation | null) =>
+    setJump((j) => ({ ...(at ? { line: at.line, from: at.start, to: at.end } : { clear: true as const }), seq: (j?.seq ?? 0) + 1 }));
 
   if (starting) return null;
 

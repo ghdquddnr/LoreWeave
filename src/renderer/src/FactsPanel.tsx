@@ -17,7 +17,8 @@ interface Props {
   /** 분석이 끝날 때마다 바뀐다 (다시 읽기) */
   version: number;
   currentLines(): string[] | null;
-  onJump(at: QuoteLocation): void;
+  /** at이 null이면 지금 본문에 인용이 없다: 이전 선택만 접는다 */
+  onJump(at: QuoteLocation | null): void;
 }
 
 export function FactsPanel({ file, projectToken, locked, state, version, currentLines, onJump }: Props) {
@@ -46,7 +47,7 @@ export function FactsPanel({ file, projectToken, locked, state, version, current
     if (locked) return;
     const at = locateQuote(currentLines() ?? [], quote);
     setMissing(at ? null : quote);
-    if (at) onJump(at);
+    onJump(at);
   };
 
   const byEntity = new Map<string, StoredAnalysis['facts']>();
