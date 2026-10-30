@@ -1326,3 +1326,231 @@ button {
 .sec-body > .link {
   margin: 0 14px 4px 0;
 }
+
+/* ───────────── P4: 명령 팔레트 · AI 실행 확인 · 오류 안내 · 충돌 비교 ───────────── */
+button.primary {
+  border-color: var(--lw-accent);
+  background: var(--lw-accent);
+  color: var(--lw-on-accent);
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.palette-backdrop {
+  align-items: start;
+  padding-top: 12vh;
+}
+
+.palette {
+  width: min(560px, calc(100vw - 32px));
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--lw-overlay);
+  border: 1px solid var(--lw-line-strong);
+  border-radius: var(--lw-radius-xl);
+  box-shadow: 0 24px 64px var(--lw-shadow);
+  overflow: hidden;
+}
+
+.palette input {
+  margin: 10px;
+  height: 34px;
+  padding: 0 10px;
+}
+
+.palette ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 8px;
+  overflow: auto;
+}
+
+.palette li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--lw-radius-sm);
+  cursor: pointer;
+}
+
+.palette li.on {
+  background: var(--lw-sel);
+  color: var(--lw-sel-fg);
+}
+
+.palette li.off {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.palette .palette-label {
+  font-weight: 600;
+}
+
+.palette .palette-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette li kbd {
+  margin-left: auto;
+  padding: 0 5px;
+  border: 1px solid var(--lw-line-strong);
+  border-radius: var(--lw-radius-xs);
+  font: var(--lw-fs-caption) var(--lw-font-mono);
+}
+
+.palette .palette-empty {
+  cursor: default;
+  color: var(--lw-muted);
+}
+
+/* AI 실행 확인 */
+.run-confirm {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.run-confirm .plan {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 12px 0;
+}
+
+.run-confirm .plan dt {
+  color: var(--lw-muted);
+}
+
+.run-confirm .plan dd {
+  margin: 0;
+}
+
+.consent-box {
+  padding: 10px 12px;
+  border: 1px solid var(--lw-warn-line);
+  border-radius: var(--lw-radius-md);
+  background: var(--lw-warn-bg);
+  color: var(--lw-warn-text);
+}
+
+/* 오류 안내와 기술 상세 */
+.error-note .tech-detail {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--lw-line-strong);
+  border-radius: var(--lw-radius-md);
+  background: var(--lw-well);
+  color: var(--lw-text-2);
+  font: var(--lw-fs-caption) var(--lw-font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tech-popover {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--lw-statusbar-h) + 6px);
+  z-index: 5;
+  padding: 8px 10px;
+  border: 1px solid var(--lw-line-strong);
+  border-radius: var(--lw-radius-md);
+  background: var(--lw-overlay);
+  box-shadow: 0 8px 24px var(--lw-shadow);
+}
+
+.tech-popover code {
+  display: block;
+  color: var(--lw-text-2);
+  font: var(--lw-fs-caption) var(--lw-font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.statusbar .link {
+  color: inherit;
+}
+
+/* 충돌 차이 보기 */
+.compare {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--lw-line);
+  background: var(--lw-panel);
+}
+
+.compare header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.compare .compare-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 12px;
+}
+
+.diff {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 36vh;
+  overflow: auto;
+  border: 1px solid var(--lw-line);
+  border-radius: var(--lw-radius-md);
+  font: var(--lw-fs-small) / 1.6 var(--lw-font-mono);
+}
+
+.diff li {
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.diff .diff-mark {
+  flex: none;
+  width: 12px;
+  text-align: center;
+}
+
+.diff .diff-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.diff .diff-del {
+  background: var(--lw-del-bg);
+  color: var(--lw-del-fg);
+}
+
+.diff .diff-add {
+  background: var(--lw-add-bg);
+  color: var(--lw-add-fg);
+}
+
+.diff .diff-gap {
+  color: var(--lw-muted);
+  justify-content: center;
+}
+
+.diff-del-label {
+  color: var(--lw-del-fg);
+  background: var(--lw-del-bg);
+  padding: 0 4px;
+}
+
+.diff-add-label {
+  color: var(--lw-add-fg);
+  background: var(--lw-add-bg);
+  padding: 0 4px;
+}

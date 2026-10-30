@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { CATEGORY_LABELS, CHECK_BATCH_SIZE, MIN_CONFIDENCE } from '../../core/ai/detection.ts';
 import { locateQuote, type QuoteLocation } from '../../core/ai/locate.ts';
 import type { CheckState, StoredCheck, StoredFinding } from '../../preload/api.ts';
+import { ErrorNote } from './ErrorNote.tsx';
+import { friendlyError } from './userError.ts';
 
 const api = window.loreweave;
 
@@ -136,10 +138,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
       <div className="sec-body" hidden={!open}>
         {loadError && (
           <p className="error" role="alert">
-            <span aria-hidden="true">✕</span> 검사 결과를 읽지 못했습니다: {loadError}{' '}
-            <button type="button" className="link" onClick={() => setReload((n) => n + 1)}>
-              다시 읽기
-            </button>
+            <ErrorNote prefix="검사 결과를 읽지 못했습니다" error={friendlyError(loadError)} onRetry={() => setReload((n) => n + 1)} retryLabel="다시 읽기" />
           </p>
         )}
         {check === undefined && !loadError && <p className="muted">불러오는 중…</p>}
@@ -164,7 +163,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
             )}
             {error?.file === file && (
               <p className="error" role="alert">
-                <span aria-hidden="true">✕</span> {error.message}
+                <ErrorNote error={friendlyError(error.message)} />
               </p>
             )}
             {visible === 0 && <p>찾은 문제 가능성이 없습니다.</p>}

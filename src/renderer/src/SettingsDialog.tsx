@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AiStatus } from '../../preload/api.ts';
 import { AppearanceSettings } from './AppearanceSettings.tsx';
 import type { AppearanceController } from './useAppearance.ts';
+import { friendlyError } from './userError.ts';
 
 const api = window.loreweave;
 
@@ -46,7 +47,7 @@ export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: 
     try {
       await task();
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      setMessage({ ok: false, text: friendlyError(e).summary });
     } finally {
       setBusy(false);
     }

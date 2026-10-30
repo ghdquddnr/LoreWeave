@@ -11,7 +11,9 @@ import {
   type ManuscriptFont,
   type ThemeId,
 } from '../../core/appearance.ts';
+import { ErrorNote } from './ErrorNote.tsx';
 import type { AppearanceController } from './useAppearance.ts';
+import { friendlyError } from './userError.ts';
 
 const FONT_CHOICES: { id: ManuscriptFont; label: string; hint?: string }[] = [
   { id: 'theme', label: '테마 기본', hint: '(심야·한낮은 고딕, 미색 종이·등잔불은 명조)' },
@@ -179,10 +181,13 @@ export function AppearanceSettings({ controller }: { controller: AppearanceContr
       </div>
       {saveError && (
         <p className="error" role="alert">
-          외관 설정을 저장하지 못했습니다 (화면에는 적용되어 있습니다): {saveError}{' '}
-          <button type="button" className="link" onClick={retry}>
-            다시 저장
-          </button>
+          <ErrorNote
+            prefix="외관 설정을 저장하지 못했습니다"
+            error={friendlyError(saveError)}
+            hint="화면에는 적용되어 있지만 이 컴퓨터의 설정 파일에는 아직 저장되지 않았습니다."
+            onRetry={retry}
+            retryLabel="다시 저장"
+          />
         </p>
       )}
     </section>

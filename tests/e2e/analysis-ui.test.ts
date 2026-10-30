@@ -54,8 +54,12 @@ test('설정에서 키 저장 → 동의 → 이 화 분석 → 사실 패널 �
     await settings.getByRole('button', { name: '닫기' }).click();
 
     await page.getByRole('button', { name: '이 화 분석' }).click();
-    const consent = page.getByRole('dialog', { name: '원고 전송 안내' });
-    await consent.getByRole('button', { name: '동의하고 계속' }).click();
+    // 동의와 비용 확인은 한 창이다 (이 사용자 데이터에서는 처음이라 동의도 함께 받는다)
+    const confirm1 = page.getByRole('dialog', { name: 'AI 실행 확인' });
+    await confirm1.getByText('이 화를 분석할까요?').waitFor();
+    await confirm1.getByText(/예상 비용\s*최대 \$0\.0\d+/).waitFor();
+    await confirm1.getByText('원고가 OpenAI로 전송됩니다.').waitFor();
+    await confirm1.getByRole('button', { name: '동의하고 실행' }).click();
     await facts.getByRole('heading', { name: '김민수' }).waitFor();
     await facts.getByText('나이: 스무 살').waitFor();
     await page.getByRole('navigation', { name: '화 목록' }).getByLabel('AI 분석됨').waitFor();
@@ -81,16 +85,17 @@ test('분석 뒤 고친 화는 "바뀜"으로 표시되고, 남은 화 분석은
     await page.getByRole('navigation', { name: '화 목록' }).getByLabel('AI 분석 뒤 바뀜').waitFor();
 
     await page.getByRole('button', { name: '남은 화 분석 (3)' }).click();
-    // 이 사용자 데이터에서는 처음이라 전송 동의를 먼저 받는다
-    await page.getByRole('dialog', { name: '원고 전송 안내' }).getByRole('button', { name: '동의하고 계속' }).click();
-    const confirm = page.getByRole('dialog', { name: '분석 확인' });
-    await confirm.getByText(/예상 비용 최대 \$0\.0\d+/).waitFor();
+    // 동의와 비용 확인은 한 창이다: 이 사용자 데이터에서는 처음이라 동의도 함께 받는다
+    const confirm = page.getByRole('dialog', { name: 'AI 실행 확인' });
+    await confirm.getByText(/예상 비용\s*최대 \$0\.0\d+/).waitFor();
+    await confirm.getByText('화 3개의 본문').waitFor();
     const before = fake.requests.length;
     await confirm.getByRole('button', { name: '취소' }).click();
-    assert.equal(fake.requests.length, before);
+    assert.equal(fake.requests.length, before, '취소하면 아무것도 보내지 않는다');
+    assert.equal((await page.evaluate(() => window.loreweave.ai.analysisStatus(1))).consent, false, '취소해도 동의는 저장되지 않는다');
 
     await page.getByRole('button', { name: '남은 화 분석 (3)' }).click();
-    await page.getByRole('dialog', { name: '분석 확인' }).getByRole('button', { name: '분석' }).click();
+    await page.getByRole('dialog', { name: 'AI 실행 확인' }).getByRole('button', { name: '동의하고 실행' }).click();
     await page.getByText(/화 3개 분석 · \$/).waitFor();
     await page.getByRole('button', { name: '남은 화 분석 (0)' }).waitFor();
   } finally {

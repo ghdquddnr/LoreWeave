@@ -5,14 +5,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { chapterInfo } from '../../core/project/chapters.ts';
 import type { QuoteLocation } from '../../core/ai/locate.ts';
 import type { AnalysisState, AppearanceBootstrap, CheckState, ProjectOpened, SearchHit } from '../../preload/api.ts';
-import { AnalysisBar } from './AnalysisBar.tsx';
+import { AnalysisBar, type AnalysisBarHandle } from './AnalysisBar.tsx';
 import { ActivityBar, ChapterTabs } from './Shell.tsx';
 import { ChapterEditor, type ChapterEditorHandle, type Jump, type SaveStatus } from './ChapterEditor.tsx';
+import { CommandPalette, type PaletteCommand } from './CommandPalette.tsx';
+import { ErrorNote } from './ErrorNote.tsx';
 import { FactsPanel } from './FactsPanel.tsx';
 import { IssuesPanel } from './IssuesPanel.tsx';
 import { SearchPanel, type SearchPanelHandle } from './SearchPanel.tsx';
 import { SettingsDialog } from './SettingsDialog.tsx';
 import type { SystemDarkStore } from './systemDark.ts';
+import { friendlyError } from './userError.ts';
+import { THEMES } from '../../core/appearance.ts';
 import { useAppearance } from './useAppearance.ts';
 
 interface AiState {
@@ -47,6 +51,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const appearance = useAppearance(boot, systemDark);
   const [starting, setStarting] = useState(true);
   const [project, setProject] = useState<ProjectOpened | null>(null);
+  const projectRef = useRef<ProjectOpened | null>(null);
+  projectRef.current = project;
   const [file, setFile] = useState<string | null>(null);
   /**
    * 열린 화 탭: 파일 이름만 가진다 (제목은 화 목록에서 읽는다). 항상 file이 있으면 tabs에 들어 있다.
@@ -123,7 +129,26 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     status: { kind: 'saved' },
     changesOnReopen: null,
   });
-  const [error, setError] = useState<string | null>(null);
+  /** 상태줄 오류: 기본 안내(error)와 펼쳐 보는 기술 상세(errorDetail)를 나눠 가진다 */
+  const [error, setErrorText] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState('');
+  const [errorOpen, setErrorOpen] = useState(false);
+  const setError = useCallback((message: string | null, detail = '') => {
+    setErrorText(message);
+    setErrorDetail(detail);
+    setErrorOpen(false);
+  }, []);
+  const fail = useCallback(
+    (e: unknown, prefix = '') => {
+      const f = friendlyError(e);
+      setError(prefix + f.summary, f.detail);
+    },
+    [setError],
+  );
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [saveDetailOpen, setSaveDetailOpen] = useState(false);
+  const paletteOpener = useRef<HTMLElement | null>(null);
+  const aiRef = useRef<AnalysisBarHandle>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [jump, setJump] = useState<Jump | null>(null);
@@ -145,17 +170,18 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       (s) => gen === projectGenRef.current && setAi(s),
       async (e: Error) => {
         if (switchDone.current) await switchDone.current;
-        if (gen === projectGenRef.current) setError(e.message);
+        if (gen === projectGenRef.current) fail(e);
       },
     );
-  }, []);
+  }, [fail]);
 
   const showProject = useCallback(
     (p: ProjectOpened) => {
       projectGenRef.current += 1;
       projectTokenRef.current = p.token;
       setProjectGen(projectGenRef.current);
-      setError(p.rememberError ? `폴더는 열었지만 다음 실행 때 다시 열 폴더로 기억하지 못했습니다: ${p.rememberError}` : null);
+      if (p.rememberError) fail(p.rememberError, '폴더는 열었지만 다음 실행 때 다시 열 폴더로 기억하지 못했습니다: ');
+      else setError(null);
       setProject(p);
       const first = firstReadable(p);
       setFile(first);
@@ -167,16 +193,34 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       setAi(null);
       refreshAi();
     },
-    [refreshAi],
+    [refreshAi, fail, setError],
   );
 
   useEffect(() => {
     api.project
       .reopenLast()
       .then((p) => p && showProject(p))
-      .catch((e: Error) => setError(e.message))
+      .catch((e: Error) => fail(e))
       .finally(() => setStarting(false));
-  }, [showProject]);
+  }, [showProject, fail]);
+
+  const openPalette = () => {
+    if (projectRef.current === null) return;
+    paletteOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPaletteOpen(true);
+  };
+  /** 팔레트를 닫는다. restore: 연 곳으로 포커스를 돌린다 (편집기에서 열었으면 PM 상태의 선택으로 되돌린다) */
+  const closePalette = (restore: boolean) => {
+    setPaletteOpen(false);
+    const opener = paletteOpener.current;
+    paletteOpener.current = null;
+    if (!restore || !opener) return;
+    // 닫는 렌더가 끝난 뒤에 돌려준다
+    setTimeout(() => {
+      if (opener.closest('.ProseMirror')) editor.current?.focus();
+      else if (opener.isConnected) opener.focus();
+    }, 0);
+  };
 
   /** 현재 화를 저장한다. 저장 못 한 변경이 남으면 계속할지 묻는다 */
   const leave = useCallback(async (): Promise<boolean> => {
@@ -194,6 +238,12 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         search.current?.focus();
+      }
+      // 명령 팔레트: 한글 조합 중이거나 다른 대화상자(설정·AI 실행 확인·팔레트)가 떠 있으면 열지 않는다
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (e.isComposing || e.repeat || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+        openPalette();
       }
     };
     window.addEventListener('blur', onBlur);
@@ -216,7 +266,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const run = (task: (gen: number) => Promise<void>) => {
     const gen = projectGenRef.current;
     return task(gen).catch((e: Error) => {
-      if (gen === projectGenRef.current) setError(e.message);
+      if (gen === projectGenRef.current) fail(e);
     });
   };
   const isCurrent = (gen: number) => gen === projectGenRef.current;
@@ -382,7 +432,11 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
           <button onClick={chooseFolder}>원고 폴더 열기</button>
           <button onClick={() => setSettingsOpen(true)}>환경설정</button>
         </div>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error">
+            <ErrorNote error={{ summary: error, detail: errorDetail }} />
+          </p>
+        )}
         {settingsOpen && <SettingsDialog appearance={appearance} totalCostUsd={0} onClose={() => setSettingsOpen(false)} onChange={() => undefined} />}
       </main>
     );
@@ -391,6 +445,31 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const current = project.list.chapters.find((c) => c.file === file);
   const titleOf = (f: string) => project.list.chapters.find((c) => c.file === f)?.title ?? f;
   const busy = switching || acting;
+  const saveError = save.status.kind === 'error' ? friendlyError(save.status.message) : null;
+  const pendingAnalysis = ai ? Object.values(ai.states).filter((s) => s !== 'fresh').length : 0;
+  /**
+   * 명령 팔레트: 지금 실제로 있는 동작만. 모두 기존 경로(화 만들기·폴더 열기·저장·검색·설정·AI 컨트롤러·탭 닫기·외관 설정)를 부른다.
+   * AI 명령은 도구줄·탐색기와 같은 AnalysisBar 컨트롤러 하나를 거치므로 실행 확인(동의·비용)도 같다.
+   */
+  const commands: PaletteCommand[] = [
+    { id: 'new-chapter', label: '새 화 만들기', hint: '화 목록 끝에 빈 화를 더합니다', disabled: busy ? '다른 조작 중' : undefined, run: () => void newChapter() },
+    { id: 'open-folder', label: '원고 폴더 열기…', hint: '다른 원고 폴더로 바꿉니다', disabled: switching ? '폴더를 바꾸는 중' : undefined, run: () => void chooseFolder() },
+    { id: 'save', label: '현재 화 저장', shortcut: 'Ctrl+S', disabled: file ? undefined : '열린 화 없음', run: () => void editor.current?.flush() },
+    { id: 'search', label: '원고 전체 검색', shortcut: 'Ctrl+Shift+F', run: () => search.current?.focus() },
+    { id: 'settings', label: '환경설정 열기', hint: '테마·글꼴·AI 키와 모델', run: () => setSettingsOpen(true) },
+    { id: 'analyze', label: '이 화 분석', hint: '실행 전에 범위와 예상 비용을 확인합니다', disabled: !file ? '열린 화 없음' : !ai || switching ? '준비 중' : undefined, run: () => aiRef.current?.analyzeCurrent() },
+    { id: 'analyze-pending', label: `남은 화 분석 (${pendingAnalysis})`, hint: '분석하지 않았거나 분석 뒤 바뀐 화', disabled: !ai || switching ? '준비 중' : pendingAnalysis === 0 ? '남은 화 없음' : undefined, run: () => aiRef.current?.analyzePending() },
+    { id: 'check', label: '이 화 검사', hint: '앞 화와 비교해 문제 가능성을 찾습니다', disabled: !file ? '열린 화 없음' : !ai || switching ? '준비 중' : undefined, run: () => aiRef.current?.checkCurrent() },
+    { id: 'reload-ai', label: 'AI 분석·검사 결과 다시 읽기', disabled: !ai ? '준비 중' : undefined, run: () => { refreshAi(); setAiVersion((v) => v + 1); } },
+    { id: 'close-tab', label: '현재 탭 닫기', disabled: file ? undefined : '열린 화 없음', run: () => file && void closeTab(file) },
+    ...THEMES.map((t) => ({
+      id: `theme-${t.id}`,
+      label: `테마: ${t.label}`,
+      hint: t.scheme === 'dark' ? '다크' : '라이트',
+      run: () => appearance.update({ theme: t.id, followSystem: false }),
+    })),
+  ];
+
   /**
    * 탐색기 상태 배지 (색만으로 구분하지 않는다: 기호 + 접근 이름). 검사·분석에서 읽은 실제 값만 쓴다.
    *   검사 뒤 본문이 바뀜 ◐ · 검사 최신이고 문제 가능성 n개 n · 검사 최신이고 없음 ✓ · (검사 전) 분석 최신 ✓ · 분석 뒤 바뀜 ◐ · 아무것도 안 함 –(CSS)
@@ -415,8 +494,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     <div className="shell">
       <header className="titlebar">
         <span className="brand">LoreWeave</span>
-        <button type="button" className="search-trigger" title="원고 전체 검색 (Ctrl+Shift+F)" onClick={() => search.current?.focus()}>
-          <span aria-hidden="true">⌕</span> 전체 검색 <kbd>Ctrl+Shift+F</kbd>
+        <button type="button" className="search-trigger" title="명령 팔레트 (Ctrl+K)" onClick={openPalette}>
+          <span aria-hidden="true">⌕</span> 명령 팔레트 <kbd>Ctrl+K</kbd>
         </button>
         <button onClick={chooseFolder} title="다른 원고 폴더 열기" disabled={switching}>
           열기
@@ -571,8 +650,22 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
           <span aria-hidden="true">{STATUS_SYMBOL[save.status.kind]}</span>{' '}
           <span>
             {STATUS_TEXT[save.status.kind]}
-            {save.status.kind === 'error' && `: ${save.status.message}`}
+            {save.status.kind === 'error' && `: ${saveError?.summary}`}
           </span>
+          {save.status.kind === 'error' && (
+            <>
+              {' '}
+              <span>입력은 이 화면에 남아 있고 디스크에는 아직 저장되지 않았습니다. Ctrl+S로 다시 저장할 수 있습니다.</span>
+              {saveError?.detail && (
+                <>
+                  {' '}
+                  <button type="button" className="link" aria-expanded={saveDetailOpen} onClick={() => setSaveDetailOpen((v) => !v)}>
+                    {saveDetailOpen ? '상세 닫기' : '기술 상세'}
+                  </button>
+                </>
+              )}
+            </>
+          )}
         </span>
         {save.changesOnReopen !== null && (
           <span className="warning">
@@ -592,12 +685,27 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         {error && (
           <span className="error">
             <span aria-hidden="true">✕</span> {error}
+            {errorDetail && (
+              <>
+                {' '}
+                <button type="button" className="link" aria-expanded={errorOpen} onClick={() => setErrorOpen((v) => !v)}>
+                  {errorOpen ? '상세 닫기' : '기술 상세'}
+                </button>
+              </>
+            )}
           </span>
         )}
         {ai && ai.totalCostUsd > 0 && <span className="cost">이 프로젝트 AI 비용 ${ai.totalCostUsd.toFixed(4)}</span>}
       </footer>
+      {((saveDetailOpen && saveError?.detail) || (errorOpen && errorDetail)) && (
+        <div className="tech-popover" role="note" aria-label="기술 상세">
+          {saveDetailOpen && saveError?.detail && <code>{saveError.detail}</code>}
+          {errorOpen && errorDetail && <code>{errorDetail}</code>}
+        </div>
+      )}
       {ai && !switching && (
         <AnalysisBar
+          ref={aiRef}
           file={file}
           projectToken={project.token}
           states={ai.states}
@@ -610,6 +718,18 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
           onNeedKey={() => setSettingsOpen(true)}
           toolbarSlot={toolbarSlot}
           explorerSlot={explorerSlot}
+        />
+      )}
+      {paletteOpen && (
+        <CommandPalette
+          commands={commands}
+          onCancel={() => closePalette(true)}
+          onRun={(c) => {
+            // 닫은 뒤 실행한다 (실행이 포커스를 옮기고, Enter의 키 입력이 새 포커스로 가지 않게). 포커스를 옮기는 명령은 원래 자리로 돌려주지 않는다
+            const movesFocus = ['new-chapter', 'open-folder', 'search', 'settings', 'analyze', 'analyze-pending', 'check'].includes(c.id);
+            closePalette(!movesFocus);
+            setTimeout(c.run, 0);
+          }}
         />
       )}
       {settingsOpen && (

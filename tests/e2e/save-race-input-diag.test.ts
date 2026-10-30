@@ -69,7 +69,11 @@ test('저장이 모두 실패해도 입력은 화면에 남는다: 클릭·End·
     await page.keyboard.type(' typed');
     trail.push(await observe(page, '3 입력 직후'));
     await page.keyboard.press('Control+S');
-    await page.getByRole('status').getByText('EPERM', { exact: false }).waitFor({ timeout: 10_000 });
+    await page.getByRole('status').getByText('저장 실패', { exact: false }).waitFor({ timeout: 10_000 });
+    // 기본 안내에는 코드·경로가 없고, 기술 상세를 펼치면 원문(EPERM)이 보인다
+    await page.getByRole('status').getByRole('button', { name: '기술 상세' }).click();
+    await page.getByRole('note', { name: '기술 상세' }).getByText('EPERM', { exact: false }).waitFor({ timeout: 5000 });
+    await page.getByRole('status').getByRole('button', { name: '상세 닫기' }).click();
     trail.push(await observe(page, '4 EPERM 안내 직후'));
     console.log(JSON.stringify(trail));
     // 판정 1: 취소/바이트 보존 (저장은 모두 실패했으므로 원고 파일은 그대로, 임시 파일 없음)

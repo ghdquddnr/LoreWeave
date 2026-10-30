@@ -8,6 +8,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { openManuscript, serializeManuscript, type Doc, type Envelope } from '../../core/manuscript/index.ts';
 import { editorProps, extensions } from './editor/extensions.ts';
 import { lineRangeToPositions } from './editor/jump.ts';
+import { ConflictCompare } from './ConflictCompare.tsx';
 import { reviewMarksKey, type MarkRange } from './editor/reviewMarks.ts';
 import { locateQuote } from '../../core/ai/locate.ts';
 import { visibleLines } from '../../core/manuscript/lines.ts';
@@ -36,6 +37,8 @@ export interface ChapterEditorHandle {
   lines(): string[] | null;
   /** 입력·붙여넣기를 바로 막거나 푼다 (프로젝트를 바꾸는 동안). React 다시 그리기를 기다리지 않는다 */
   setLocked(locked: boolean): void;
+  /** 편집기로 포커스를 돌린다. PM 상태의 선택으로 DOM 선택을 되돌려 놓는다 (팔레트·대화상자를 닫은 뒤) */
+  focus(): void;
 }
 
 interface Props {
@@ -118,11 +121,14 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
   // 에디터 콜백과 타이머가 최신 상태를 보도록 ref에도 둔다
   const status = useRef<SaveStatus>({ kind: 'saved' });
   const [conflict, setConflict] = useState<{ diskHash: string | null } | null>(null);
+  /** 충돌 안내의 [차이 보기]: 내 화면과 디스크를 읽기 전용으로 비교한다 */
+  const [comparing, setComparing] = useState(false);
 
   const report = useCallback(
     (next: SaveStatus, changesOnReopen: number | null = null) => {
       status.current = next;
       setConflict(next.kind === 'conflict' ? { diskHash: next.diskHash } : null);
+      if (next.kind !== 'conflict') setComparing(false);
       onStatus(next, changesOnReopen);
     },
     [onStatus],
@@ -258,6 +264,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
       lines: () => (editor ? visibleLines(editor.getJSON() as Doc) : null),
       // 편집 가능 여부만 바꾸고 변경 알림(onUpdate)은 내지 않는다
       setLocked: (on) => editor?.setEditable(!on, false),
+      focus: () => editor?.view.focus(),
     }),
     [editor],
   );
@@ -333,7 +340,15 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
             {conflict.diskHash === null ? '내 것으로 다시 만들기' : '내 것으로 덮어쓰기'}
           </button>
           {conflict.diskHash !== null && <button onClick={() => onReload()}>디스크 내용 불러오기 (내 수정은 버림)</button>}
+          {conflict.diskHash !== null && (
+            <button type="button" aria-expanded={comparing} onClick={() => setComparing((v) => !v)}>
+              {comparing ? '차이 닫기' : '차이 보기'}
+            </button>
+          )}
         </div>
+      )}
+      {conflict && conflict.diskHash !== null && comparing && editor && (
+        <ConflictCompare file={file} projectToken={projectToken} diskHash={conflict.diskHash} editor={editor} />
       )}
       <EditorContent editor={editor} className="manuscript" />
     </>

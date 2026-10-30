@@ -58,23 +58,25 @@ test('이 화 검사: 먼저 분석할 화와 비용을 확인받고, 문제 가
     await page.evaluate(() => window.loreweave.ai.setKey('sk-check-ui'));
     const issues = page.getByRole('region', { name: '문제 가능성' });
 
-    // 1화는 앞 화가 없다
+    // 1화는 앞 화가 없다: 계획 단계에서 알리고 확인 창은 뜨지 않는다 (아무것도 보내지 않았다)
     await page.getByRole('button', { name: '이 화 검사' }).click();
-    await page.getByRole('dialog', { name: '원고 전송 안내' }).getByRole('button', { name: '동의하고 계속' }).click();
     await page.getByText('앞 화가 없어 검사할 수 없습니다').waitFor();
+    assert.equal(await page.getByRole('dialog', { name: 'AI 실행 확인' }).count(), 0);
 
     await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: /^3화/ }).click();
     await issues.getByText('아직 검사하지 않은 화입니다').waitFor();
     await page.getByRole('button', { name: '이 화 검사' }).click();
-    const confirm = page.getByRole('dialog', { name: '검사 확인' });
+    const confirm = page.getByRole('dialog', { name: 'AI 실행 확인' });
     await confirm.getByText('이 화를 앞 화 2개와 비교할까요?').waitFor();
-    await confirm.getByText(/먼저 화 3개를 분석합니다 \(001\.md, 002\.md, 003\.md\)/).waitFor();
+    await confirm.getByText(/먼저 분석할 화 3개의 본문/).waitFor();
+    await confirm.getByText(/001\.md, 002\.md, 003\.md/).waitFor();
+    await confirm.getByText('원고가 OpenAI로 전송됩니다.').waitFor();
     const before = fake.requests.length;
     await confirm.getByRole('button', { name: '취소' }).click();
     assert.equal(fake.requests.length, before);
 
     await page.getByRole('button', { name: '이 화 검사' }).click();
-    await page.getByRole('dialog', { name: '검사 확인' }).getByRole('button', { name: '검사' }).click();
+    await page.getByRole('dialog', { name: 'AI 실행 확인' }).getByRole('button', { name: '동의하고 실행' }).click();
     await page.getByText(/검사 완료: 문제 가능성 1개 \(확신이 낮아 숨긴 것 1개\) · \$[\d.]+ · 먼저 분석한 화 3개/).waitFor();
     await issues.getByRole('heading', { name: '문제 가능성 (1)' }).waitFor();
     await issues.getByText('앞 화 2개의 사실 1개와 비교', { exact: false }).waitFor();
