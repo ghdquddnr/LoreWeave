@@ -135,6 +135,13 @@ function startWatching(path: string): void {
         indexBroken = e.message;
       }
     });
+  }, (e) => {
+    // 실행 중 감시가 오류로 닫혔다: 이후의 바깥 변경은 알림도 색인도 되지 않는다. 폴더를 다시 열 때까지 검색이 오래된 색인을 정상으로 답하지 않게 한다.
+    // 이전 프로젝트의 늦은 오류는 새 프로젝트에 퍼지지 않는다
+    if (generation === projectToken && root === path) {
+      indexError = e.message;
+      indexBroken = `폴더 감시가 중단되었습니다: ${e.message}`;
+    }
   });
 }
 
