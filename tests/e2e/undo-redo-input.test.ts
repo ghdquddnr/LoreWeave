@@ -158,7 +158,7 @@ async function scenario(page: Page, dir: string, hold: boolean) {
   await editor(page).getByText('TARGET_BODY', { exact: true }).waitFor();
   check('재열기 블록(B3)', (await state(page)).blocks, B3);
   check('재열기 뒤 디스크 바이트', await readFile(two, 'utf8'), bytesOf(B3));
-  // 한 번 취소한 상태(B2)도 저장·재열기로 보존된다 (재열기 뒤에는 취소 기록이 없는 것이 정상)
+  // (정정) 재열기한 B3 위에서 새 입력 ' LAST'를 넣고 그것만 취소해 B3로 돌아온 뒤 저장한다: 재열기 직후의 새 history 한 단계를 검증하며, **B2 상태를 저장·재열기로 검증하지 않는다** (재열기 뒤에는 이전 취소 기록이 없는 것이 정상)
   await editor(page).getByText('EXTRA_LINE MORE', { exact: true }).click();
   await page.keyboard.press('End');
   await page.keyboard.insertText(' LAST');
