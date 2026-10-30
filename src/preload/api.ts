@@ -99,12 +99,14 @@ export interface LoreweaveApi {
     /** 원고가 OpenAI로 전송된다는 안내에 동의했는지 저장한다 */
     setConsent(consent: boolean): Promise<void>;
     /**
-     * 화마다 분석·검사 상태, 지금까지 쓴 비용, 깨진 분석 파일을 옮겼는지, 전송 동의 여부.
+     * 화마다 분석·검사 상태와 문제 가능성 수, 지금까지 쓴 비용, 깨진 분석 파일을 옮겼는지, 전송 동의 여부.
      * token: 요청한 화면의 프로젝트 token. 다른 프로젝트가 열렸으면(답을 기다리는 사이 포함) STALE_PROJECT로 거절한다 (analysis·checkResult·dismiss도 같다)
      */
     analysisStatus(token: number): Promise<{
       states: Record<string, AnalysisState>;
       checkStates: Record<string, CheckState>;
+      /** 검사한 화의 지금 보이는 문제 가능성 수 (확신도 기준 이상, 무시하지 않은 결과). 검사하지 않은 화는 없다 */
+      issueCounts: Record<string, number>;
       totalCostUsd: number;
       recoveredFrom: string | null;
       consent: boolean;

@@ -25,12 +25,21 @@ interface Props {
   currentLines(): string[] | null;
   /** at이 null이면 지금 본문에 인용이 없다: 이전 선택만 접는다 */
   onJump(at: QuoteLocation | null): void;
-  /** 다른 화(근거)의 문장으로 이동 */
   /** 다른 화(근거)의 문장으로 이동. 위치는 그 화의 지금 본문에서 quote로 다시 찾는다 */
   onOpenEvidence(file: string, quote: string): void;
+  /**
+   * 본문에 밑줄·거터 점으로 표시할 문장들 (표시 전용). 최신 검사 결과이고(state가 fresh) 지금 보이는 결과만 낸다.
+   * 오래된(stale) 결과는 확정 오류처럼 보이지 않게 밑줄을 내지 않는다. 에디터가 지금 본문에서 다시 찾아 찾은 것만 그린다
+   */
+  onMarks(quotes: string[]): void;
+  /** 무시가 저장됐다 (탐색기 배지 숫자를 다시 읽는다) */
+  onDismissed(): void;
 }
 
-export function IssuesPanel({ file, projectToken, locked, state, version, currentLines, onJump, onOpenEvidence }: Props) {
+/** 이 화 문장이 지금 본문에서 어디에 있는가: 검사 때와 같은 줄(ok) · 다른 줄에서 실제로 찾음(moved) · 찾을 수 없음(missing) */
+type Place = 'ok' | 'moved' | 'missing' | 'unknown';
+
+export function IssuesPanel({ file, projectToken, locked, state, version, currentLines, onJump, onOpenEvidence, onMarks, onDismissed }: Props) {
   /**
    * 보이는 검사 결과와, 그 결과를 읽은 화·조회 차례(seq). 화를 바꾸면 새 결과가 올 때까지 이전 화의 결과를 보이지 않는다.
    * 같은 화를 다시 읽는 동안(무시·검사 뒤)에는 보이되 무시는 받지 않는다 (결과 번호 ord는 그 조회의 결과에만 맞다)
@@ -46,6 +55,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   /** 무시 실패. 그 결과의 화에서만 보인다 */
   const [error, setError] = useState<{ file: string; message: string } | null>(null);
   const [reload, setReload] = useState(0);
+  const [open, setOpen] = useState(true);
 
   useEffect(() => {
     const mine = ++seq.current;
@@ -79,7 +89,10 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
     if (!ready || loaded.seq !== seq.current) return;
     const target = loaded.file;
     void api.ai.dismiss(target, f.ord, projectToken).then(
-      () => setReload((n) => n + 1),
+      () => {
+        setReload((n) => n + 1);
+        onDismissed();
+      },
       (e: Error) => setError({ file: target, message: e.message }),
     );
   };
@@ -91,78 +104,142 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   const lowCount = check?.findings.filter((f) => !f.dismissed && low(f)).length ?? 0;
   const visible = check?.findings.filter((f) => !f.dismissed && !low(f)).length ?? 0;
 
+  const placeOf = (f: StoredFinding): Place => {
+    const lines = currentLines();
+    if (!lines) return 'unknown';
+    const at = locateQuote(lines, f.target.quote);
+    return !at ? 'missing' : at.line === f.target.line ? 'ok' : 'moved';
+  };
+
+  // 본문에 표시할 문장: 최신 검사 결과(fresh)이고 이 화의 마지막 조회 결과이며 지금 보이는 것만
+  const markQuotes = state === 'fresh' && ready && check ? shown.filter((f) => !f.dismissed).map((f) => f.target.quote) : [];
+  const markKey = markQuotes.join('\n');
+  useEffect(() => {
+    onMarks(markQuotes);
+    // markQuotes는 markKey로 비교한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markKey]);
+  useEffect(() => () => onMarks([]), []);
+
   return (
     <section className="issues" aria-label="문제 가능성">
-      <h2>문제 가능성{visible > 0 ? ` (${visible})` : ''}</h2>
-      {loadError && (
-        <p className="error">
-          검사 결과를 읽지 못했습니다: {loadError}{' '}
-          <button type="button" className="link" onClick={() => setReload((n) => n + 1)}>
-            다시 읽기
-          </button>
-        </p>
-      )}
-      {check === undefined && !loadError && <p className="muted">불러오는 중…</p>}
-      {check === null && <p className="muted">아직 검사하지 않은 화입니다. 왼쪽의 [이 화 검사]를 누르면 앞 화들과 비교합니다.</p>}
-      {check && (
-        <>
-          <p className="muted">
-            앞 화 {check.inputs.length}개의 사실 {check.factCount}개와 비교
-            {check.factCount > CHECK_BATCH_SIZE && ` (${Math.ceil(check.factCount / CHECK_BATCH_SIZE)}번 나눠 검사)`} · {check.model} ·{' '}
-            {new Date(check.createdAt).toLocaleString()}
+      <h2 aria-label={`문제 가능성${visible > 0 ? ` (${visible})` : ''}`}>
+        <button type="button" className="sec-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <span aria-hidden="true">{open ? '▾' : '▸'}</span> <span>문제 가능성</span>
+        </button>
+        {visible > 0 && (
+          <span className="count-badge" aria-hidden="true">
+            {visible}
+          </span>
+        )}
+      </h2>
+      <div className="sec-body" hidden={!open}>
+        {loadError && (
+          <p className="error" role="alert">
+            <span aria-hidden="true">✕</span> 검사 결과를 읽지 못했습니다: {loadError}{' '}
+            <button type="button" className="link" onClick={() => setReload((n) => n + 1)}>
+              다시 읽기
+            </button>
           </p>
-          {state === 'stale' && <p className="warning">검사한 뒤 이 화나 앞 화의 본문이 바뀌었습니다. 다시 검사하면 최신 내용으로 비교합니다.</p>}
-          {check.dropped > 0 && <p className="muted">원고에서 문장을 찾을 수 없어 버린 결과 {check.dropped}개</p>}
-          {missing && <p className="warning">지금 본문에서 이 문장을 찾을 수 없습니다: {quoted(missing)}</p>}
-          {error?.file === file && <p className="error">{error.message}</p>}
-          {visible === 0 && <p>찾은 문제 가능성이 없습니다.</p>}
-          <ul>
-            {shown.map((f) => (
-              <li key={f.ord} className={f.dismissed || low(f) ? 'issue dismissed' : 'issue'}>
-                <span className="issue-head">
-                  <span className="category">{CATEGORY_LABELS[f.category]}</span>
-                  <span className="muted" title="AI가 모순이라고 판단한 정도 (보조 정보)">
-                    확신 {f.confidence.toFixed(1)}
-                  </span>
-                  {f.dismissed ? (
-                    <span className="muted">무시함</span>
-                  ) : (
-                    <button type="button" className="link" disabled={!ready} onClick={() => dismiss(f)}>
-                      무시
-                    </button>
-                  )}
-                </span>
-                <span className="claim">{f.claim}</span>
-                <button type="button" className="quote" title="이 화의 이 문장으로 이동" disabled={locked} onClick={() => jump(f.target.quote)}>
-                  이 화: {quoted(f.target.quote)}
-                </button>
-                {f.evidence.map((e, i) => (
-                  <button
-                    type="button"
-                    key={i}
-                    className="quote evidence"
-                    title={`${e.chapter}화의 이 문장으로 이동`}
-                    disabled={locked}
-                    onClick={() => onOpenEvidence(e.file, e.quote)}
-                  >
-                    {e.chapter}화: {quoted(e.quote)}
-                  </button>
-                ))}
-              </li>
-            ))}
-          </ul>
-          {lowCount > 0 && (
-            <button type="button" className="link" onClick={() => setShowLow((v) => !v)}>
-              {showLow ? '확신이 낮은 결과 숨기기' : `확신이 낮아 숨긴 결과 ${lowCount}개 보기`}
-            </button>
-          )}
-          {dismissed > 0 && (
-            <button type="button" className="link" onClick={() => setShowDismissed((v) => !v)}>
-              {showDismissed ? '무시한 결과 숨기기' : `무시한 결과 ${dismissed}개 보기`}
-            </button>
-          )}
-        </>
-      )}
+        )}
+        {check === undefined && !loadError && <p className="muted">불러오는 중…</p>}
+        {check === null && <p className="muted">아직 검사하지 않은 화입니다. 왼쪽의 [이 화 검사]를 누르면 앞 화들과 비교합니다.</p>}
+        {check && (
+          <>
+            <p className="muted">
+              앞 화 {check.inputs.length}개의 사실 {check.factCount}개와 비교
+              {check.factCount > CHECK_BATCH_SIZE && ` (${Math.ceil(check.factCount / CHECK_BATCH_SIZE)}번 나눠 검사)`} · {check.model} ·{' '}
+              {new Date(check.createdAt).toLocaleString()}
+            </p>
+            {state === 'stale' && (
+              <p className="warning">
+                <span aria-hidden="true">◐</span> 검사한 뒤 이 화나 앞 화의 본문이 바뀌었습니다. 다시 검사하면 최신 내용으로 비교합니다.
+              </p>
+            )}
+            {check.dropped > 0 && <p className="muted">원고에서 문장을 찾을 수 없어 버린 결과 {check.dropped}개</p>}
+            {missing && (
+              <p className="warning">
+                <span className="chip chip-missing">MISSING</span> 지금 본문에서 이 문장을 찾을 수 없습니다: {quoted(missing)}
+              </p>
+            )}
+            {error?.file === file && (
+              <p className="error" role="alert">
+                <span aria-hidden="true">✕</span> {error.message}
+              </p>
+            )}
+            {visible === 0 && <p>찾은 문제 가능성이 없습니다.</p>}
+            <ul className="cards">
+              {shown.map((f) => {
+                const place = placeOf(f);
+                return (
+                  <li key={f.ord} className={`issue-card${f.dismissed ? ' dismissed' : ''}${low(f) ? ' low' : ''}${state === 'stale' ? ' stale' : ''}`}>
+                    <span className="issue-head">
+                      <span className="warn-square" aria-hidden="true" />
+                      <span className="category">{CATEGORY_LABELS[f.category]}</span>
+                      <span className="conf" title="AI가 모순이라고 판단한 정도 (보조 정보)">
+                        확신 {f.confidence.toFixed(1)}
+                      </span>
+                      {low(f) && !f.dismissed && <span className="chip">확신 낮음</span>}
+                      {state === 'stale' && <span className="chip chip-stale">옛 결과</span>}
+                      {f.dismissed ? (
+                        <span className="chip">무시함</span>
+                      ) : (
+                        <button type="button" className="link" disabled={!ready} onClick={() => dismiss(f)}>
+                          무시
+                        </button>
+                      )}
+                    </span>
+                    <span className="claim">{f.claim}</span>
+                    <span className="quote-well">
+                      <button type="button" className="quote target" title="이 화의 이 문장으로 이동" disabled={locked} onClick={() => jump(f.target.quote)}>
+                        <span className="q-label">이 화:</span> {quoted(f.target.quote)}
+                        {place === 'moved' && (
+                          <>
+                            {' '}
+                            <span className="chip chip-moved" title="검사 때와 다른 줄에서 지금 본문의 이 문장을 찾았습니다">
+                              MOVED
+                            </span>
+                          </>
+                        )}
+                        {place === 'missing' && (
+                          <>
+                            {' '}
+                            <span className="chip chip-missing" title="지금 본문에서 이 문장을 찾을 수 없습니다">
+                              MISSING
+                            </span>
+                          </>
+                        )}
+                      </button>
+                      {f.evidence.map((e, i) => (
+                        <button
+                          type="button"
+                          key={i}
+                          className="quote evidence"
+                          title={`${e.chapter}화의 이 문장으로 이동`}
+                          disabled={locked}
+                          onClick={() => onOpenEvidence(e.file, e.quote)}
+                        >
+                          <span className="q-label">{e.chapter}화:</span> {quoted(e.quote)}
+                        </button>
+                      ))}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            {lowCount > 0 && (
+              <button type="button" className="link" onClick={() => setShowLow((v) => !v)}>
+                {showLow ? '확신이 낮은 결과 숨기기' : `확신이 낮아 숨긴 결과 ${lowCount}개 보기`}
+              </button>
+            )}
+            {dismissed > 0 && (
+              <button type="button" className="link" onClick={() => setShowDismissed((v) => !v)}>
+                {showDismissed ? '무시한 결과 숨기기' : `무시한 결과 ${dismissed}개 보기`}
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </section>
   );
 }

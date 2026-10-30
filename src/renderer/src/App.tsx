@@ -18,6 +18,7 @@ import { useAppearance } from './useAppearance.ts';
 interface AiState {
   states: Record<string, AnalysisState>;
   checkStates: Record<string, CheckState>;
+  issueCounts: Record<string, number>;
   totalCostUsd: number;
   recoveredFrom: string | null;
   consent: boolean;
@@ -126,6 +127,10 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const [notice, setNotice] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [jump, setJump] = useState<Jump | null>(null);
+  /** 본문에 밑줄로 표시할 문장들 (IssuesPanel이 보고하는 최신 검사 결과, 표시 전용). 화를 바꾸면 패널이 비운다 */
+  /** 편집기가 새로 만들어질 때마다 늘어, 패널이 지금 본문과 인용 위치를 다시 대조하게 한다 */
+  const [, setEditorTick] = useState(0);
+  const [reviewMarks, setReviewMarks] = useState<{ file: string; quotes: string[] }>({ file: '', quotes: [] });
   const [ai, setAi] = useState<AiState | null>(null);
   const [aiVersion, setAiVersion] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -386,7 +391,25 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const current = project.list.chapters.find((c) => c.file === file);
   const titleOf = (f: string) => project.list.chapters.find((c) => c.file === f)?.title ?? f;
   const busy = switching || acting;
-  const aiStateOf = (f: string) => ai?.states[f] ?? 'none';
+  /**
+   * 탐색기 상태 배지 (색만으로 구분하지 않는다: 기호 + 접근 이름). 검사·분석에서 읽은 실제 값만 쓴다.
+   *   검사 뒤 본문이 바뀜 ◐ · 검사 최신이고 문제 가능성 n개 n · 검사 최신이고 없음 ✓ · (검사 전) 분석 최신 ✓ · 분석 뒤 바뀜 ◐ · 아무것도 안 함 –(CSS)
+   * 오래된(stale) 검사의 숫자는 확정처럼 보이지 않게 숫자를 내지 않는다.
+   */
+  const badgeOf = (f: string): { kind: string; glyph: string; label: string } | null => {
+    if (!ai) return null;
+    const check = ai.checkStates[f];
+    const count = ai.issueCounts[f];
+    if (check === 'stale') return { kind: 'stale', glyph: '◐', label: '검사한 뒤 본문이 바뀜' };
+    if (check === 'fresh') {
+      return count && count > 0
+        ? { kind: 'issues', glyph: String(count), label: `문제 가능성 ${count}개` }
+        : { kind: 'fresh', glyph: '✓', label: '검사함: 문제 가능성 없음' };
+    }
+    const analysis = ai.states[f];
+    if (analysis === 'fresh' || analysis === 'stale') return { kind: analysis, glyph: analysis === 'fresh' ? '✓' : '◐', label: MARK_TITLE[analysis] };
+    return null;
+  };
 
   return (
     <div className="shell">
@@ -452,18 +475,21 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 key={c.file}
                 className={c.file === file ? 'chapter current' : 'chapter'}
                 data-no={c.file.replace(/\.md$/, '')}
-                data-ai={ai && !c.unreadable ? aiStateOf(c.file) : undefined}
+                data-ai={ai && !c.unreadable && !badgeOf(c.file) ? 'none' : undefined}
                 aria-current={c.file === file ? 'page' : undefined}
                 disabled={c.unreadable}
                 title={c.unreadable ? 'UTF-8이 아닌 파일이라 열 수 없습니다' : c.file}
                 onClick={() => openChapter(c.file)}
               >
                 {c.title}
-                {ai && ai.states[c.file] && ai.states[c.file] !== 'none' && (
-                  <span className={`mark mark-${ai.states[c.file]}`} title={MARK_TITLE[ai.states[c.file]!]} aria-label={MARK_TITLE[ai.states[c.file]!]}>
-                    {ai.states[c.file] === 'fresh' ? '✓' : '◐'}
-                  </span>
-                )}
+                {(() => {
+                  const badge = badgeOf(c.file);
+                  return badge && (
+                    <span className={`mark mark-${badge.kind}`} title={badge.label} aria-label={badge.label}>
+                      {badge.glyph}
+                    </span>
+                  );
+                })()}
               </button>
             ))}
           </nav>
@@ -500,6 +526,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 onReload={onReload}
                 jump={jump}
                 onQuoteMissing={onQuoteMissing}
+                marks={reviewMarks.file === file ? reviewMarks.quotes : undefined}
+                onReady={() => setEditorTick((t) => t + 1)}
               />
             ) : (
               <p className="editor-message">
@@ -521,6 +549,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
               currentLines={() => editor.current?.lines() ?? null}
               onJump={jumpHere}
               onOpenEvidence={openEvidence}
+              onMarks={(quotes) => setReviewMarks({ file, quotes })}
+              onDismissed={refreshAi}
             />
             <FactsPanel
               key={`facts:${projectGen}`}
