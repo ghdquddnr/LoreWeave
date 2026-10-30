@@ -63,7 +63,15 @@ export async function syncIndex(
   const files = await chapterFileNames(root);
   let reindexed = 0;
   for (const file of files) {
-    const info = await stat(join(root, CHAPTERS_DIR, file));
+    let info;
+    try {
+      info = await stat(join(root, CHAPTERS_DIR, file));
+    } catch (e) {
+      // 목록을 얻은 뒤 이 화가 지워졌다: 한 화의 ENOENT가 나머지 화의 맞춤을 막지 않게 건너뛴다. indexed에서 빼지 않으므로 아래 정리가 지금 디스크를 보고 제거한다.
+      // ENOENT가 아닌 오류(권한·I/O)는 숨기지 않고 그대로 던진다
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw e;
+    }
     const known = indexed.get(file);
     indexed.delete(file);
     if (known && known.mtimeMs === info.mtimeMs && known.size === info.size) continue;
