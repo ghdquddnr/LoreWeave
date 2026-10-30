@@ -389,3 +389,111 @@ test('시작 포커스가 예약된 뒤 같은 화의 검색 결과를 눌러 ju
     await cleanup(app, page);
   }
 });
+
+// jump effect의 지연 focus와 검색창 이동의 순서: 같은 화의 검색 결과 jump가 `chain.focus()`로 TipTap의 requestAnimationFrame view.focus()를 예약한 뒤,
+// 실행되기 전에 사용자가 검색 입력란으로 이동하면, 예약된 focus가 실행 시점의 입력란 포커스를 무시하고 편집기로 가져가는지 본다. (PR110은 시작 포커스 프레임이 jump의 선택을 덮는 경우다.)
+// 순서: 편집기 열림 → 검색(키보드) → 같은 화의 결과 클릭 → jump effect가 jump 단계 프레임을 예약, 그 시점의 PM 선택을 읽기 전용(`.ProseMirror`.editor)으로 확인 →
+//   검색창을 실제로 클릭(마우스 선택) → 보관 프레임을 하나씩 실행하며 매번 activeElement·PM 선택 관측 → 실제 keyboard 입력('x')과 Enter가 어디로 가는지.
+// 합성 rAF 스케줄러 제어(자연 빈도의 증거가 아니다). 포커스·선택을 locator·evaluate로 강제하지 않는다 (검색창 이동은 마우스, 입력은 keyboard).
+test('같은 화 jump가 예약한 지연 focus가 실행되기 전에 검색창을 선택하면, 실행 뒤에도 검색창 포커스가 유지되고 입력·Enter가 검색창으로 가며 원고는 바뀌지 않는다', { timeout: 120_000 }, async () => {
+  const dir = await tempDir('first-search-jumpfocus');
+  await mkdir(join(dir, 'chapters'));
+  await writeFile(join(dir, 'chapters', '001.md'), ONE);
+  await writeFile(join(dir, 'chapters', '002.md'), TWO);
+  const { app, page } = await launch(await tempDir('first-search-jumpfocus-userdata'));
+  type Held = { cb: (t: number) => void; stage: string };
+  type Obs = { from: number; to: number; text: string; paragraphs: number; activeKind: string; dom: string };
+  type W = { framesHeld: Held[]; rafOriginal: typeof window.requestAnimationFrame; stage: string; obs: () => Obs };
+  try {
+    await stubFolderDialog(app, dir);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await editor(page).waitFor();
+    await page.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror') === true, null, { timeout: 10_000 }); // 1화의 시작 포커스가 끝났다
+    await page.evaluate(() => {
+      const w = window as unknown as W;
+      w.framesHeld = [];
+      w.stage = 'search';
+      w.rafOriginal = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) => {
+        w.framesHeld.push({ cb, stage: w.stage });
+        return w.framesHeld.length;
+      };
+      // 읽기 전용 관측: TipTap이 `.ProseMirror`에 붙인 editor의 PM 선택/문단 수, activeElement 종류, DOM 선택. (페이지 안 함수: 이름 붙은 함수를 변수에 담지 않고 속성에 대입한다)
+      w.obs = () => {
+        const ed = (document.querySelector('.ProseMirror') as unknown as { editor: { state: { selection: { from: number; to: number }; doc: { textBetween(a: number, b: number): string } } } }).editor;
+        const { from, to } = ed.state.selection;
+        const active = document.activeElement as HTMLElement | null;
+        const kind = active?.classList.contains('ProseMirror') ? 'editor' : active instanceof HTMLInputElement ? 'input' : (active?.tagName.toLowerCase() ?? 'none');
+        return { from, to, text: ed.state.doc.textBetween(from, to), paragraphs: document.querySelectorAll('.ProseMirror p').length, activeKind: kind, dom: window.getSelection()?.toString() ?? '' };
+      };
+    });
+    const obs = () => page.evaluate(() => (window as unknown as W).obs());
+    // 검색: 키보드로 쓰고 Enter (이 단계의 프레임은 보관 중)
+    await searchbox(page).click({ force: true });
+    await page.keyboard.type('민수');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelectorAll('ol[aria-label="검색 결과"] button').length >= 2, null, { polling: 25, timeout: 15_000 });
+    const index = await page.evaluate(() => Array.from(document.querySelectorAll('ol[aria-label="검색 결과"] button')).findIndex((b) => b.textContent?.includes('1화')));
+    assert.ok(index >= 0, '열려 있는 1화의 검색 결과가 있다');
+    await page.evaluate(() => void ((window as unknown as W).stage = 'jump'));
+    await page.locator('ol[aria-label="검색 결과"] button').nth(index).click({ force: true });
+    // jump effect 실행 신호: chain.focus()가 jump 단계 프레임을 예약한다. 그 시점의 PM 선택을 프레임 해제 전에 직접 읽는다
+    await page.waitForFunction(() => (window as unknown as W).framesHeld.some((f) => f.stage === 'jump'), null, { polling: 25, timeout: 15_000 });
+    const afterJump = await obs();
+    // 사용자가 예약된 focus가 실행되기 전에 검색창을 선택한다 (마우스)
+    await searchbox(page).click({ force: true });
+    const atSearch = await obs();
+    // 보관된 프레임을 하나씩 예약 순서대로 실행하고, 매번 실행 직후와 실제 rAF 한 번 뒤에 관측한다 (목록이 빌 때까지; 새로 예약된 프레임은 단계 run)
+    const log = await page.evaluate(async () => {
+      const w = window as unknown as W;
+      window.requestAnimationFrame = (cb) => {
+        w.framesHeld.push({ cb, stage: 'run' });
+        return w.framesHeld.length;
+      };
+      const steps: Array<{ order: number; stage: string; afterCallback: Obs; afterRealFrame: Obs }> = [];
+      let order = 0;
+      while (w.framesHeld.length > 0 && order < 1000) {
+        const frame = w.framesHeld.shift()!;
+        order += 1;
+        frame.cb(performance.now());
+        const afterCallback = w.obs();
+        await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+        steps.push({ order, stage: frame.stage, afterCallback, afterRealFrame: w.obs() });
+      }
+      window.requestAnimationFrame = w.rafOriginal;
+      await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+      return { steps, drained: w.framesHeld.length === 0, final: w.obs() };
+    });
+    // 실제 keyboard 목적지: 입력 'x'와 Enter (현재 activeElement로 간다; locator로 포커스를 다시 주지 않는다)
+    const valueBefore = await searchbox(page).inputValue();
+    await page.keyboard.type('x');
+    await page.keyboard.press('Enter');
+    const valueAfter = await searchbox(page).inputValue();
+    const afterKeys = await obs();
+    console.log(JSON.stringify({ afterJump, atSearch, steps: log.steps, final: log.final, valueBefore, valueAfter, afterKeys }));
+    // 단계별 근거
+    assert.equal(afterJump.text, '민수', `프레임 해제 전에 PM 선택이 이미 jump 범위다: ${JSON.stringify(afterJump)}`);
+    assert.ok(log.steps.some((st) => st.stage === 'jump'), `jump 단계 프레임이 실행됐다: ${JSON.stringify(log.steps.map((st) => [st.order, st.stage]))}`);
+    assert.ok(log.drained, '보관된 프레임이 모두 실행되어 목록이 비었다');
+    assert.equal(atSearch.activeKind, 'input', '사용자가 검색창을 선택했다 (실제 마우스 선택)');
+    const problems: string[] = [];
+    for (const st of log.steps) {
+      for (const [when, state] of [['callback 실행 직후', st.afterCallback], ['실제 rAF 한 번 뒤', st.afterRealFrame]] as const) {
+        if (state.activeKind !== 'input') problems.push(`${st.order}번째(${st.stage}) 프레임 ${when}: 포커스가 검색창에서 ${state.activeKind}로 옮겨졌다`);
+        if (state.from !== afterJump.from || state.to !== afterJump.to) problems.push(`${st.order}번째(${st.stage}) 프레임 ${when}: PM 선택이 ${afterJump.from}–${afterJump.to}에서 ${state.from}–${state.to}로 바뀌었다`);
+      }
+    }
+    if (valueAfter !== `${valueBefore}x`) problems.push(`입력 'x'가 검색창으로 가지 않았다: ${JSON.stringify(valueBefore)} → ${JSON.stringify(valueAfter)}`);
+    if (afterKeys.paragraphs !== afterJump.paragraphs) problems.push(`Enter가 원고에 들어갔다: 문단 ${afterJump.paragraphs} → ${afterKeys.paragraphs}`);
+    assert.deepEqual([...new Set(problems)], [], `단계별 관측: ${JSON.stringify({ afterJump, atSearch, final: log.final, afterKeys })}`);
+    assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), ONE, '원고 바이트는 그대로다 (자동 저장 전 관측)');
+  } finally {
+    await page
+      .evaluate(() => {
+        const w = window as unknown as { rafOriginal?: typeof window.requestAnimationFrame };
+        if (w.rafOriginal) window.requestAnimationFrame = w.rafOriginal;
+      })
+      .catch(() => {});
+    await cleanup(app, page);
+  }
+});
