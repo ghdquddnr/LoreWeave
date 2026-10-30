@@ -259,7 +259,7 @@ for (const name of ['create', 'reissue'] as const) {
         }
         await waitEditable(page, 'true');
         // 열기 실패는 진짜 실패라 보인다. 이전 token 거절은 없다
-        if (outcome === '실패') assert.equal(await page.getByRole('status').getByText(/ENOTDIR|not a directory/i).count(), 1);
+        if (outcome === '실패') assert.equal(await page.getByRole('status').getByText(/폴더나 위치를 사용할 수 없습니다|파일이나 폴더 위치를 사용할 수 없습니다/).count(), 1);
         await assertNoStale(app, page);
         await op.assertA(A);
         // 열린 화(새 화 / 새 id를 받은 화)를 편집·저장한다. 새 id는 저장으로 되돌아가지 않는다

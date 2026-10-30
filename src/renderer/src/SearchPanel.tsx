@@ -3,6 +3,7 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { snippet } from '../../core/search.ts';
 import type { SearchHit, SearchResult } from '../../preload/api.ts';
+import { friendlyError } from './userError.ts';
 
 export interface SearchPanelHandle {
   focus(): void;
@@ -40,7 +41,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
       setResult({ ...(await window.loreweave.chapters.search(q)), query: q });
       onActiveChange(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e).summary);
     } finally {
       setBusy(false);
     }

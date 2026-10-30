@@ -126,7 +126,11 @@ for (const how of ['move', 'close'] as const) {
       await recordStatus(page);
       await set(app, 'failRename', true);
       await release(app);
-      await page.getByRole('status').getByText('EPERM', { exact: false }).waitFor({ timeout: 30_000 });
+      await page.getByRole('status').getByText('저장 실패', { exact: false }).waitFor({ timeout: 30_000 });
+      // 기본 안내에는 코드·경로가 없고, 기술 상세를 펼치면 원문(EPERM)이 보인다
+      await page.getByRole('status').getByRole('button', { name: '기술 상세' }).click();
+      await page.getByRole('note', { name: '기술 상세' }).getByText('EPERM', { exact: false }).waitFor({ timeout: 5000 });
+      await page.getByRole('status').getByRole('button', { name: '상세 닫기' }).click();
       assert.ok((await counters(app)).renames >= 1, '이름 바꾸기 실패가 주입되지 않았다');
       assert.equal(await read(dir), ONE, '실패한 저장은 디스크를 바꾸지 않는다');
       // 3) 오류가 계속되는 동안 이동/닫기를 시도하고, 확인 창에서 거절한다

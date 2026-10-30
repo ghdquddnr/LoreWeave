@@ -310,3 +310,25 @@ test('조합(합성 이벤트 경계): 조합 중에는 표시 장식을 바꾸�
     await closeWindow(app);
   }
 });
+
+test('읽기 오류: 검사 결과를 읽지 못하면 기본 안내(짧은 문장·다시 읽기)만 보이고, IPC·코드·경로 원문은 기술 상세를 펼칠 때만 보인다', { timeout: 90_000 }, async () => {
+  const { app, page } = await start('review-read-error');
+  try {
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler('ai:check-result');
+      ipcMain.handle('ai:check-result', () => {
+        throw new Error("EISDIR: illegal operation on a directory, read 'C:\\Users\\HONG\\AppData\\Local\\Temp\\x\\ai.db'");
+      });
+    });
+    await chapter(page, 'FOUR').click();
+    const alert = issues(page).getByRole('alert');
+    await alert.getByText('검사 결과를 읽지 못했습니다').waitFor();
+    const shown = await alert.innerText();
+    assert.doesNotMatch(shown, /Error invoking|EISDIR|ai\.db|AppData|[A-Z]:\\/, `기본 안내: ${shown}`);
+    await alert.getByRole('button', { name: '다시 읽기' }).waitFor();
+    await alert.getByRole('button', { name: '기술 상세' }).click();
+    await alert.locator('.tech-detail').getByText('EISDIR', { exact: false }).waitFor();
+  } finally {
+    await closeWindow(app);
+  }
+});

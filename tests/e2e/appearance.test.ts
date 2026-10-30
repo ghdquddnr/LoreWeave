@@ -429,6 +429,13 @@ test('저장 실패: 화면에는 바로 적용되고 알림이 보이며, 실�
     await page.keyboard.press('ArrowRight'); // 2.0
     const alert = dialog.getByRole('alert');
     await alert.getByText('외관 설정을 저장하지 못했습니다').waitFor();
+    // 기본 안내에는 IPC 문구·파일 시스템 코드·임시 경로가 없고, 기술 상세를 펼치면 원문이 보인다
+    const shown = await alert.innerText();
+    assert.doesNotMatch(shown, /Error invoking|EISDIR|settings\.json|AppData|[A-Z]:\\/, `기본 안내: ${shown}`);
+    assert.match(shown, /이 컴퓨터의 설정 파일에는 아직 저장되지 않았습니다/);
+    await alert.getByRole('button', { name: '기술 상세' }).click();
+    await alert.locator('.tech-detail').getByText('EISDIR', { exact: false }).waitFor();
+    await alert.getByRole('button', { name: '상세 닫기' }).click();
     const l = await look(page);
     assert.equal(l.inlineSize, '19px', '저장은 실패했지만 화면에는 적용돼 있다');
     assert.equal(l.msFont, 'serif');

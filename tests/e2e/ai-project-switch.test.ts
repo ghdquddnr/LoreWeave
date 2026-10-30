@@ -103,17 +103,19 @@ for (const [name, button, channel] of [
       await open(app, page, B);
       await editor(page).getByText('BBB_ONLY').waitFor();
       await app.evaluate(() => (globalThis as unknown as { release?: () => void }).release?.());
-      // 이전 화면의 다음 요청(분석 또는 검사 계획)이 main에 도착해 거절된 것을 확인한다 (장벽)
-      await waitFor(page, async () => (await outcomes(app))[channel]!.length === 1, `${channel} 요청이 오지 않았다`);
-      assert.deepEqual((await outcomes(app))[channel], [STALE_PROJECT]);
+      // 이전 화면의 컨트롤러는 프로젝트가 바뀌었음을 알아 다음 요청(분석·검사 계획)을 아예 보내지 않고 확인 창도 열지 않는다 (P4: main의 token 거절 앞에서 먼저 멈춘다)
+      await page.waitForTimeout(800);
+      assert.deepEqual((await outcomes(app))[channel], []);
       assert.deepEqual((await outcomes(app))['ai:run-check'], []);
       assert.equal(responses().length, before);
       assert.equal(aiDb(B), false);
       assert.equal(aiDb(A), false);
+      assert.equal(await page.getByRole('dialog', { name: 'AI 실행 확인' }).count(), 0, '이전 프로젝트의 계획으로 확인 창이 열리지 않는다');
       // B 화면에는 이전 화면의 거절 문구가 보이지 않는다
       assert.equal(await page.getByText(STALE_PROJECT).count(), 0);
       // B에서 다시 분석하면 B 원고만 보낸다
       await page.getByRole('button', { name: '이 화 분석', exact: true }).click();
+      await page.getByRole('dialog', { name: 'AI 실행 확인' }).getByRole('button', { name: '실행', exact: true }).click();
       await page.getByText(/화 1개 분석/).waitFor({ timeout: 10_000 });
       assert.equal(sent('BBB_ONLY') - sentB, 1);
       assert.equal(sent('AAA_ONLY') - sentA, 0);
@@ -138,11 +140,13 @@ test('분석 시작 중 같은 폴더 다시 열기: 이전 화면의 요청은 
     await open(app, page, A);
     await editor(page).getByText('AAA_REOPEN').waitFor();
     await app.evaluate(() => (globalThis as unknown as { release?: () => void }).release?.());
-    await waitFor(page, async () => (await outcomes(app))['ai:analyze']!.length === 1, 'ai:analyze 요청이 오지 않았다');
-    assert.deepEqual((await outcomes(app))['ai:analyze'], [STALE_PROJECT]);
+    await page.waitForTimeout(800);
+    assert.deepEqual((await outcomes(app))['ai:analyze'], [], '이전 화면은 분석 요청을 보내지 않는다');
     assert.equal(responses().length, before);
     assert.equal(aiDb(A), false);
+    assert.equal(await page.getByRole('dialog', { name: 'AI 실행 확인' }).count(), 0);
     await page.getByRole('button', { name: '이 화 분석', exact: true }).click();
+    await page.getByRole('dialog', { name: 'AI 실행 확인' }).getByRole('button', { name: '실행', exact: true }).click();
     await page.getByText(/화 1개 분석/).waitFor({ timeout: 10_000 });
     assert.equal(sent('AAA_REOPEN'), 1);
     assert.equal(aiDb(A), true);

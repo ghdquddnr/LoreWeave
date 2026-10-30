@@ -161,7 +161,7 @@ for (const outcome of ['같은 폴더 다시 열기', '열기 취소', '열기 �
         await page.getByRole('button', { name: '열기', exact: true }).click();
       } else {
         await open(app, page, broken);
-        await page.getByRole('status').getByText(/ENOTDIR|not a directory/i).waitFor({ timeout: 5000 });
+        await page.getByRole('status').getByText(/폴더나 위치를 사용할 수 없습니다|파일이나 폴더 위치를 사용할 수 없습니다/).waitFor({ timeout: 5000 });
       }
       await release(app);
       if (outcome !== '같은 폴더 다시 열기') {

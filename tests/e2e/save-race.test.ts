@@ -169,7 +169,11 @@ test('재시도가 모두 실패하면 저장 오류가 보이고, 입력은 화
     await page.keyboard.press('End');
     await page.keyboard.type(' typed');
     await page.keyboard.press('Control+S');
-    await page.getByRole('status').getByText('EPERM', { exact: false }).waitFor({ timeout: 10_000 });
+    await page.getByRole('status').getByText('저장 실패', { exact: false }).waitFor({ timeout: 10_000 });
+    // 기본 안내에는 코드·경로가 없고, 기술 상세를 펼치면 원문(EPERM)이 보인다
+    await page.getByRole('status').getByRole('button', { name: '기술 상세' }).click();
+    await page.getByRole('note', { name: '기술 상세' }).getByText('EPERM', { exact: false }).waitFor({ timeout: 5000 });
+    await page.getByRole('status').getByRole('button', { name: '상세 닫기' }).click();
     assert.equal(await readFile(path, 'utf8'), ORIGINAL);
     assert.ok((await editor(page).innerText()).includes('original typed'));
     assert.deepEqual(await tempFiles(dir), []);
