@@ -258,3 +258,70 @@ test('편집기가 예약한 시작 포커스가 실행되기 전에 검색창�
     await cleanup(app, page);
   }
 });
+
+// 시작 포커스 프레임이 예약된 뒤 같은 화의 검색 결과를 눌러 jump가 갱신되는 순서: 예약된 시작 포커스가 나중에 실행되며 jump가 만든 선택을 시작 위치로 되돌리는지 본다.
+// (새 화로 이동하며 처음부터 jump가 있는 경우는 기존 search/evidence-jump 테스트가 본다. 여기는 편집기가 이미 만들어진 같은 화에서 jump가 갱신되는 경우다.)
+// 순서: 편집기 생성 → 시작 포커스 프레임 예약 관측 → 같은 화의 검색 결과 클릭 → jump effect 실행(그 chain.focus()가 만든 프레임 예약 관측 = effect 실행 신호) → 보관된 프레임 실행 → 최종 실제 선택/activeElement.
+// renderer의 requestAnimationFrame을 테스트가 보관한다 (합성 스케줄러 제어). 포커스/선택을 locator·evaluate로 강제하지 않는다: 검색창 입력은 keyboard, 클릭은 마우스(force: Playwright의 안정 대기가 rAF를 쓰므로 생략)로 한다.
+test('시작 포커스가 예약된 뒤 같은 화의 검색 결과를 눌러 jump가 갱신돼도, 예약된 프레임이 실행된 뒤 jump 선택이 유지된다', { timeout: 120_000 }, async () => {
+  const dir = await tempDir('first-search-jump');
+  await mkdir(join(dir, 'chapters'));
+  await writeFile(join(dir, 'chapters', '001.md'), ONE);
+  await writeFile(join(dir, 'chapters', '002.md'), TWO);
+  const { app, page } = await launch(await tempDir('first-search-jump-userdata'));
+  try {
+    await stubFolderDialog(app, dir);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await editor(page).waitFor();
+    await page.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror') === true, null, { timeout: 10_000 }); // 1화의 시작 포커스가 끝났다
+    // 이 뒤의 프레임을 보관한다
+    await page.evaluate(() => {
+      const w = window as unknown as { framesHeld: Array<(t: number) => void>; rafOriginal: typeof window.requestAnimationFrame };
+      w.framesHeld = [];
+      w.rafOriginal = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) => {
+        w.framesHeld.push(cb);
+        return w.framesHeld.length;
+      };
+    });
+    const held = () => page.evaluate(() => (window as unknown as { framesHeld: unknown[] }).framesHeld.length);
+    // 2화를 버튼으로 연다: 새 편집기가 만들어지고 시작 포커스 프레임이 예약된다
+    await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: '2화. 설명회' }).click({ force: true });
+    await page.waitForFunction(() => !!Array.from(document.querySelectorAll('.ProseMirror p')).find((p) => p.textContent?.includes('설명회에서')) && (window as unknown as { framesHeld: unknown[] }).framesHeld.length > 0, null, { polling: 25, timeout: 15_000 });
+    const reservedAtCreate = await held();
+    // 검색: 키보드로 쓰고 Enter (검색 IPC 응답과 결과 표시를 기다린다; 프레임은 계속 보관 중)
+    await searchbox(page).click({ force: true });
+    await page.keyboard.type('민수');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelectorAll('ol[aria-label="검색 결과"] button').length >= 2, null, { polling: 25, timeout: 15_000 });
+    // 같은 화(2화)의 결과를 마우스로 누른다
+    const index = await page.evaluate(() => Array.from(document.querySelectorAll('ol[aria-label="검색 결과"] button')).findIndex((b) => b.textContent?.includes('2화')));
+    assert.ok(index >= 0, '2화의 검색 결과가 있다');
+    await page.locator('ol[aria-label="검색 결과"] button').nth(index).click({ force: true });
+    // jump effect가 실행되면 그 chain.focus()가 프레임을 하나 더 예약한다 (실행 신호)
+    await page.waitForFunction((n) => (window as unknown as { framesHeld: unknown[] }).framesHeld.length > n, reservedAtCreate, { polling: 25, timeout: 15_000 });
+    // 보관된 프레임을 예약 순서대로 실행하고, 실행 중 새로 예약된 프레임까지 끝낸다
+    const result = await page.evaluate(async () => {
+      const w = window as unknown as { framesHeld: Array<(t: number) => void>; rafOriginal: typeof window.requestAnimationFrame };
+      const reserved = w.framesHeld.length;
+      window.requestAnimationFrame = w.rafOriginal;
+      for (let round = 0; round < 5 && w.framesHeld.length > 0; round++) {
+        const frames = w.framesHeld.splice(0);
+        frames.forEach((cb) => cb(performance.now()));
+        await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+      }
+      await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+      const active = document.activeElement as HTMLElement | null;
+      return { reserved, selection: window.getSelection()?.toString() ?? '', activeIsEditor: active?.classList.contains('ProseMirror') === true };
+    });
+    assert.ok(reservedAtCreate >= 1 && result.reserved > reservedAtCreate, `예약이 관측됐다 (생성 시 ${reservedAtCreate}, jump 뒤 ${result.reserved})`);
+    assert.deepEqual({ selection: result.selection, activeIsEditor: result.activeIsEditor }, { selection: '민수', activeIsEditor: true }, `예약된 시작 포커스가 jump 선택을 되돌렸다: ${JSON.stringify(result)}`);
+    assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), TWO, '원고 바이트는 그대로다');
+  } finally {
+    await page.evaluate(() => {
+      const w = window as unknown as { rafOriginal?: typeof window.requestAnimationFrame };
+      if (w.rafOriginal) window.requestAnimationFrame = w.rafOriginal;
+    }).catch(() => {});
+    await cleanup(app, page);
+  }
+});

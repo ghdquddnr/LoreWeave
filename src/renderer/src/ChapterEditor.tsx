@@ -3,7 +3,6 @@
 //   - 저장은 한 번에 하나씩. 저장 중에 입력이 있으면 끝난 뒤 다시 저장한다
 //   - 디스크가 다른 프로그램에서 바뀌었으면 자동 저장을 멈추고 사용자에게 묻는다
 
-import { Selection } from '@tiptap/pm/state';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { openManuscript, serializeManuscript, type Doc, type Envelope } from '../../core/manuscript/index.ts';
@@ -184,7 +183,8 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     // 시작 포커스는 TipTap의 autofocus 대신 onCreate에서 준다: autofocus는 편집기가 만들어진 뒤(본문 읽기가 끝난 뒤) 무조건 포커스를 가져가서,
     // 그 사이 사용자가 검색창에 쓰던 글자나 Enter가 원고에 들어간다. 검색창 같은 입력란에 포커스가 있으면 가져가지 않는다 (버튼 등에서 화를 연 경우는 전처럼 편집기가 받는다).
     // 확인은 포커스를 주는 바로 그 시점에 한다: TipTap의 commands.focus는 안에서 requestAnimationFrame으로 view.focus()를 다시 예약해, 예약 뒤에 사용자가 검색창을 고르면 그 선택을 덮어쓴다.
-    // 그래서 한 프레임 뒤(편집기가 화면에 붙은 뒤)에 실행 시점의 포커스를 보고, 시작 위치 선택과 view.focus()를 즉시 한다 (지연 focus를 다시 예약하지 않는다)
+    // 그래서 한 프레임 뒤(편집기가 화면에 붙은 뒤)에 실행 시점의 포커스를 보고 view.focus()를 즉시 한다 (지연 focus를 다시 예약하지 않는다).
+    // 선택은 건드리지 않는다: 새 편집기의 기본 선택이 이미 문서 시작이고, 그 사이 같은 화의 검색 결과 이동(jump)이 만든 선택을 시작 위치로 되돌리면 안 된다
     autofocus: false,
     onCreate: ({ editor: created }) => {
       if (jump) return;
@@ -192,7 +192,6 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
         if (created.isDestroyed || created.view.hasFocus()) return;
         const active = document.activeElement;
         if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
-        created.view.dispatch(created.state.tr.setSelection(Selection.atStart(created.state.doc)));
         created.view.focus();
       });
     },
