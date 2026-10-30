@@ -7,7 +7,7 @@ import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { describeProbe, diagFailure, diagProbe } from './diag.ts';
+import { describeProbe, diagDir, diagFailure, diagProbe } from './diag.ts';
 import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
 
 async function project(prefix: string, text: string): Promise<string> {
@@ -42,9 +42,9 @@ async function typeAndSave(page: Page, dir: string, before: string, add: string)
   await page.keyboard.press('End');
   await page.keyboard.type(add);
   // 진단 (E2E_DIAG_DIR가 있을 때만 읽는다. 꺼져 있으면 입력·저장 사이에 browser 호출이 없다): 입력 직후·저장 직후 상태 줄
-  const statusAfterType = await diagProbe(() => page.getByRole('status').allInnerTexts());
+  const statusAfterType = diagDir() ? await diagProbe(() => page.getByRole('status').allInnerTexts()) : null;
   await page.keyboard.press('Control+S');
-  const statusAfterSave = await diagProbe(() => page.getByRole('status').allInnerTexts());
+  const statusAfterSave = diagDir() ? await diagProbe(() => page.getByRole('status').allInnerTexts()) : null;
   await saved(page);
   const text = await read(dir);
   const expected = new RegExp(`${before}${add}\\n$`);

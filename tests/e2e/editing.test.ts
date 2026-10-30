@@ -5,7 +5,7 @@ import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path';
 import { before, test } from 'node:test';
 import type { Page } from 'playwright';
-import { describeProbe, diagFailure, diagProbe } from './diag.ts';
+import { describeProbe, diagDir, diagFailure, diagProbe } from './diag.ts';
 import { closeWindow, killApp, launch, stubFolderDialog, tempDir } from './launch.ts';
 
 const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
@@ -127,13 +127,15 @@ test('입력 중 앱이 강제로 꺼져도 잃는 것은 마지막 자동 저�
   await page.locator('.ProseMirror').getByText(/북적였다/).click();
   await page.keyboard.press('End');
   // 진단 (E2E_DIAG_DIR가 있을 때만 읽는다. 꺼져 있으면 browser 호출이 없다): 입력 직전 캐럿이 문단 끝인지. 본문은 남기지 않고 길이·위치만 쓴다
-  const caret = await diagProbe(() =>
-    page.evaluate(() => {
-      const s = window.getSelection();
-      const p = s?.anchorNode?.parentElement?.closest('p');
-      return `focused=${document.activeElement?.className.includes('ProseMirror')} offset=${s?.anchorOffset} paragraphLength=${p?.textContent?.length}`;
-    }),
-  );
+  const caret = diagDir()
+    ? await diagProbe(() =>
+        page.evaluate(() => {
+          const s = window.getSelection();
+          const p = s?.anchorNode?.parentElement?.closest('p');
+          return `focused=${document.activeElement?.className.includes('ProseMirror')} offset=${s?.anchorOffset} paragraphLength=${p?.textContent?.length}`;
+        }),
+      )
+    : null;
   await page.keyboard.type(' 앞부분');
   await saved(page);
   await page.keyboard.type(' 뒷부분');

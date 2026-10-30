@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, test } from 'node:test';
-import { describeProbe, diagProbe } from './diag.ts';
+import { describeProbe, diagDir, diagProbe } from './diag.ts';
 
 const saved = process.env['E2E_DIAG_DIR'];
 afterEach(() => {
@@ -49,6 +49,35 @@ test('켜짐 + 읽기 거절: 던지지 않고 unavailable로 남겨, 뒤따르�
     const { diag } = await import('./diag.ts');
     assert.equal(diag('fail.log', `probe=${describeProbe(probe)}`), true);
     assert.match(await readFile(join(dir, 'fail.log'), 'utf8'), /probe=unavailable\(Target closed\)/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// 호출 지점과 같은 식 `diagDir() ? await diagProbe(read) : null`을 가짜 End/입력/상태 읽기와 함께 쓴다 (호출 지점의 복사본이다: 식이 바뀌면 같이 고친다).
+// await이 평가되지 않으면 다음 action이 microtask를 양보하지 않고 바로 이어진다.
+async function sequence(): Promise<string[]> {
+  const order: string[] = [];
+  const flow = (async () => {
+    order.push('End');
+    const probe = diagDir() ? await diagProbe(async () => order.push('read')) : null;
+    order.push(`type(${describeProbe(probe)})`);
+  })();
+  order.push('pending-state'); // 위 흐름이 첫 await에서 양보했다면 type보다 먼저 찍힌다
+  await flow;
+  return order;
+}
+
+test('꺼짐: 호출 지점 식은 await을 평가하지 않아 End 다음 action이 바로 이어진다 (순서 End, type, pending-state)', async () => {
+  delete process.env['E2E_DIAG_DIR'];
+  assert.deepEqual(await sequence(), ['End', 'type(off)', 'pending-state']);
+});
+
+test('켜짐: 읽기가 End와 다음 action 사이에 들어간다 (순서가 달라지는 것이 켠 실행의 한계)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'diag-'));
+  try {
+    process.env['E2E_DIAG_DIR'] = dir;
+    assert.deepEqual(await sequence(), ['End', 'read', 'pending-state', 'type(2)']);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
