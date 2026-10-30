@@ -258,3 +258,134 @@ test('편집기가 예약한 시작 포커스가 실행되기 전에 검색창�
     await cleanup(app, page);
   }
 });
+
+// 시작 포커스 프레임이 예약된 뒤 같은 화의 검색 결과를 눌러 jump가 갱신되는 순서: 예약된 시작 포커스가 나중에 실행되며 jump가 만든 선택을 되돌리는지 본다.
+// (새 화로 이동하며 처음부터 jump가 있는 경우는 기존 search/evidence-jump 테스트가 본다. 여기는 편집기가 이미 만들어진 같은 화에서 jump가 갱신되는 경우다.)
+// 관측: 제품/main에 hook을 더하지 않는다. TipTap Editor의 createView가 view.dom.editor = editor로 붙여 두므로 `.ProseMirror`의 `.editor`를 읽기 전용으로 읽어
+// editor.state.selection의 from/to와 선택 본문(doc.textBetween)을 직접 본다 (DOM 선택에만 의존하지 않는다). 프레임은 renderer의 requestAnimationFrame을 테스트가 보관해(합성 스케줄러 제어)
+// 예약 시점의 단계(create/search/jump)를 붙이고, 해제는 한 번에 하나씩 예약 순서대로 하며 매 프레임 실행 직후와 실제 rAF 한 번 뒤에 상태를 읽는다.
+// 순서: 편집기 생성 → 시작 포커스 프레임 예약(단계 create) → 같은 화의 검색 결과 클릭 → jump effect 실행: PM 선택이 jump 범위로 바뀐 것을 프레임 해제 전에 직접 확인 →
+//   프레임을 하나씩 실행(시작 포커스 callback 실행 직후, 나머지 jump focus 실행 뒤 각각) → 매번 같은 최신 선택 유지 → 보관 목록이 빌 때까지 확인한다 (횟수 상한은 안전장치일 뿐 증거가 아니다).
+// 포커스/선택을 locator·evaluate로 강제하지 않는다: 검색창 입력은 keyboard, 클릭은 마우스(force: Playwright의 안정 대기가 rAF를 쓰므로 생략)로 한다.
+test('시작 포커스가 예약된 뒤 같은 화의 검색 결과를 눌러 jump가 갱신돼도, 시작 포커스 callback 실행 직후와 나머지 프레임 완료 뒤에 jump의 실제 선택(editor.state.selection)이 유지된다', { timeout: 120_000 }, async () => {
+  const dir = await tempDir('first-search-jump');
+  await mkdir(join(dir, 'chapters'));
+  await writeFile(join(dir, 'chapters', '001.md'), ONE);
+  await writeFile(join(dir, 'chapters', '002.md'), TWO);
+  const { app, page } = await launch(await tempDir('first-search-jump-userdata'));
+  type Held = { cb: (t: number) => void; stage: string };
+  type Sel = { from: number; to: number; text: string; dom: string; activeIsEditor: boolean };
+  type W = { framesHeld: Held[]; rafOriginal: typeof window.requestAnimationFrame; stage: string; readSel: () => Sel };
+  try {
+    await stubFolderDialog(app, dir);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await editor(page).waitFor();
+    await page.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror') === true, null, { timeout: 10_000 }); // 1화의 시작 포커스가 끝났다
+    // 이 뒤의 프레임을 보관한다 (예약 시점의 단계를 붙인다)
+    await page.evaluate(() => {
+      const w = window as unknown as W;
+      w.framesHeld = [];
+      w.stage = 'create';
+      w.rafOriginal = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) => {
+        w.framesHeld.push({ cb, stage: w.stage });
+        return w.framesHeld.length;
+      };
+      // PM 선택 직접 읽기: TipTap이 `.ProseMirror`에 붙인 editor (읽기 전용). (이 함수는 페이지 안에서 실행된다: 이름 붙은 함수를 변수에 담지 않고 속성에 대입한다 — 테스트 변환기의 이름 도우미가 페이지에 없다)
+      w.readSel = () => {
+        const ed = (document.querySelector('.ProseMirror') as unknown as { editor: { state: { selection: { from: number; to: number }; doc: { textBetween(a: number, b: number): string } } } }).editor;
+        const { from, to } = ed.state.selection;
+        const active = document.activeElement as HTMLElement | null;
+        return { from, to, text: ed.state.doc.textBetween(from, to), dom: window.getSelection()?.toString() ?? '', activeIsEditor: active?.classList.contains('ProseMirror') === true };
+      };
+    });
+    const counts = () =>
+      page.evaluate(() => {
+        const w = window as unknown as W;
+        return { create: w.framesHeld.filter((f) => f.stage === 'create').length, search: w.framesHeld.filter((f) => f.stage === 'search').length, jump: w.framesHeld.filter((f) => f.stage === 'jump').length };
+      });
+    const readState = () => page.evaluate(() => (window as unknown as W).readSel());
+    // 2화를 버튼으로 연다: 새 편집기가 만들어지고 시작 포커스 프레임이 예약된다 (단계 create)
+    await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: '2화. 설명회' }).click({ force: true });
+    await page.waitForFunction(
+      () => !!Array.from(document.querySelectorAll('.ProseMirror p')).find((p) => p.textContent?.includes('설명회에서')) && (window as unknown as W).framesHeld.some((f) => f.stage === 'create'),
+      null,
+      { polling: 25, timeout: 15_000 },
+    );
+    const atCreate = await counts();
+    const preClick = await readState(); // jump 전: 새 편집기의 기본 선택 (문서 시작에 접힘)
+    // 검색: 키보드로 쓰고 Enter (검색 IPC 응답과 결과 표시를 기다린다; 프레임은 계속 보관)
+    await page.evaluate(() => void ((window as unknown as W).stage = 'search'));
+    await searchbox(page).click({ force: true });
+    await page.keyboard.type('민수');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelectorAll('ol[aria-label="검색 결과"] button').length >= 2, null, { polling: 25, timeout: 15_000 });
+    // 같은 화(2화)의 결과를 마우스로 누른다 (이 뒤에 예약되는 프레임은 단계 jump)
+    const index = await page.evaluate(() => Array.from(document.querySelectorAll('ol[aria-label="검색 결과"] button')).findIndex((b) => b.textContent?.includes('2화')));
+    assert.ok(index >= 0, '2화의 검색 결과가 있다');
+    await page.evaluate(() => void ((window as unknown as W).stage = 'jump'));
+    await page.locator('ol[aria-label="검색 결과"] button').nth(index).click({ force: true });
+    // jump effect가 실행되면 그 chain.focus()가 단계 jump 프레임을 예약한다 (실행 신호). 그리고 PM 선택이 jump 범위로 바뀌어 있다 — 프레임 해제 전에 직접 읽는다
+    await page.waitForFunction(() => (window as unknown as W).framesHeld.some((f) => f.stage === 'jump'), null, { polling: 25, timeout: 15_000 });
+    const preRelease = await readState();
+    const beforeRelease = await counts();
+    // 보관된 프레임을 예약 순서대로 하나씩 실행한다: 매번 (실행 직후) 상태를 읽고, 실제 rAF 한 번 뒤에도 읽는다. 실행 중 새로 예약된 프레임(단계 run)도 같은 방식으로 비운다
+    const log = await page.evaluate(async () => {
+      const w = window as unknown as W;
+      window.requestAnimationFrame = (cb) => {
+        w.framesHeld.push({ cb, stage: 'run' });
+        return w.framesHeld.length;
+      };
+      const steps: Array<{ order: number; stage: string; afterCallback: Sel; afterRealFrame: Sel; remaining: number }> = [];
+      let order = 0;
+      while (w.framesHeld.length > 0 && order < 1000) {
+        const frame = w.framesHeld.shift()!;
+        order += 1;
+        frame.cb(performance.now());
+        const afterCallback = w.readSel();
+        await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+        steps.push({ order, stage: frame.stage, afterCallback, afterRealFrame: w.readSel(), remaining: w.framesHeld.length });
+      }
+      window.requestAnimationFrame = w.rafOriginal;
+      await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+      return { steps, drained: w.framesHeld.length === 0, final: w.readSel() };
+    });
+    console.log(JSON.stringify({ atCreate, preClick, preRelease, beforeRelease, steps: log.steps, final: log.final }));
+    // 단계별 근거
+    assert.ok(atCreate.create >= 1, `편집기 생성 단계에 시작 포커스 프레임 예약이 관측됐다 (${JSON.stringify(atCreate)})`);
+    assert.equal(preClick.from, preClick.to, 'jump 전 선택은 문서 시작에 접혀 있다');
+    assert.ok(beforeRelease.jump >= 1, `jump effect가 실행되어 jump 단계 프레임이 예약됐다 (${JSON.stringify(beforeRelease)})`);
+    assert.equal(preRelease.text, '민수', `프레임 해제 전에 PM 선택이 이미 jump 범위다: ${JSON.stringify(preRelease)}`);
+    assert.ok(preRelease.from < preRelease.to);
+    const createSteps = log.steps.filter((st) => st.stage === 'create');
+    const jumpSteps = log.steps.filter((st) => st.stage === 'jump');
+    assert.ok(createSteps.length >= 1 && jumpSteps.length >= 1, `시작 포커스(create)와 jump 프레임이 각각 실행됐다: ${JSON.stringify(log.steps.map((st) => [st.order, st.stage]))}`);
+    assert.ok(log.drained, '보관된 프레임이 모두 실행되어 목록이 비었다');
+    for (const st of log.steps) {
+      for (const [when, state] of [
+        ['callback 실행 직후', st.afterCallback],
+        ['실제 rAF 한 번 뒤', st.afterRealFrame],
+      ] as const) {
+        assert.deepEqual(
+          { from: state.from, to: state.to, text: state.text },
+          { from: preRelease.from, to: preRelease.to, text: '민수' },
+          `${st.order}번째(${st.stage}) 프레임 ${when}: 최신 jump 선택이 바뀌었다 ${JSON.stringify(state)}`,
+        );
+      }
+    }
+    assert.deepEqual(
+      { from: log.final.from, to: log.final.to, text: log.final.text, dom: log.final.dom, activeIsEditor: log.final.activeIsEditor },
+      { from: preRelease.from, to: preRelease.to, text: '민수', dom: '민수', activeIsEditor: true },
+      `모든 프레임 완료 뒤 최종 상태: ${JSON.stringify(log.final)}`,
+    );
+    assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), TWO, '원고 바이트는 그대로다');
+  } finally {
+    await page
+      .evaluate(() => {
+        const w = window as unknown as { rafOriginal?: typeof window.requestAnimationFrame };
+        if (w.rafOriginal) window.requestAnimationFrame = w.rafOriginal;
+      })
+      .catch(() => {});
+    await cleanup(app, page);
+  }
+});
