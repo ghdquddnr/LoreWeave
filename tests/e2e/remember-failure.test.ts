@@ -7,7 +7,7 @@ import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { diagFailure } from './diag.ts';
+import { describeProbe, diagFailure, diagProbe } from './diag.ts';
 import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
 
 async function project(prefix: string, text: string): Promise<string> {
@@ -41,15 +41,15 @@ async function typeAndSave(page: Page, dir: string, before: string, add: string)
   await editor(page).getByText(before).click();
   await page.keyboard.press('End');
   await page.keyboard.type(add);
-  // 진단 (E2E_DIAG_DIR가 있을 때만 기록): 입력 직후·저장 직후 상태 줄. 판정·대기는 바꾸지 않는다
-  const statusAfterType = await page.getByRole('status').allInnerTexts();
+  // 진단 (E2E_DIAG_DIR가 있을 때만 읽는다. 꺼져 있으면 입력·저장 사이에 browser 호출이 없다): 입력 직후·저장 직후 상태 줄
+  const statusAfterType = await diagProbe(() => page.getByRole('status').allInnerTexts());
   await page.keyboard.press('Control+S');
-  const statusAfterSave = await page.getByRole('status').allInnerTexts();
+  const statusAfterSave = await diagProbe(() => page.getByRole('status').allInnerTexts());
   await saved(page);
   const text = await read(dir);
   const expected = new RegExp(`${before}${add}\\n$`);
   if (!expected.test(text)) {
-    await diagFailure('fail.log', async () => `remember typeAndSave: statusAfterType=${JSON.stringify(statusAfterType)} statusAfterSave=${JSON.stringify(statusAfterSave)} fileLength=${text.length} hasAdd=${text.includes(add)}`);
+    await diagFailure('fail.log', async () => `remember typeAndSave: statusAfterType=${describeProbe(statusAfterType)} statusAfterSave=${describeProbe(statusAfterSave)} fileLength=${text.length} hasAdd=${text.includes(add)}`);
   }
   assert.match(text, expected);
 }
