@@ -428,3 +428,76 @@ for (const kind of ['found', 'missing'] as const) {
     });
   });
 }
+
+// ---- 진단: 다른 화 근거 jump('근거 앞에 문단을 넣음')의 단계별 관측 (기존 :117 선택 공백 실패의 제한 진단) ----
+// 기존 테스트가 한 번 `selection=''`(기대 EVIDENCE_QUOTE)로 실패했고 원인은 불명이다. 이 테스트는 같은 시나리오를 **자연 스케줄**로 한 번 실행하되(rAF는 보관하지 않고 그대로 실행하며 기록만 한다),
+// 단계마다 읽기 전용으로 기록한다: main의 chapter:read 호출/완료(대상 file), `.ProseMirror` DOM 등장과 TipTap `.editor` 유무, 모든 requestAnimationFrame 예약 시점(편집기 view DOM이 문서에 붙어 있는지,
+// activeElement)과 실행 전/후(activeElement, PM from/to와 선택 본문, DOM 선택), selectionchange마다의 DOM 선택·activeElement. 판정은 기존과 같다: EVIDENCE_QUOTE가 선택되고(DOM/PM) 원고 파일은 그대로.
+// 기록용 래퍼(rAF 통과, MutationObserver, selectionchange 리스너, main IPC 래퍼)는 순서/타이밍에 영향을 줄 수 있다 (관측 간섭 가능성). 합성 스케줄(rAF 보관)은 쓰지 않는다 (그 경우는 PR110/111 테스트가 다룬다).
+test('진단(자연 스케줄 1회): 다른 화의 근거 jump — chapter read 완료·편집기 생성·예약 focus 실행·selectionchange 단계별 DOM/PM 선택과 activeElement', { timeout: 60_000 }, async () => {
+  const body = `# ONE\n\nDECOY_SENTENCE\n\n${QUOTE}\n`;
+  const dir = await project(ORIGINAL, { '001.md': body, '002.md': TWO }, '001.md');
+  await withApp(dir, async (app, page) => {
+    // main: chapter:read 호출/완료 기록 (대상 file 포함)
+    await app.evaluate(({ ipcMain }) => {
+      const g = globalThis as unknown as { readLog: Array<{ file: string; phase: string; t: number }> };
+      g.readLog = [];
+      const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
+      const original = handlers.get('chapter:read')!;
+      handlers.set('chapter:read', async (...args: unknown[]) => {
+        g.readLog.push({ file: String(args[1]), phase: 'call', t: Date.now() });
+        try {
+          return await original(...args);
+        } finally {
+          g.readLog.push({ file: String(args[1]), phase: 'done', t: Date.now() });
+        }
+      });
+    });
+    type Snap = { active: string; pm: string | null; dom: string; attached: boolean | null };
+    type Rec = { t: number; kind: string } & Partial<Snap> & { note?: string };
+    await page.evaluate(() => {
+      const w = window as unknown as { rec: Rec[]; snap: () => Snap; rafOriginal: typeof window.requestAnimationFrame; t0: number };
+      w.rec = [];
+      w.t0 = performance.now();
+      // 읽기 전용 스냅샷: activeElement 종류, TipTap `.editor`의 PM 선택(from-to:본문), DOM 선택, 편집기 view DOM이 문서에 붙어 있는지 (페이지 안 함수: 속성에 대입)
+      w.snap = () => {
+        const pmEl = document.querySelector('.ProseMirror') as unknown as { editor?: { state: { selection: { from: number; to: number }; doc: { textBetween(a: number, b: number): string } } } } | null;
+        const el = document.activeElement as HTMLElement | null;
+        const active = el?.classList.contains('ProseMirror') ? 'editor' : el instanceof HTMLInputElement ? 'input' : (el?.tagName.toLowerCase() ?? 'none');
+        let pm: string | null = null;
+        if (pmEl?.editor) {
+          const { from, to } = pmEl.editor.state.selection;
+          pm = `${from}-${to}:${pmEl.editor.state.doc.textBetween(from, to)}`;
+        }
+        return { active, pm, dom: window.getSelection()?.toString() ?? '', attached: pmEl ? document.contains(pmEl as unknown as Node) : null };
+      };
+      w.rafOriginal = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) => {
+        w.rec.push({ t: performance.now() - w.t0, kind: 'raf-reserve', ...w.snap() });
+        return w.rafOriginal((ts) => {
+          w.rec.push({ t: performance.now() - w.t0, kind: 'raf-run-before', ...w.snap() });
+          cb(ts);
+          w.rec.push({ t: performance.now() - w.t0, kind: 'raf-run-after', ...w.snap() });
+        });
+      };
+      document.addEventListener('selectionchange', () => void w.rec.push({ t: performance.now() - w.t0, kind: 'selectionchange', ...w.snap() }));
+      new MutationObserver((muts) => {
+        for (const m of muts) for (const n of Array.from(m.addedNodes)) if (n instanceof HTMLElement && (n.matches('.ProseMirror') || n.querySelector('.ProseMirror'))) w.rec.push({ t: performance.now() - w.t0, kind: 'prosemirror-added', ...w.snap() });
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    // 기존 테스트와 같은 동작: 근거(1화)를 누르고 그 화 본문이 보일 때까지, 이어서 DOM 선택이 생길 때까지 (2초 한도, 기존과 동일)
+    await evidence(page).click();
+    await page.evaluate(() => void (window as unknown as { rec: Rec[]; snap: () => Snap; t0: number }).rec.push({ t: performance.now() - (window as unknown as { t0: number }).t0, kind: 'clicked-evidence' }));
+    await editor(page).getByText('DECOY_SENTENCE', { exact: true }).waitFor();
+    await page.waitForFunction(() => !!window.getSelection()?.toString(), null, { timeout: 2000 }).catch(() => {});
+    const finalSel = await selection(page);
+    const finalSnap = await page.evaluate(() => (window as unknown as { snap: () => Snap }).snap());
+    const rec = await page.evaluate(() => (window as unknown as { rec: Rec[] }).rec);
+    const readLog = await app.evaluate(() => (globalThis as unknown as { readLog: unknown[] }).readLog);
+    console.log(JSON.stringify({ finalSel, finalSnap, readLog, rec: rec.map((r) => ({ ...r, t: Math.round(r.t) })) }));
+    assert.equal(finalSel, QUOTE, `다른 화 근거 jump 뒤 DOM 선택이 근거 문장이다 (기존 기대와 같다): ${JSON.stringify({ finalSnap })}`);
+    assert.match(finalSnap.pm ?? '', new RegExp(`:${QUOTE}$`), `PM 선택도 근거 문장이다: ${JSON.stringify(finalSnap)}`);
+    assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), body, '원고 바이트는 그대로다');
+    assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), TWO, '다른 화 원고도 그대로다');
+  });
+});
