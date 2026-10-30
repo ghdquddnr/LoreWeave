@@ -477,3 +477,221 @@ test('동의 저장 응답을 기다리는 사이 다른 프로젝트를 열면 
     await proxy.close();
   }
 });
+
+// ───────────── 확인 뒤 마지막 저장·재계산·전송 경계 (P4 재검토): IPC를 합성으로 대체하므로 네트워크 0 ─────────────
+interface Hooks {
+  estimateCalls: number;
+  analyzeCalls: unknown[][];
+  holdEstimateAt: number | null;
+  releaseEstimate?: () => void;
+  throwEstimateAt: number | null;
+  estimateOverride: { second?: { chars: number; costUsd: number } } | null;
+  statusModelAt: { call: number; model: string } | null;
+  statusCalls: number;
+}
+
+/** main의 ai:estimate / ai:status / ai:analyze를 감싼다 (분석은 합성 결과로 대체: 아무것도 보내지 않고 호출만 센다) */
+const hookAi = (app: ElectronApplication) =>
+  app.evaluate(({ ipcMain }) => {
+    const map = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => unknown> })._invokeHandlers;
+    const g = globalThis as unknown as { hooks: Hooks };
+    g.hooks = { estimateCalls: 0, analyzeCalls: [], holdEstimateAt: null, throwEstimateAt: null, estimateOverride: null, statusModelAt: null, statusCalls: 0 };
+    const estimate = map.get('ai:estimate')!;
+    ipcMain.removeHandler('ai:estimate');
+    ipcMain.handle('ai:estimate', async (...args: unknown[]) => {
+      const h = g.hooks;
+      h.estimateCalls += 1;
+      const call = h.estimateCalls;
+      if (h.throwEstimateAt === call) throw new Error("Error invoking remote method 'ai:estimate': Error: EISDIR: illegal operation on a directory, stat 'C:\\Users\\synthetic\\ai.db'");
+      let value = (await estimate(...args)) as { chars: number; costUsd: number };
+      if (call === 2 && h.estimateOverride?.second) value = h.estimateOverride.second;
+      if (h.holdEstimateAt === call) await new Promise<void>((resolve) => (h.releaseEstimate = resolve));
+      return value;
+    });
+    const status = map.get('ai:status')!;
+    ipcMain.removeHandler('ai:status');
+    ipcMain.handle('ai:status', async (...args: unknown[]) => {
+      const h = g.hooks;
+      h.statusCalls += 1;
+      const value = (await status(...args)) as { model: string; models: { id: string; label: string }[] };
+      if (h.statusModelAt && h.statusCalls === h.statusModelAt.call) return { ...value, model: h.statusModelAt.model };
+      return value;
+    });
+    ipcMain.removeHandler('ai:analyze');
+    ipcMain.handle('ai:analyze', async (_e: unknown, ...args: unknown[]) => {
+      g.hooks.analyzeCalls.push(args);
+      return { total: 1, done: 1, failed: [], costUsd: 0, stopped: null };
+    });
+  });
+const hookState = (app: ElectronApplication) =>
+  app.evaluate(() => {
+    const h = (globalThis as unknown as { hooks: Hooks }).hooks;
+    return { estimateCalls: h.estimateCalls, analyzeCalls: h.analyzeCalls.length, statusCalls: h.statusCalls };
+  });
+const setHooks = (app: ElectronApplication, patch: Partial<Hooks>) =>
+  app.evaluate((_e, p) => void Object.assign((globalThis as unknown as { hooks: Hooks }).hooks, p), patch);
+const releaseEstimate = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { hooks: Hooks }).hooks.releaseEstimate?.());
+
+async function startHooked(prefix: string): Promise<{ app: ElectronApplication; page: Page; dir: string }> {
+  const { app, page, dir } = await start(prefix, { OPENAI_BASE_URL: fake.baseUrl });
+  await page.evaluate(async () => {
+    await window.loreweave.ai.setKey('sk-boundary-test');
+    await window.loreweave.ai.setConsent(true);
+  });
+  await page.keyboard.press('Control+k');
+  await page.keyboard.type('다시 읽기');
+  await page.keyboard.press('Enter');
+  await palette(page).waitFor({ state: 'detached' });
+  await page.waitForTimeout(500);
+  await hookAi(app);
+  return { app, page, dir };
+}
+const confirmDialog = (page: Page) => page.getByRole('dialog', { name: 'AI 실행 확인' });
+const analyzeButton = (page: Page) => page.locator('.editor-toolbar').getByRole('button', { name: '이 화 분석', exact: true });
+
+test('확인 뒤 단계(재계산·상태 읽기)가 실패하면 조용히 닫지 않는다: 사용자용 안내·기술 상세·다시 시도, 전송 0, 입력 잠금 해제', { timeout: 120_000 }, async () => {
+  const { app, page } = await startHooked('boundary-error');
+  try {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await setHooks(app, { throwEstimateAt: 2 }); // 첫 계획은 정상, 확인 뒤 재계산(두 번째 estimate)이 실패
+    await analyzeButton(page).click();
+    await confirmDialog(page).waitFor();
+    await confirmDialog(page).getByRole('button', { name: '실행', exact: true }).click();
+    const note = page.locator('.analysis .error-note');
+    await note.waitFor({ timeout: 10_000 });
+    const shown = await note.innerText();
+    assert.doesNotMatch(shown, /Error invoking|EISDIR|ai\.db|synthetic|[A-Z]:\\/, `기본 안내: ${shown}`);
+    await note.getByRole('button', { name: '기술 상세' }).click();
+    await note.locator('.tech-detail').getByText('EISDIR', { exact: false }).waitFor();
+    assert.deepEqual(errors, [], '처리되지 않은 예외(pageerror)가 없다');
+    assert.equal((await hookState(app)).analyzeCalls, 0, '전송 0');
+    // 시작 상태가 풀렸다: 버튼이 다시 눌리고, 입력도 다시 받는다
+    assert.equal(await analyzeButton(page).isDisabled(), false, 'starting이 풀렸다');
+    await editor(page).getByText('SECOND_LINE_CARET_HERE', { exact: true }).click();
+    await page.keyboard.press('End');
+    await page.keyboard.type('!');
+    await editor(page).getByText('SECOND_LINE_CARET_HERE!', { exact: true }).waitFor();
+    // 다시 시도: 처음부터(계획 → 확인) 다시 하고 이번에는 실행된다
+    await note.getByRole('button', { name: '다시 시도' }).click();
+    await confirmDialog(page).waitFor();
+    await confirmDialog(page).getByRole('button', { name: '실행', exact: true }).click();
+    await page.getByText(/화 1개 분석/).waitFor({ timeout: 10_000 });
+    assert.equal((await hookState(app)).analyzeCalls, 1);
+  } finally {
+    page.on('dialog', (d) => void d.accept());
+    await closeWindow(app);
+  }
+});
+
+test('확인 뒤 재계산 중 프로젝트를 바꾸면 늦은 오류가 새 프로젝트 화면에 보이지 않는다', { timeout: 120_000 }, async () => {
+  const { app, page } = await startHooked('boundary-error-switch');
+  const b = await project();
+  try {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await setHooks(app, { holdEstimateAt: 2, throwEstimateAt: null });
+    await analyzeButton(page).click();
+    await confirmDialog(page).waitFor();
+    await confirmDialog(page).getByRole('button', { name: '실행', exact: true }).click();
+    await confirmDialog(page).waitFor({ state: 'detached' });
+    // 재계산 응답을 붙잡은 채 다른 프로젝트를 연다
+    await stubFolderDialog(app, b);
+    await page.getByRole('button', { name: '열기', exact: true }).click();
+    await page.waitForTimeout(1200);
+    await releaseEstimate(app);
+    await page.waitForTimeout(800);
+    assert.equal(await page.locator('.error-note').count(), 0, '이전 프로젝트의 늦은 응답·오류가 새 화면에 보이지 않는다');
+    assert.equal(await confirmDialog(page).count(), 0);
+    assert.equal((await hookState(app)).analyzeCalls, 0, '이전 프로젝트의 분석은 전송되지 않았다');
+    assert.deepEqual(errors, []);
+    // 새 프로젝트의 편집기는 잠기지 않았다
+    await editor(page).click();
+    await page.keyboard.type('Z');
+    await page.waitForFunction(() => (document.querySelector('.ProseMirror') as HTMLElement).innerText.includes('Z'));
+  } finally {
+    page.on('dialog', (d) => void d.accept());
+    await closeWindow(app);
+  }
+});
+
+test('재계산 중에는 새 입력을 받지 않는다: 확인한 범위·비용을 새 입력이 우회하지 못하고, 받아들인 입력은 보존되며, 끝나면 입력이 풀린다', { timeout: 120_000 }, async () => {
+  const { app, page, dir } = await startHooked('boundary-input');
+  try {
+    await setHooks(app, { holdEstimateAt: 2 });
+    await analyzeButton(page).click();
+    await confirmDialog(page).waitFor();
+    const approved = (await confirmDialog(page).locator('dd').first().innerText()).replace(/\s+/g, ' ');
+    await confirmDialog(page).getByRole('button', { name: '실행', exact: true }).click();
+    await confirmDialog(page).waitFor({ state: 'detached' });
+    // 재계산 응답을 붙잡고 있는 동안 큰 입력을 시도한다: 받아들여지지 않는다
+    await editor(page).getByText('SECOND_LINE_CARET_HERE', { exact: true }).click({ force: true }).catch(() => undefined);
+    await page.keyboard.insertText('가'.repeat(17_000));
+    await page.waitForTimeout(300);
+    const text = await editor(page).innerText();
+    assert.ok(!text.includes('가가가가'), '잠긴 동안의 입력은 받아들여지지 않는다');
+    await releaseEstimate(app);
+    await page.getByText(/화 1개 분석/).waitFor({ timeout: 15_000 });
+    const calls = await hookState(app);
+    assert.equal(calls.analyzeCalls, 1, '분석 요청 한 번');
+    // 승인한 범위와 실제로 읽힌 디스크 본문이 같다 (새 입력으로 범위가 커지지 않았다)
+    const disk = await readFile(join(dir, 'chapters', '002.md'), 'utf8');
+    assert.ok(!disk.includes('가가가가'), '보내는 본문에 새 입력이 섞이지 않았다');
+    assert.match(approved, /본문 \d+자/);
+    // 요청을 보낸 뒤에는 입력이 다시 받아진다
+    await editor(page).getByText('SECOND_LINE_CARET_HERE', { exact: true }).click();
+    await page.keyboard.press('End');
+    await page.keyboard.type('OK');
+    await editor(page).getByText('SECOND_LINE_CARET_HEREOK', { exact: true }).waitFor();
+  } finally {
+    page.on('dialog', (d) => void d.accept());
+    await closeWindow(app);
+  }
+});
+
+test('확인 뒤 재계산에서 범위·비용이나 모델이 달라지면 보내지 않고 새 확인을 받는다: 취소 0, 복구 뒤 정상 실행', { timeout: 150_000 }, async () => {
+  const { app, page } = await startHooked('boundary-replan');
+  try {
+    // 1) 범위·비용 변경
+    await setHooks(app, { estimateOverride: { second: { chars: 99_999, costUsd: 0.9999 } } });
+    await analyzeButton(page).click();
+    await confirmDialog(page).waitFor();
+    const first = (await confirmDialog(page).locator('dd').allInnerTexts()).join('|');
+    await confirmDialog(page).getByRole('button', { name: '실행', exact: true }).click();
+    await page.getByText(/달라져 범위와 비용을 다시 확인합니다/).waitFor({ timeout: 10_000 });
+    await confirmDialog(page).waitFor();
+    const second = (await confirmDialog(page).locator('dd').allInnerTexts()).join('|');
+    assert.notEqual(first, second, '새 확인 창은 새 값을 보여 준다');
+    assert.match(second, /99,999자/);
+    assert.match(second, /\$0\.9999/);
+    assert.equal((await hookState(app)).analyzeCalls, 0, '달라졌으면 전송 0');
+    await confirmDialog(page).getByRole('button', { name: '취소' }).click();
+    await confirmDialog(page).waitFor({ state: 'detached' });
+    assert.equal((await hookState(app)).analyzeCalls, 0, '취소: 전송 0');
+
+    // 2) 모델 변경: 계획과 재계산 사이에 설정된 모델이 바뀐다 (ai:status 첫 호출 = 계획, 둘째 = 재계산)
+    await setHooks(app, { estimateOverride: null, statusCalls: 0, estimateCalls: 0, statusModelAt: { call: 2, model: 'gpt-6.1-sol' } });
+    await analyzeButton(page).click();
+    await confirmDialog(page).waitFor();
+    const modelBefore = await confirmDialog(page).locator('dd').nth(1).innerText();
+    await confirmDialog(page).getByRole('button', { name: '실행', exact: true }).click();
+    await page.getByText(/달라져 범위와 비용을 다시 확인합니다/).waitFor({ timeout: 10_000 });
+    await confirmDialog(page).waitFor();
+    const modelAfter = await confirmDialog(page).locator('dd').nth(1).innerText();
+    assert.notEqual(modelBefore, modelAfter, '모델이 달라지면 새 모델로 다시 확인한다');
+    assert.equal((await hookState(app)).analyzeCalls, 0, '모델이 바뀌었으면 전송 0');
+    await confirmDialog(page).getByRole('button', { name: '취소' }).click();
+    await confirmDialog(page).waitFor({ state: 'detached' });
+
+    // 3) 복구 뒤: 값이 그대로면 확인한 대로 한 번 실행한다
+    await setHooks(app, { statusModelAt: null, statusCalls: 0, estimateCalls: 0 });
+    await analyzeButton(page).click();
+    await confirmDialog(page).waitFor();
+    await confirmDialog(page).getByRole('button', { name: '실행', exact: true }).click();
+    await page.getByText(/화 1개 분석/).waitFor({ timeout: 10_000 });
+    assert.equal((await hookState(app)).analyzeCalls, 1, '복구 뒤 정상 실행은 한 번');
+  } finally {
+    page.on('dialog', (d) => void d.accept());
+    await closeWindow(app);
+  }
+});

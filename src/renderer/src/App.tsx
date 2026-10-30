@@ -720,6 +720,15 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             setAiVersion((v) => v + 1);
           }}
           onNeedKey={() => setSettingsOpen(true)}
+          lockInput={() => {
+            lockEditor();
+            let released = false;
+            return () => {
+              if (released) return;
+              released = true;
+              unlockEditor(false);
+            };
+          }}
           toolbarSlot={toolbarSlot}
           explorerSlot={explorerSlot}
         />

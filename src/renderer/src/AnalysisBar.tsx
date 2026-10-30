@@ -23,6 +23,8 @@ interface Props {
   beforeAnalyze(): Promise<unknown>;
   onAnalyzed(): void;
   onNeedKey(): void;
+  /** 입력을 잠그고, 한 번만 푸는 함수를 돌려준다 (확인 뒤 마지막 저장·재계산·전송 사이에 새 입력이 범위·비용 확인을 우회하지 못하게) */
+  lockInput(): () => void;
   /**
    * 버튼을 놓을 자리 두 곳. 컨트롤러는 이 컴포넌트 하나뿐이고, 같은 컴포넌트가 portal로 두 자리에 그린다
    * (에디터 도구줄: 이 화 분석·이 화 검사 / 탐색기 "AI 작업": 남은 화 분석과 진행·결과). 자리가 없으면 그 버튼은 그리지 않는다.
@@ -55,7 +57,7 @@ interface ConfirmDialog {
 type Result = { kind: 'analysis'; progress: AnalyzeProgress } | { kind: 'check'; outcome: CheckOutcome };
 
 export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function AnalysisBar(
-  { file, projectToken, states, consent, beforeAnalyze, onAnalyzed, onNeedKey, toolbarSlot, explorerSlot },
+  { file, projectToken, states, consent, beforeAnalyze, onAnalyzed, onNeedKey, lockInput, toolbarSlot, explorerSlot },
   ref,
 ) {
   const [dialog, setDialog] = useState<ConfirmDialog | null>(null);
@@ -67,6 +69,13 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
   const [result, setResult] = useState<Result | null>(null);
   const [running, setRunning] = useState<'analysis' | 'check' | null>(null);
   const [error, setError] = useState<FriendlyError | null>(null);
+  /** 실패한 시작을 처음부터(계획 → 확인) 다시 한다 */
+  const [retry, setRetry] = useState<(() => void) | null>(null);
+  const releaseRef = useRef<(() => void) | null>(null);
+  const unlock = () => {
+    releaseRef.current?.();
+    releaseRef.current = null;
+  };
   const requestSeq = useRef(0);
   const consentRef = useRef(consent);
   consentRef.current = consent;
@@ -81,36 +90,46 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
   // 프로젝트가 바뀌면 이전 프로젝트의 계획·확인 창은 버린다 (늦게 온 계획이 새 프로젝트에서 열리지 않게)
   useEffect(() => {
     requestSeq.current++;
+    unlock();
     setDialog(null);
     setPlanning(false);
+    setStarting(false);
   }, [projectToken]);
   useEffect(
     () => () => {
       requestSeq.current++;
+      unlock();
     },
     [],
   );
   useModalFocus(dialogEl, dialog !== null);
 
-  const execute = async (kind: 'analysis' | 'check', work: () => Promise<Result>) => {
+  const execute = async (kind: 'analysis' | 'check', work: () => Promise<Result>, unsavedText: string) => {
     setDialog(null);
     setRunning(kind);
     setError(null);
+    setRetry(null);
     setProgress(null);
     setResult(null);
     try {
-      await beforeAnalyze();
-      setResult(await work());
+      // 저장하지 못했으면(충돌·저장 거절) 보내지 않는다: 승인한 범위·비용은 저장된 원고 기준이다
+      if ((await beforeAnalyze()) === false) throw new Error(unsavedText);
+      const sending = work(); // 요청은 여기서 바로 나간다
+      unlock(); // 보낸 뒤에는 입력을 다시 받는다 (이후의 입력은 이미 보낸 요청에 들어가지 않는다)
+      setResult(await sending);
     } catch (e) {
       setError(friendlyError(e));
     } finally {
+      unlock();
       setRunning(null);
       onAnalyzed();
     }
   };
 
-  const analyze = (files: string[]) => execute('analysis', async () => ({ kind: 'analysis', progress: await api.ai.analyze(files, projectToken) }));
-  const check = (target: string) => execute('check', async () => ({ kind: 'check', outcome: await api.ai.runCheck(target, projectToken) }));
+  const analyze = (files: string[], unsavedText: string) =>
+    execute('analysis', async () => ({ kind: 'analysis', progress: await api.ai.analyze(files, projectToken) }), unsavedText);
+  const check = (target: string, unsavedText: string) =>
+    execute('check', async () => ({ kind: 'check', outcome: await api.ai.runCheck(target, projectToken) }), unsavedText);
 
   /** 키를 확인하고, main이 계산한 계획(범위·비용 상한)을 받아 확인 창을 연다. 아무것도 보내지 않는다 */
   const begin = async (build: () => Promise<Plan>) => {
@@ -118,6 +137,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     const mine = ++requestSeq.current;
     setError(null);
     setNotice(null);
+    setRetry(null);
     setPlanning(true);
     try {
       const status = await api.ai.status();
@@ -128,7 +148,10 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       const model = status.models.find((m) => m.id === status.model)?.label ?? status.model;
       setDialog({ plan, model, needsConsent: !consentRef.current });
     } catch (e) {
-      if (mine === requestSeq.current) setError(friendlyError(e));
+      if (mine === requestSeq.current) {
+        setError(friendlyError(e));
+        setRetry(() => () => void begin(build));
+      }
     } finally {
       if (mine === requestSeq.current) setPlanning(false);
     }
@@ -170,26 +193,21 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
   const confirmRun = async () => {
     const d = dialog;
     if (!d) return;
-    // 동의 저장·저장·재계산을 기다리는 동안에도 새 실행을 시작하지 못하게 starting으로 막고, 그 사이 프로젝트가 바뀌면(request 번호) 보내지 않는다
+    // 동의 저장·저장·재계산을 기다리는 동안에도 새 실행을 시작하지 못하게 starting으로 막고, 그 사이 프로젝트가 바뀌면(request 번호) 보내지 않는다.
+    // 또 이 구간의 새 입력이 승인한 범위·비용을 우회하지 못하게 입력을 잠근다: 마지막 저장 → 재계산 → 요청을 보내는 순간까지 (이미 받아들인 입력은 저장·재계산에 반영되고, 실패·취소·프로젝트 전환·요청 전송 뒤에는 풀린다)
     const mine = requestSeq.current;
     setDialog(null);
     setStarting(true);
+    setRetry(null);
+    releaseRef.current = lockInput();
     try {
       if (d.needsConsent && !consentRef.current) {
-        try {
-          await api.ai.setConsent(true);
-        } catch (e) {
-          if (mine === requestSeq.current) setError(friendlyError(e));
-          return;
-        }
+        await api.ai.setConsent(true);
         if (mine !== requestSeq.current) return;
         onAnalyzed();
       }
       // 확인한 범위·비용은 저장된 원고 기준이다: 보내기 직전에 다시 저장하고, 저장할 수 없으면 보내지 않는다
-      if ((await beforeAnalyze()) === false) {
-        if (mine === requestSeq.current) setError(friendlyError(new Error(unsavedMessage(d.plan))));
-        return;
-      }
+      if ((await beforeAnalyze()) === false) throw new Error(unsavedMessage(d.plan));
       const [fresh, status] = await Promise.all([replan(d.plan), api.ai.status()]);
       if (mine !== requestSeq.current) return;
       const model = status.models.find((m) => m.id === status.model)?.label ?? status.model;
@@ -200,9 +218,17 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
         setDialog({ plan: fresh, model, needsConsent: false });
         return;
       }
-      if (d.plan.kind === 'analysis') await analyze(d.plan.files);
-      else await check(d.plan.file);
+      // 같은 값이 확인됐다: 요청을 보내는 순간까지 잠금을 유지하고(execute가 보낸 직후 푼다) 실행한다
+      if (d.plan.kind === 'analysis') await analyze(d.plan.files, unsavedMessage(d.plan));
+      else await check(d.plan.file, unsavedMessage(d.plan));
+    } catch (e) {
+      // 확인 뒤의 어떤 단계가 실패해도 조용히 닫지 않는다: 사용자용 안내와 기술 상세, 다시 시도. (프로젝트가 바뀐 뒤의 늦은 오류는 보이지 않는다)
+      if (mine === requestSeq.current) {
+        setError(friendlyError(e));
+        setRetry(() => () => (d.plan.kind === 'analysis' ? startAnalysis(d.plan.files) : startCheck(d.plan.file)));
+      }
     } finally {
+      unlock();
       setStarting(false);
     }
   };
@@ -284,7 +310,11 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
             )}
             {error && (
               <p className="error" role="alert">
-                <ErrorNote error={error} hint="작성한 원고는 그대로입니다." />
+                <ErrorNote
+                  error={error}
+                  hint="작성한 원고는 그대로입니다."
+                  onRetry={retry ? () => retry() : undefined}
+                />
               </p>
             )}
           </div>,
