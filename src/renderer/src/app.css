@@ -1306,3 +1306,18 @@ button {
   text-decoration: underline wavy var(--lw-warn);
   text-underline-offset: 6px;
 }
+
+.quote-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.quote-row .quote {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.quote-row .chip {
+  flex: none;
+}

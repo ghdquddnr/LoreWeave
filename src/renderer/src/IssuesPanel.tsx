@@ -191,25 +191,22 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
                     </span>
                     <span className="claim">{f.claim}</span>
                     <span className="quote-well">
-                      <button type="button" className="quote target" title="이 화의 이 문장으로 이동" disabled={locked} onClick={() => jump(f.target.quote)}>
-                        <span className="q-label">이 화:</span> {quoted(f.target.quote)}
+                      {/* 칩은 버튼 밖 형제로 둔다: 버튼의 접근 이름(이 화: “문장”)이 상태에 따라 바뀌지 않게 */}
+                      <span className="quote-row">
+                        <button type="button" className="quote target" title="이 화의 이 문장으로 이동" disabled={locked} onClick={() => jump(f.target.quote)}>
+                          <span className="q-label">이 화:</span> {quoted(f.target.quote)}
+                        </button>
                         {place === 'moved' && (
-                          <>
-                            {' '}
-                            <span className="chip chip-moved" title="검사 때와 다른 줄에서 지금 본문의 이 문장을 찾았습니다">
-                              MOVED
-                            </span>
-                          </>
+                          <span className="chip chip-moved" title="검사 때와 다른 줄에서 지금 본문의 이 문장을 찾았습니다">
+                            MOVED
+                          </span>
                         )}
                         {place === 'missing' && (
-                          <>
-                            {' '}
-                            <span className="chip chip-missing" title="지금 본문에서 이 문장을 찾을 수 없습니다">
-                              MISSING
-                            </span>
-                          </>
+                          <span className="chip chip-missing" title="지금 본문에서 이 문장을 찾을 수 없습니다">
+                            MISSING
+                          </span>
                         )}
-                      </button>
+                      </span>
                       {f.evidence.map((e, i) => (
                         <button
                           type="button"

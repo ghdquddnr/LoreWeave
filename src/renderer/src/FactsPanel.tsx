@@ -114,25 +114,21 @@ export function FactsPanel({ file, projectToken, locked, state, version, current
                           <span className="sep">: </span>
                           <span className="val">{f.value}</span>
                         </span>
-                        <button type="button" className="quote" title="본문에서 이 문장으로 이동" disabled={locked} onClick={() => jump(f.quote)}>
-                          “{f.quote}”
+                        <span className="quote-row">
+                          <button type="button" className="quote" title="본문에서 이 문장으로 이동" disabled={locked} onClick={() => jump(f.quote)}>
+                            “{f.quote}”
+                          </button>
                           {place === 'moved' && (
-                            <>
-                              {' '}
-                              <span className="chip chip-moved" title="분석 때와 다른 줄에서 지금 본문의 이 문장을 찾았습니다">
-                                MOVED
-                              </span>
-                            </>
+                            <span className="chip chip-moved" title="분석 때와 다른 줄에서 지금 본문의 이 문장을 찾았습니다">
+                              MOVED
+                            </span>
                           )}
                           {place === 'missing' && (
-                            <>
-                              {' '}
-                              <span className="chip chip-missing" title="지금 본문에서 이 문장을 찾을 수 없습니다">
-                                MISSING
-                              </span>
-                            </>
+                            <span className="chip chip-missing" title="지금 본문에서 이 문장을 찾을 수 없습니다">
+                              MISSING
+                            </span>
                           )}
-                        </button>
+                        </span>
                       </li>
                     );
                   })}

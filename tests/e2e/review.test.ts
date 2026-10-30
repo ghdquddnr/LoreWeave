@@ -189,7 +189,7 @@ test('오래된 검사(stale): 숫자 배지 대신 ◐, 카드는 옛 결과·M
     // MISSING은 이동하지 않고 선택만 접고 안내한다
     await missing.getByRole('button', { name: /^이 화:/ }).click();
     await issues(page).getByText('지금 본문에서 이 문장을 찾을 수 없습니다').waitFor();
-    assert.equal((await page.evaluate(() => window.getSelection()?.toString() ?? '')), '', '찾지 못하면 이전 선택을 접는다');
+    await page.waitForFunction(() => (window.getSelection()?.toString() ?? '') === '', null, { timeout: 3000 }); // 찾지 못하면 이전 선택을 접는다
     // 표시 층: 오래된 결과는 밑줄·거터 점이 없다
     await page.waitForTimeout(800);
     assert.deepEqual(await marked(page), []);
