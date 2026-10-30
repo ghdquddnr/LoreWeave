@@ -140,12 +140,12 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
             expected === undefined ? hash.current : expected,
             projectToken,
           );
+          // 쓰는 동안 바깥 변경 충돌(watcher)이 알려졌다면 그 충돌이 최신 상태다: 이 저장의 결과(성공·conflict·실패)로 해시·저장 상태·충돌 안내를 덮지 않는다
+          if (conflictSeq.current !== seq) return false;
           if (write.status === 'conflict') {
             report({ kind: 'conflict', diskHash: write.diskHash });
             return false;
           }
-          // 쓰는 동안 바깥 변경 충돌이 알려졌다면 그 충돌이 최신 상태다: 해시·저장 상태·충돌 안내를 옛 성공 응답으로 덮지 않는다
-          if (conflictSeq.current !== seq) return false;
           hash.current = write.hash;
           savedVersion.current = target;
           onSaved(result.text);
@@ -154,6 +154,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
           if (!clean) schedule(AUTOSAVE_DELAY_MS);
           return clean;
         } catch (e) {
+          if (conflictSeq.current !== seq) return false;
           report({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
           schedule(RETRY_DELAY_MS);
           return false;
