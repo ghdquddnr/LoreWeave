@@ -32,8 +32,11 @@ let index: ManuscriptIndex | null = null;
 /** 폴더를 열 때의 색인 동기화. 검색은 이것이 끝난 뒤에 한다 */
 let indexReady: Promise<void> = Promise.resolve();
 let indexError: string | null = null;
-/** 초기 색인 맞춤이 끝까지 되지 못하고 실패한 이유. 있으면 색인이 불완전해 검색 결과(특히 "없음")를 믿을 수 없다 (폴더를 다시 열 때까지) */
-let syncError: string | null = null;
+/**
+ * 색인이 불완전하거나 오래됐을 수 있는 이유: 초기 맞춤이 끝까지 되지 못했거나, 저장·바깥 변경의 색인 갱신이 실패했다.
+ * 있으면 검색 결과(특히 "없음")를 믿을 수 없다. 다른 화의 성공한 갱신이 문제 화의 누락을 고치지 않으므로 폴더를 다시 열 때까지 유지한다
+ */
+let indexBroken: string | null = null;
 /** AI 분석 결과 저장소. 처음 분석할 때 만든다 (AI를 쓰지 않으면 ai.db가 생기지 않는다) */
 let aiStore: AiStore | null = null;
 /**
@@ -55,7 +58,7 @@ function openIndex(path: string): void {
   index?.close();
   index = null;
   indexError = null;
-  syncError = null;
+  indexBroken = null;
   try {
     const opened = ManuscriptIndex.open(path);
     index = opened;
@@ -71,7 +74,7 @@ function openIndex(path: string): void {
         // 닫힌 옛 색인의 실패는 새 프로젝트의 색인 상태로 남기지 않는다
         if (index === opened) {
           indexError = e.message;
-          syncError = e.message;
+          indexBroken = e.message;
         }
       },
     );
@@ -87,7 +90,10 @@ function updateIndex(work: (index: ManuscriptIndex) => void | Promise<void>): Pr
   if (!current) return Promise.resolve();
   return Promise.resolve(work(current)).catch((e: Error) => {
     // 그사이 다른 프로젝트를 열어 이 색인이 닫혔으면 새 프로젝트의 오류로 남기지 않는다
-    if (index === current) indexError = e.message;
+    if (index === current) {
+      indexError = e.message;
+      indexBroken = e.message;
+    }
   });
 }
 let stopWatching: () => void = () => {};
@@ -395,8 +401,8 @@ export function registerIpc(): void {
     requireRoot();
     await indexReady;
     if (!index) throw new Error(`검색 색인을 만들 수 없습니다: ${indexError ?? '알 수 없는 이유'}`);
-    // 맞춤이 중간에 실패했으면 뒤의 화가 빠졌을 수 있다: 부분 색인으로 "없음"이라고 답하지 않는다. 편집·저장은 영향이 없고, 폴더를 다시 열면 다시 만든다
-    if (syncError) throw new Error(`검색 색인을 끝까지 만들지 못해 결과를 믿을 수 없습니다 (${syncError}). 원고는 그대로입니다. 폴더를 다시 열면 색인을 다시 맞춥니다.`);
+    // 색인이 중간에 실패했거나 갱신에 실패했다면 빠졌거나 오래된 화가 있을 수 있다: 그 색인으로 "없음" 등 정상 결과를 답하지 않는다. 편집·저장은 영향이 없고, 폴더를 다시 열면 다시 맞춘다
+    if (indexBroken) throw new Error(`검색 색인을 갱신하지 못해 결과를 믿을 수 없습니다 (${indexBroken}). 원고는 그대로입니다. 폴더를 다시 열면 색인을 다시 맞춥니다.`);
     return searchIndex(index, query);
   });
 }
