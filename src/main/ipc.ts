@@ -93,7 +93,7 @@ function startWatching(path: string): void {
     latest.set(file, seq);
     void chapterHash(path, file).then((hash) => {
       if (latest.get(file) !== seq || generation !== projectToken || root !== path || (hash !== null && ownWrites.get(file) === hash)) return;
-      void updateIndex((i) => reindexChapter(i, path, file));
+      void updateIndex((i) => reindexChapter(i, path, file, () => latest.get(file) === seq));
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.chapterChangedOutside, { file, hash });
     });
   });

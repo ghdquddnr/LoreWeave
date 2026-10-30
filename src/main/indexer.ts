@@ -34,17 +34,21 @@ export function indexChapterText(index: ManuscriptIndex, file: string, text: str
   index.replaceChapter({ file, ...chapterInfo(text, file), mtimeMs, size }, lines);
 }
 
-/** 디스크에서 다시 읽어 색인한다. 없어졌거나 UTF-8이 아니면 색인에서 뺀다 */
-export async function reindexChapter(index: ManuscriptIndex, root: string, file: string): Promise<void> {
+/**
+ * 디스크에서 다시 읽어 색인한다. 없어졌거나 UTF-8이 아니면 색인에서 뺀다.
+ * isCurrent: 읽는 사이 더 나중 갱신이 시작됐다면 false를 돌려준다 — 그러면 이 (옛) 읽기의 결과는 색인에 쓰지 않는다
+ */
+export async function reindexChapter(index: ManuscriptIndex, root: string, file: string, isCurrent: () => boolean = () => true): Promise<void> {
   const path = join(root, CHAPTERS_DIR, file);
   try {
     const [bytes, info] = await Promise.all([readFile(path), stat(path)]);
+    if (!isCurrent()) return;
     const text = decodeUtf8(bytes);
     if (text === null) index.removeChapter(file);
     else indexChapterText(index, file, text, info.mtimeMs, info.size);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    index.removeChapter(file);
+    if (isCurrent()) index.removeChapter(file);
   }
 }
 
