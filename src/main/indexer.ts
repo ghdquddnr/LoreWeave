@@ -53,7 +53,12 @@ export async function reindexChapter(index: ManuscriptIndex, root: string, file:
 }
 
 /** 폴더와 색인을 맞춘다: (mtime, size)가 다른 화만 다시 읽고, 사라진 화는 뺀다 */
-export async function syncIndex(index: ManuscriptIndex, root: string): Promise<{ reindexed: number; removed: number }> {
+export async function syncIndex(
+  index: ManuscriptIndex,
+  root: string,
+  /** 화를 다시 읽기 시작할 때 부른다. 돌려주는 isCurrent가 false면 (그 사이 더 나중 색인 작업이 있어) 그 읽기의 결과는 색인에 쓰지 않는다 */
+  begin: (file: string) => () => boolean = () => () => true,
+): Promise<{ reindexed: number; removed: number }> {
   const indexed = index.chapters();
   const files = await chapterFileNames(root);
   let reindexed = 0;
@@ -62,7 +67,7 @@ export async function syncIndex(index: ManuscriptIndex, root: string): Promise<{
     const known = indexed.get(file);
     indexed.delete(file);
     if (known && known.mtimeMs === info.mtimeMs && known.size === info.size) continue;
-    await reindexChapter(index, root, file);
+    await reindexChapter(index, root, file, begin(file));
     reindexed++;
   }
   for (const file of indexed.keys()) index.removeChapter(file);
