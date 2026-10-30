@@ -82,6 +82,20 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
   return <LoadedEditor ref={ref} {...props} loaded={loaded} />;
 });
 
+/**
+ * 한 프레임 뒤에, 그 시점의 포커스를 보고 편집기에 포커스를 준다. 입력란(검색창 등)에 포커스가 있으면 주지 않는다.
+ * TipTap의 commands.focus / chain().focus()는 view.focus()를 requestAnimationFrame으로 예약해 실행 시점의 포커스를 보지 못한다 —
+ * 예약 뒤에 사용자가 검색창을 선택하면 그 선택을 덮고, 이어지는 글자·Enter가 원고로 들어간다. 그래서 선택은 포커스 없이 즉시 설정하고 포커스만 이 함수로 준다
+ */
+function focusEditorUnlessTyping(target: Editor): void {
+  requestAnimationFrame(() => {
+    if (target.isDestroyed || target.view.hasFocus()) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+    target.view.focus();
+  });
+}
+
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
   { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, locked = false },
   ref,
@@ -188,12 +202,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     autofocus: false,
     onCreate: ({ editor: created }) => {
       if (jump) return;
-      requestAnimationFrame(() => {
-        if (created.isDestroyed || created.view.hasFocus()) return;
-        const active = document.activeElement;
-        if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
-        created.view.focus();
-      });
+      focusEditorUnlessTyping(created);
     },
     editable: !locked,
     onUpdate: () => {
@@ -223,7 +232,10 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
   useEffect(() => {
     if (!editor || !jump) return;
     // 찾지 못했으면 이전에 선택해 둔 다른 글자가 근거처럼 남지 않게 선택만 접는다 (본문은 그대로)
-    const collapse = () => editor.chain().focus().setTextSelection(editor.state.selection.head).run();
+    const collapse = () => {
+      editor.commands.setTextSelection(editor.state.selection.head);
+      focusEditorUnlessTyping(editor);
+    };
     if ('clear' in jump) {
       collapse();
       return;
@@ -235,7 +247,8 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
       collapse();
       return;
     }
-    editor.chain().focus().setTextSelection(range).run();
+    editor.commands.setTextSelection(range);
+    focusEditorUnlessTyping(editor);
     // 찾은 글자를 화면 가운데로 (가장자리에 걸리지 않게)
     const { node } = editor.view.domAtPos(range.from);
     (node instanceof Element ? node : node.parentElement)?.scrollIntoView({ block: 'center' });
