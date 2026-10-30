@@ -6,6 +6,8 @@ import type { SearchHit, SearchResult } from '../../preload/api.ts';
 
 export interface SearchPanelHandle {
   focus(): void;
+  /** 검색어와 결과를 지우고 화 목록으로 돌아간다 */
+  clear(): void;
 }
 
 interface Props {
@@ -27,7 +29,6 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useImperativeHandle(ref, () => ({ focus: () => input.current?.select() }), []);
 
   const search = async () => {
     const q = query;
@@ -51,6 +52,8 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     setError(null);
     onActiveChange(false);
   };
+
+  useImperativeHandle(ref, () => ({ focus: () => input.current?.select(), clear }));
 
   return (
     <div className="search">

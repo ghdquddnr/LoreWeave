@@ -1,7 +1,7 @@
 // 환경설정: 테마와 글꼴(AppearanceSettings) + AI 설정 (M3-PLAN 1절: API 키 저장·삭제, 모델 선택, 연결 확인, 이 프로젝트에서 쓴 비용).
 // 저장한 키는 다시 볼 수 없다 (main만 읽는다).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AiStatus } from '../../preload/api.ts';
 import { AppearanceSettings } from './AppearanceSettings.tsx';
 import type { AppearanceController } from './useAppearance.ts';
@@ -20,10 +20,20 @@ export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: 
   const [key, setKey] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const dialog = useRef<HTMLElement>(null);
 
   useEffect(() => {
     void api.ai.status().then(setStatus);
   }, []);
+
+  // 키보드 focus: 열 때 대화상자로 들어가고, 닫으면 연 버튼(또는 열기 전 포커스)으로 돌아간다
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [status === null]);
 
   const apply = (next: AiStatus) => {
     setStatus(next);
@@ -44,8 +54,26 @@ export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: 
 
   if (!status) return null;
   return (
-    <div className="modal-backdrop" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <section className="modal settings" role="dialog" aria-modal="true" aria-label="환경설정">
+    <div
+      className="modal-backdrop"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') return onClose();
+        if (e.key !== 'Tab' || !dialog.current) return;
+        // 대화상자 안에서만 Tab이 돈다
+        const items = Array.from(dialog.current.querySelectorAll<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter((el) => !el.hasAttribute('disabled'));
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }}
+    >
+      <section ref={dialog} tabIndex={-1} className="modal settings" role="dialog" aria-modal="true" aria-label="환경설정">
         <AppearanceSettings controller={appearance} />
 
         <h2>AI 설정</h2>
