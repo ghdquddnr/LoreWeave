@@ -80,8 +80,18 @@ function updateIndex(work: (index: ManuscriptIndex) => void | Promise<void>): Pr
 let stopWatching: () => void = () => {};
 /** 이 앱이 마지막으로 쓴 내용의 해시. 감시 이벤트가 자기 쓰기 때문이면 알리지 않는다 */
 const ownWrites = new Map<string, string>();
-/** watcher가 바깥 변경이라고 판단해 색인을 시작한 횟수(화별). 저장 처리의 색인 갱신이 끝나기 전에 늘었다면 그 저장의 색인은 옛것이다 */
-const externalChanges = new Map<string, number>();
+/**
+ * 색인을 쓰려는 작업(저장 처리, watcher의 바깥 변경 색인)은 본문을 얻는 시점에 화별 표를 받고, 끝났을 때 자기 표가 그 화의 마지막 표일 때만 색인에 쓴다.
+ * 더 나중에 시작한 작업이 있으면 그 작업이 더 최신 본문으로 색인하므로 옛 작업은 건너뛴다. 표를 받은 작업이 아니면(자기 쓰기 이벤트 등) 표를 올리지 않아,
+ * 서로 상대가 색인할 것이라 믿고 둘 다 건너뛰는 일이 없다. 전역으로 늘어나는 번호라 프로젝트를 다시 열어도 겹치지 않는다.
+ */
+let indexTicket = 0;
+const latestIndexTicket = new Map<string, number>();
+function takeIndexTicket(file: string): number {
+  indexTicket += 1;
+  latestIndexTicket.set(file, indexTicket);
+  return indexTicket;
+}
 
 function startWatching(path: string): void {
   stopWatching();
@@ -95,8 +105,8 @@ function startWatching(path: string): void {
     latest.set(file, seq);
     void chapterHash(path, file).then((hash) => {
       if (latest.get(file) !== seq || generation !== projectToken || root !== path || (hash !== null && ownWrites.get(file) === hash)) return;
-      externalChanges.set(file, (externalChanges.get(file) ?? 0) + 1);
-      void updateIndex((i) => reindexChapter(i, path, file, () => latest.get(file) === seq));
+      const ticket = takeIndexTicket(file);
+      void updateIndex((i) => reindexChapter(i, path, file, () => latestIndexTicket.get(file) === ticket));
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.chapterChangedOutside, { file, hash });
     });
   });
@@ -136,7 +146,6 @@ async function openProject(path: string): Promise<ProjectOpened> {
   projectToken += 1;
   const token = projectToken;
   ownWrites.clear();
-  externalChanges.clear();
   startWatching(path);
   openIndex(path);
   // 열기는 여기서 끝났다 (root·token이 바뀌었다). 다음 실행 때 다시 열 폴더를 기억하지 못해도 열기를 실패로 돌리지 않는다:
@@ -218,11 +227,11 @@ export function registerIpc(): void {
     const result = await writeChapter(path, file, text, expectedHash);
     if (result.status === 'saved' && stillOpen(token)) {
       ownWrites.set(file, result.hash);
-      const external = externalChanges.get(file) ?? 0;
+      const ticket = takeIndexTicket(file);
       await updateIndex(async (i) => {
         const info = await stat(join(path, CHAPTERS_DIR, file));
-        // 기다리는 사이 바깥 변경이 색인됐다면 그 색인이 더 최신이다: 저장 당시 본문으로 되돌리지 않는다
-        if ((externalChanges.get(file) ?? 0) !== external) return;
+        // 기다리는 사이 더 나중에 시작한 색인 작업(바깥 변경)이 있으면 그 색인이 더 최신이다: 저장 당시 본문으로 되돌리지 않는다
+        if (latestIndexTicket.get(file) !== ticket) return;
         indexChapterText(i, file, text, info.mtimeMs, info.size);
       });
     }
