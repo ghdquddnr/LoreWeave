@@ -57,8 +57,6 @@ function openAiStore(path: string, create: boolean): AiStore | null {
 function openIndex(path: string): void {
   index?.close();
   index = null;
-  indexError = null;
-  indexBroken = null;
   try {
     const opened = ManuscriptIndex.open(path);
     index = opened;
@@ -184,6 +182,9 @@ async function openProject(path: string): Promise<ProjectOpened> {
   projectToken += 1;
   const token = projectToken;
   ownWrites.clear();
+  // 색인 상태 표시는 감시를 시작하기 전에 지운다: startWatching이 감시 생성 실패를 indexBroken으로 남길 수 있고, openIndex가 그것을 지우면 안 된다
+  indexError = null;
+  indexBroken = null;
   startWatching(path);
   openIndex(path);
   // 열기는 여기서 끝났다 (root·token이 바뀌었다). 다음 실행 때 다시 열 폴더를 기억하지 못해도 열기를 실패로 돌리지 않는다:
