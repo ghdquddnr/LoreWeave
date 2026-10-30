@@ -85,9 +85,14 @@ function startWatching(path: string): void {
   stopWatching();
   // 같은 폴더를 다시 열어도 token이 바뀐다: 이전 watcher가 파일을 읽던 중이었다면 그 읽기가 늦게 끝나도 새 세대에 알리지 않는다
   const generation = projectToken;
+  // 같은 파일의 이벤트마다 번호를 매긴다: 더 나중 이벤트의 읽기가 시작됐다면, 먼저 시작한 옛 읽기의 결과는 (더 늦게 끝나도) 알리지 않는다.
+  // 나중 이벤트의 읽기가 디스크의 더 나중 상태를 읽고 그 결과를 알린다
+  const latest = new Map<string, number>();
   stopWatching = watchChapters(path, (file) => {
+    const seq = (latest.get(file) ?? 0) + 1;
+    latest.set(file, seq);
     void chapterHash(path, file).then((hash) => {
-      if (generation !== projectToken || root !== path || (hash !== null && ownWrites.get(file) === hash)) return;
+      if (latest.get(file) !== seq || generation !== projectToken || root !== path || (hash !== null && ownWrites.get(file) === hash)) return;
       void updateIndex((i) => reindexChapter(i, path, file));
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.chapterChangedOutside, { file, hash });
     });
