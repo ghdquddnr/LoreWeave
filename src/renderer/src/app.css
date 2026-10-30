@@ -1035,8 +1035,20 @@ button {
 
   .sidebar {
     max-height: 40vh;
+    overflow: auto;
     border-right: 0;
     border-bottom: 1px solid var(--lw-line);
+  }
+
+  /* 좁을 때는 탐색기 전체가 스크롤된다 (화 목록이 AI 작업 영역에 눌려 사라지지 않게) */
+  .sidebar nav[aria-label="화 목록"] {
+    flex: none;
+    overflow: visible;
+  }
+
+  .ai-work {
+    max-height: none;
+    overflow: visible;
   }
 
   .titlebar .search-trigger kbd {

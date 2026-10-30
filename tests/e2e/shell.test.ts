@@ -134,6 +134,10 @@ test('반응형: 1180px 미만은 인스펙터가 에디터 아래로, 760px 미
     assert.equal(l.activity.shown, false, '700: 활동 막대 숨김');
     assert.ok(l.work.y >= l.explorer.bottom - 1, `700: 탐색기 아래 에디터 ${JSON.stringify(l)}`);
     assert.ok(l.explorer.w >= 690 && l.work.w >= 690, '한 열');
+    // 좁아도 화 목록이 AI 작업 영역에 눌려 사라지지 않고 누를 수 있다 (탐색기 전체가 스크롤된다)
+    const chapterButton = page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: /^TWO$/ });
+    await chapterButton.scrollIntoViewIfNeeded();
+    assert.ok((await chapterButton.boundingBox())!.height >= 28, '화 목록 행이 보인다');
     // 좁아도 원고 입력은 된다
     await typeAtEnd(page, BODY.one, ' NARROW');
     await editor(page).getByText(`${BODY.one} NARROW`, { exact: true }).waitFor();
