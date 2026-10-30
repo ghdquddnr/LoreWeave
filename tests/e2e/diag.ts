@@ -38,3 +38,28 @@ export async function diagFailure(file: string, describe: () => Promise<string>)
   }
   diag(file, line);
 }
+
+/** diagProbe의 결과: null = 진단 꺼짐(읽지 않음), value = 읽음, unavailable = 읽다가 실패(원래 테스트의 판정에는 영향 없음) */
+export type Probe<T> = { value: T } | { unavailable: string } | null;
+
+/**
+ * 테스트 흐름 중간에서 상태를 읽는다. E2E_DIAG_DIR가 없으면 read를 부르지 않고 null을 돌려준다.
+ * 단 async 함수라 꺼져 있어도 Promise를 돌려주므로 `await diagProbe(...)`는 microtask 양보를 만든다.
+ * 그래서 테스트 흐름 중간의 호출은 `diagDir() ? await diagProbe(...) : null`로 감싸, 꺼져 있으면 await 자체를 평가하지 않게 한다.
+ * 켜져 있으면 읽는다: 이 읽기는 입력·저장 사이에 browser 왕복을 더하므로 스케줄링에 영향을 줄 수 있다 (진단을 켠 실행은 끈 실행과 완전히 같다고 볼 수 없다).
+ * 읽기가 실패해도 던지지 않고 unavailable로 남겨 원래 action·assert의 결과를 가리지 않는다.
+ */
+export async function diagProbe<T>(read: () => Promise<T>): Promise<Probe<T>> {
+  if (!diagDir()) return null;
+  try {
+    return { value: await read() };
+  } catch (e) {
+    return { unavailable: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** fail.log에 쓸 문자열. 꺼져 있어 읽지 않은 것과 읽지 못한 것을 구분한다 */
+export function describeProbe<T>(probe: Probe<T>): string {
+  if (probe === null) return 'off';
+  return 'value' in probe ? JSON.stringify(probe.value) : `unavailable(${probe.unavailable})`;
+}
