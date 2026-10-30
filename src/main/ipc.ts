@@ -32,6 +32,8 @@ let index: ManuscriptIndex | null = null;
 /** 폴더를 열 때의 색인 동기화. 검색은 이것이 끝난 뒤에 한다 */
 let indexReady: Promise<void> = Promise.resolve();
 let indexError: string | null = null;
+/** 초기 색인 맞춤이 끝까지 되지 못하고 실패한 이유. 있으면 색인이 불완전해 검색 결과(특히 "없음")를 믿을 수 없다 (폴더를 다시 열 때까지) */
+let syncError: string | null = null;
 /** AI 분석 결과 저장소. 처음 분석할 때 만든다 (AI를 쓰지 않으면 ai.db가 생기지 않는다) */
 let aiStore: AiStore | null = null;
 /**
@@ -53,6 +55,7 @@ function openIndex(path: string): void {
   index?.close();
   index = null;
   indexError = null;
+  syncError = null;
   try {
     const opened = ManuscriptIndex.open(path);
     index = opened;
@@ -66,7 +69,10 @@ function openIndex(path: string): void {
       () => undefined,
       (e: Error) => {
         // 닫힌 옛 색인의 실패는 새 프로젝트의 색인 상태로 남기지 않는다
-        if (index === opened) indexError = e.message;
+        if (index === opened) {
+          indexError = e.message;
+          syncError = e.message;
+        }
       },
     );
   } catch (e) {
@@ -389,6 +395,8 @@ export function registerIpc(): void {
     requireRoot();
     await indexReady;
     if (!index) throw new Error(`검색 색인을 만들 수 없습니다: ${indexError ?? '알 수 없는 이유'}`);
+    // 맞춤이 중간에 실패했으면 뒤의 화가 빠졌을 수 있다: 부분 색인으로 "없음"이라고 답하지 않는다. 편집·저장은 영향이 없고, 폴더를 다시 열면 다시 만든다
+    if (syncError) throw new Error(`검색 색인을 끝까지 만들지 못해 결과를 믿을 수 없습니다 (${syncError}). 원고는 그대로입니다. 폴더를 다시 열면 색인을 다시 맞춥니다.`);
     return searchIndex(index, query);
   });
 }
