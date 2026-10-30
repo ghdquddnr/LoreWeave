@@ -7,8 +7,11 @@ import { CHAPTERS_DIR, isChapterFileName } from '../core/project/chapters.ts';
 
 const DEBOUNCE_MS = 150;
 
-/** 화 파일이 바뀔 때마다(같은 파일의 연속 이벤트는 묶어서) onChange를 부른다. 반환값으로 감시를 멈춘다 */
-export function watchChapters(root: string, onChange: (file: string) => void): () => void {
+/**
+ * 화 파일이 바뀔 때마다(같은 파일의 연속 이벤트는 묶어서) onChange를 부른다. 반환값으로 감시를 멈춘다.
+ * 실행 중에 감시가 오류로 닫히면 onError를 부른다 (이후의 바깥 변경은 알려지지 않는다). chapters 폴더가 아직 없어 감시를 만들지 못한 것은 오류가 아니다.
+ */
+export function watchChapters(root: string, onChange: (file: string) => void, onError?: (error: Error) => void): () => void {
   const timers = new Map<string, NodeJS.Timeout>();
   let watcher: FSWatcher;
   try {
@@ -28,7 +31,10 @@ export function watchChapters(root: string, onChange: (file: string) => void): (
     // chapters 폴더가 아직 없다. 새 화를 만들 때 다시 시작한다
     return () => {};
   }
-  watcher.on('error', () => watcher.close());
+  watcher.on('error', (error) => {
+    watcher.close();
+    onError?.(error);
+  });
   return () => {
     watcher.close();
     for (const t of timers.values()) clearTimeout(t);
