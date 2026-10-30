@@ -49,4 +49,16 @@ export const editorProps: EditorOptions['editorProps'] = {
     return true;
   },
   handleDrop: (_view, _event, _slice, moved) => !moved,
+  handleDOMEvents: {
+    // 키 처리(Enter 등)는 PM 상태의 선택을 쓴다. PM은 DOM 선택 변경을 selectionchange 이벤트로만 알아채고, keydown의 forceFlush는 예약된 flush가 있을 때만 일한다.
+    // 그래서 클릭이 만든 DOM 선택 변경보다 키가 먼저 오면 Enter가 옛 선택(문서 시작)에서 문단을 쪼개 입력이 엉뚱한 곳에 들어갔다.
+    // 키를 처리하기 전에 지금의 DOM 선택을 PM 상태에 반영한다 (조합 중인 입력(한글 등)은 건드리지 않는다).
+    keydown(view, event) {
+      if (event.isComposing || event.keyCode === 229 || view.composing) return false;
+      const observer = (view as unknown as { domObserver?: { forceFlush?: () => void; flush?: () => void } }).domObserver;
+      observer?.forceFlush?.();
+      observer?.flush?.();
+      return false;
+    },
+  },
 };
