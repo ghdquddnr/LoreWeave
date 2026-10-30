@@ -89,7 +89,8 @@ test('설정 저장 실패 중 전환 (감독 재현): B가 열리고 화면·ma
     await page.getByRole('button', { name: '열기', exact: true }).click();
     await typeAndSave(page, A, 'Alpha text in A', ' after-cancel');
     await open(app, page, broken);
-    await page.getByRole('status').getByText(/ENOTDIR|not a directory/i).waitFor({ timeout: 5000 });
+    // 기본 안내는 짧은 문장이고, ENOTDIR 원문은 기술 상세에만 있다
+    await page.getByRole('status').getByText(/폴더나 위치를 사용할 수 없습니다|파일이나 폴더 위치를 사용할 수 없습니다/).waitFor({ timeout: 5000 });
     await typeAndSave(page, A, 'Alpha text in A after-cancel', ' after-fail');
     // 설정이 돌아오면 다시 열 때 기억하고, 오류는 사라진다
     await restoreSettings(userData);
