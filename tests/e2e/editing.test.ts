@@ -124,7 +124,10 @@ test('저장 안 된 변경이 없을 때 다른 프로그램이 화를 바꾸�
 test('입력 중 앱이 강제로 꺼져도 잃는 것은 마지막 자동 저장 이후 분량뿐이다', async () => {
   const { app, page } = await launch(userData);
   await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: '1화. 입학' }).click();
-  await page.locator('.ProseMirror').getByText(/북적였다/).click();
+  // 문단 오른쪽 아래(마지막 줄 끝)를 눌러 캐럿을 문단 끝에 둔다: 글꼴에 따라 문단이 두 줄로 접힐 수 있어 가운데를 누르고 End를 치면 첫 줄 끝이 된다
+  const paragraph = page.locator('.ProseMirror').getByText(/북적였다/);
+  const box = (await paragraph.boundingBox())!;
+  await paragraph.click({ position: { x: box.width - 2, y: box.height - 4 } });
   await page.keyboard.press('End');
   // 진단 (E2E_DIAG_DIR가 있을 때만 읽는다. 꺼져 있으면 browser 호출이 없다): 입력 직전 캐럿이 문단 끝인지. 본문은 남기지 않고 길이·위치만 쓴다
   const caret = diagDir()

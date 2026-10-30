@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { AiError, createOpenAiClient } from '../../src/main/ai-client.ts';
+import { DEFAULT_APPEARANCE } from '../../src/core/appearance.ts';
 import { readSettings, updateSettings } from '../../src/main/settings.ts';
 
 type Handler = (url: string, init: RequestInit) => Response | Promise<Response>;
@@ -110,12 +111,12 @@ test('check: 모델 조회만 한다 (생성 호출 없음)', async () => {
 test('설정: 기본값, 모르는 모델은 기본 모델로, 깨진 파일은 기본값, 바꾼 값은 합쳐 저장', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'loreweave-settings-'));
   try {
-    assert.deepEqual(await readSettings(dir), { lastProject: null, aiModel: 'gpt-6-luna', aiSendConsent: false });
+    assert.deepEqual(await readSettings(dir), { lastProject: null, aiModel: 'gpt-6-luna', aiSendConsent: false, appearance: DEFAULT_APPEARANCE });
     await writeFile(join(dir, 'settings.json'), '{ 깨짐');
     assert.equal((await readSettings(dir)).aiModel, 'gpt-6-luna');
     await updateSettings(dir, { lastProject: 'D:/원고' });
     await updateSettings(dir, { aiModel: 'gpt-6.1-sol' });
-    assert.deepEqual(await readSettings(dir), { lastProject: 'D:/원고', aiModel: 'gpt-6.1-sol', aiSendConsent: false });
+    assert.deepEqual(await readSettings(dir), { lastProject: 'D:/원고', aiModel: 'gpt-6.1-sol', aiSendConsent: false, appearance: DEFAULT_APPEARANCE });
     await writeFile(join(dir, 'settings.json'), JSON.stringify({ aiModel: 'gpt-unknown' }));
     assert.equal((await readSettings(dir)).aiModel, 'gpt-6-luna');
     assert.doesNotMatch(await readFile(join(dir, 'settings.json'), 'utf8'), /key/i);

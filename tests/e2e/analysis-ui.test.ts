@@ -44,7 +44,7 @@ test('설정에서 키 저장 → 동의 → 이 화 분석 → 사실 패널 �
 
     // 키 없이 분석하면 설정이 열린다
     await page.getByRole('button', { name: '이 화 분석' }).click();
-    const settings = page.getByRole('dialog', { name: 'AI 설정' });
+    const settings = page.getByRole('dialog', { name: '환경설정' });
     await settings.getByRole('textbox', { name: 'API 키' }).fill('sk-ui-test');
     await settings.getByRole('button', { name: '저장' }).click();
     await settings.getByText('저장됨 (암호화해 이 컴퓨터에만 보관)').waitFor();

@@ -1,6 +1,7 @@
 // renderer가 쓸 수 있는 main 기능 전부. preload가 이 모양 그대로 window.loreweave에 노출한다.
 // renderer는 파일 경로를 다루지 않는다. 화는 `chapters/` 안의 파일 이름으로만 가리킨다.
 
+import type { AppearanceSettings } from '../core/appearance.ts';
 import type { StoredAnalysis, StoredCheck } from '../main/ai-db.ts';
 import type { AnalysisState, AnalyzeProgress } from '../main/analyzer.ts';
 import type { CheckOutcome, CheckPlan, CheckState } from '../main/checker.ts';
@@ -40,7 +41,24 @@ export interface AiStatus {
   models: { id: string; label: string }[];
 }
 
+export interface AppearanceBootstrap {
+  /** 저장된 외관 설정 (검증된 값) */
+  appearance: AppearanceSettings;
+  /** 지금 운영체제가 어두운 모드인가 (nativeTheme) */
+  systemDark: boolean;
+}
+
 export interface LoreweaveApi {
+  appearance: {
+    /** 첫 화면을 그리기 전에 적용할 설정과 OS 낮·밤 상태 */
+    bootstrap(): Promise<AppearanceBootstrap>;
+    /** 부분 변경을 검증해 저장하고, 저장된 전체 외관 설정을 돌려준다. 이상한 값이면 거절한다 */
+    update(patch: Partial<AppearanceSettings>): Promise<AppearanceSettings>;
+    /** 첫 화면(테마와 글꼴 적용 뒤)을 그렸다고 알린다. main이 그제야 창을 보인다 */
+    rendererReady(): void;
+    /** 운영체제 낮·밤이 바뀔 때. 반환값은 구독 해제 */
+    onSystemDarkChange(listener: (systemDark: boolean) => void): () => void;
+  };
   project: {
     /** 폴더 선택 창을 띄운다. 취소하면 null */
     choose(): Promise<ProjectOpened | null>;
@@ -111,6 +129,10 @@ export interface LoreweaveApi {
 }
 
 export const CHANNELS = {
+  appearanceBootstrap: 'appearance:bootstrap',
+  appearanceUpdate: 'appearance:update',
+  appearanceRendererReady: 'appearance:renderer-ready',
+  appearanceSystemDark: 'appearance:system-dark',
   projectChoose: 'project:choose',
   projectReopenLast: 'project:reopen-last',
   chaptersList: 'chapters:list',
