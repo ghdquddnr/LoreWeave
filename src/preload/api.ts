@@ -46,6 +46,14 @@ export interface AppearanceBootstrap {
   appearance: AppearanceSettings;
   /** 지금 운영체제가 어두운 모드인가 (nativeTheme) */
   systemDark: boolean;
+  /** systemDark를 읽은 시점의 OS 변경 차례. 이보다 큰 차례의 변경 알림이 이 값보다 새롭다 (응답이 늦게 도착해도 순서를 가릴 수 있게) */
+  systemDarkSeq: number;
+}
+
+/** OS 낮·밤 변경 알림. seq는 main이 변경할 때마다 1씩 늘린다 */
+export interface SystemDarkChange {
+  systemDark: boolean;
+  seq: number;
 }
 
 export interface LoreweaveApi {
@@ -57,7 +65,7 @@ export interface LoreweaveApi {
     /** 첫 화면(테마와 글꼴 적용 뒤)을 그렸다고 알린다. main이 그제야 창을 보인다 */
     rendererReady(): void;
     /** 운영체제 낮·밤이 바뀔 때. 반환값은 구독 해제 */
-    onSystemDarkChange(listener: (systemDark: boolean) => void): () => void;
+    onSystemDarkChange(listener: (change: SystemDarkChange) => void): () => void;
   };
   project: {
     /** 폴더 선택 창을 띄운다. 취소하면 null */

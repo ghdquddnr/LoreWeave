@@ -2,10 +2,11 @@
 // 저장 요청은 한 번에 하나만 보내고(빠른 슬라이더 입력은 마지막 값으로 합친다), 실패한 변경은 `unsaved`에 남겨 다음 저장 때 함께 다시 보낸다.
 // 에디터 컴포넌트는 이 상태와 무관하다: <html>의 속성·CSS 변수만 바뀌므로 문서·선택·undo·미저장 입력이 그대로다.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { type AppearanceSettings, DEFAULT_APPEARANCE } from '../../core/appearance.ts';
 import type { AppearanceBootstrap } from '../../preload/api.ts';
 import { applyAppearance } from './applyAppearance.ts';
+import type { SystemDarkStore } from './systemDark.ts';
 
 export interface AppearanceController {
   appearance: AppearanceSettings;
@@ -20,10 +21,10 @@ export interface AppearanceController {
   retry(): void;
 }
 
-export function useAppearance(boot: AppearanceBootstrap): AppearanceController {
+export function useAppearance(boot: AppearanceBootstrap, systemDarkStore: SystemDarkStore): AppearanceController {
   const api = window.loreweave.appearance;
   const [appearance, setAppearance] = useState(boot.appearance);
-  const [systemDark, setSystemDark] = useState(boot.systemDark);
+  const systemDark = useSyncExternalStore(systemDarkStore.subscribe, systemDarkStore.get);
   const [saveError, setSaveError] = useState<string | null>(null);
   /** 아직 저장이 확인되지 않은 변경 (키별 최신 값) */
   const unsaved = useRef<Partial<AppearanceSettings>>({});
@@ -33,8 +34,6 @@ export function useAppearance(boot: AppearanceBootstrap): AppearanceController {
   useEffect(() => {
     applyAppearance(appearance, systemDark);
   }, [appearance, systemDark]);
-
-  useEffect(() => api.onSystemDarkChange(setSystemDark), [api]);
 
   useEffect(() => {
     mounted.current = true;

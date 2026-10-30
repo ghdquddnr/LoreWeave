@@ -7,7 +7,7 @@ const api: LoreweaveApi = {
     update: (patch) => ipcRenderer.invoke(CHANNELS.appearanceUpdate, patch),
     rendererReady: () => ipcRenderer.send(CHANNELS.appearanceRendererReady),
     onSystemDarkChange(listener) {
-      const handler = (_e: Electron.IpcRendererEvent, systemDark: boolean) => listener(systemDark === true);
+      const handler = (_e: Electron.IpcRendererEvent, change: { systemDark: boolean; seq: number }) => listener(change);
       ipcRenderer.on(CHANNELS.appearanceSystemDark, handler);
       return () => ipcRenderer.off(CHANNELS.appearanceSystemDark, handler);
     },

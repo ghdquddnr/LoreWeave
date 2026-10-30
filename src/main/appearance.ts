@@ -25,16 +25,23 @@ export function showWhenRendererReady(win: BrowserWindow): void {
   win.once('closed', () => clearTimeout(timer));
 }
 
-export function registerAppearanceIpc(userData: () => string): void {
+/**
+ * 처리기와 nativeTheme 구독을 등록하고, 모두 해제하는 함수를 돌려준다 (앱 종료 때 부른다).
+ * OS 낮·밤이 바뀔 때마다 systemDarkSeq가 늘고, bootstrap과 변경 알림이 같은 차례를 달고 나가서
+ * renderer가 늦게 도착한 응답과 먼저 도착한 알림 중 새것을 가릴 수 있다.
+ */
+export function registerAppearanceIpc(userData: () => string): () => void {
+  let systemDarkSeq = 0;
   const refreshBackgrounds = async () => {
     const color = await windowBackground(userData());
     for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setBackgroundColor(color);
   };
 
-  ipcMain.handle(CHANNELS.appearanceBootstrap, async (): Promise<AppearanceBootstrap> => ({
-    appearance: (await readSettings(userData())).appearance,
-    systemDark: nativeTheme.shouldUseDarkColors,
-  }));
+  ipcMain.handle(CHANNELS.appearanceBootstrap, async (): Promise<AppearanceBootstrap> => {
+    const { appearance } = await readSettings(userData());
+    // OS 값과 차례는 await 없이 함께 읽는다 (설정을 읽는 사이에 바뀐 OS 값을 놓치지 않고, 차례와 값이 어긋나지 않는다)
+    return { appearance, systemDark: nativeTheme.shouldUseDarkColors, systemDarkSeq };
+  });
 
   ipcMain.handle(CHANNELS.appearanceUpdate, async (_e, rawPatch: unknown) => {
     const patch = parseAppearancePatch(rawPatch);
@@ -44,16 +51,27 @@ export function registerAppearanceIpc(userData: () => string): void {
     return saved.appearance;
   });
 
-  ipcMain.on(CHANNELS.appearanceRendererReady, (event) => {
+  const onReady = (event: Electron.IpcMainEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win && !win.isDestroyed() && !win.isVisible()) win.show();
-  });
+  };
+  ipcMain.on(CHANNELS.appearanceRendererReady, onReady);
 
   // OS 낮·밤이 바뀌면 열린 창에 알린다 (앱 전체에서 한 번만 구독하고, 이미 닫힌 창에는 보내지 않는다)
-  nativeTheme.on('updated', () => {
+  const onUpdated = () => {
+    systemDarkSeq += 1;
+    const change = { systemDark: nativeTheme.shouldUseDarkColors, seq: systemDarkSeq };
     for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(CHANNELS.appearanceSystemDark, nativeTheme.shouldUseDarkColors);
+      if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(CHANNELS.appearanceSystemDark, change);
     }
     void refreshBackgrounds().catch(() => {});
-  });
+  };
+  nativeTheme.on('updated', onUpdated);
+
+  return () => {
+    nativeTheme.off('updated', onUpdated);
+    ipcMain.off(CHANNELS.appearanceRendererReady, onReady);
+    ipcMain.removeHandler(CHANNELS.appearanceBootstrap);
+    ipcMain.removeHandler(CHANNELS.appearanceUpdate);
+  };
 }

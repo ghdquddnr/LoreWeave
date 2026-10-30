@@ -16,6 +16,7 @@ const ONE = `${envelope('one', 'ONE')}EVIDENCE_QUOTE\r\n`;
 const TWO = `${envelope('two', 'TWO')}TARGET_BODY\r\n`;
 const TWO_TYPED = `${envelope('two', 'TWO')}TARGET_BODY UNSAVED_INPUT\r\n`;
 const PROBE_ENTRY = join(__dirname, 'hooks', 'main-show-probe-entry.cjs');
+const BOOT_ENTRY = join(__dirname, 'hooks', 'main-boot-hold-entry.cjs');
 
 const theme = (id: ThemeId) => THEMES.find((t) => t.id === id)!;
 const rgb = (hex: string) => {
@@ -544,6 +545,124 @@ test('로컬 글꼴: 인터넷을 막은 상태에서 세 글꼴이 파일에서
     assert.deepEqual(await app.evaluate(() => (globalThis as unknown as { __blocked: string[] }).__blocked), [], '외부 요청 시도 0');
     assert.match(report.bodyFamily, /^"?IBM Plex Sans KR/);
   } finally {
+    await closeWindow(app);
+  }
+});
+
+test('시작 중 OS 낮·밤 변경(합성 지연 응답 경계): bootstrap 응답 전달이 늦는 동안 OS가 바뀌어도 양방향 모두 최신 OS 값이 첫 표시 DOM과 창 배경에 반영된다', { timeout: 90_000 }, async () => {
+  const userData = await tempDir('appearance-boot-race');
+  const { app, page } = await launch(userData, {}, BOOT_ENTRY);
+  try {
+    for (const round of [1, 2]) {
+      await app.evaluate(async () => {
+        const g = globalThis as unknown as { __boot: { held: boolean } };
+        while (!g.__boot.held) await new Promise((r) => setTimeout(r, 25));
+      });
+      const snapshotDark = await app.evaluate(() => (globalThis as unknown as { __boot: { snapshotDark: boolean } }).__boot.snapshotDark);
+      // 스냅샷을 만든 뒤 전달 전에 OS를 반대로 바꾼다 (알림은 응답보다 먼저 renderer에 닿는다)
+      await setOsDark(app, snapshotDark ? 'light' : 'dark');
+      await new Promise((r) => setTimeout(r, 200));
+      const actualDark = await app.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors);
+      assert.equal(actualDark, !snapshotDark, `${round}회차: OS가 실제로 바뀌었다`);
+      await app.evaluate(() => (globalThis as unknown as { __boot: { release(): void } }).__boot.release());
+      await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).waitFor();
+      const expected: ThemeId = actualDark ? 'midnight' : 'paper';
+      await page.waitForTimeout(300);
+      assert.equal((await look(page)).theme, expected, `${round}회차: 스냅샷(${snapshotDark ? '어두움' : '밝음'}) 이후 바뀐 OS(${actualDark ? '어두움' : '밝음'})가 DOM에 반영`);
+      assert.equal((await look(page)).bodyBg, rgb(theme(expected).background));
+      await waitWindowBg(app, theme(expected).background);
+      // 다음 회차: 새 bootstrap을 다시 붙잡고 다시 불러온다
+      await app.evaluate(() => void ((globalThis as unknown as { __boot: { hold: boolean } }).__boot.hold = true));
+      if (round === 1) void page.reload();
+    }
+  } finally {
+    await setOsDark(app, 'system').catch(() => {});
+    await closeWindow(app);
+  }
+});
+
+test('시작 중 OS 변경(합성 지연 응답 경계): 수동 테마는 그대로 유지된다', { timeout: 60_000 }, async () => {
+  const userData = await tempDir('appearance-boot-manual');
+  await writeFile(join(userData, 'settings.json'), JSON.stringify({ appearance: { theme: 'lamplight', followSystem: false } }));
+  const { app, page } = await launch(userData, {}, BOOT_ENTRY);
+  try {
+    await app.evaluate(async () => {
+      const g = globalThis as unknown as { __boot: { held: boolean } };
+      while (!g.__boot.held) await new Promise((r) => setTimeout(r, 25));
+    });
+    const snapshotDark = await app.evaluate(() => (globalThis as unknown as { __boot: { snapshotDark: boolean } }).__boot.snapshotDark);
+    await setOsDark(app, snapshotDark ? 'light' : 'dark');
+    await new Promise((r) => setTimeout(r, 200));
+    await app.evaluate(() => (globalThis as unknown as { __boot: { release(): void } }).__boot.release());
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).waitFor();
+    await page.waitForTimeout(300);
+    assert.equal((await look(page)).theme, 'lamplight');
+    await setOsDark(app, snapshotDark ? 'dark' : 'light');
+    await page.waitForTimeout(300);
+    assert.equal((await look(page)).theme, 'lamplight');
+    await waitWindowBg(app, theme('lamplight').background);
+    // 구독 정리: 앱이 끝날 때(will-quit) nativeTheme 구독이 하나 줄고 bootstrap 처리기도 거둬진다
+    const counts = await app.evaluate(({ app: electronApp, nativeTheme, ipcMain }) => {
+      const before = nativeTheme.listenerCount('updated');
+      electronApp.emit('will-quit', {} as never);
+      let handlerRemoved = false;
+      try {
+        (ipcMain as unknown as { _invokeHandlers: Map<string, unknown> })._invokeHandlers.has('appearance:bootstrap') || (handlerRemoved = true);
+      } catch {
+        handlerRemoved = false;
+      }
+      return { before, after: nativeTheme.listenerCount('updated'), handlerRemoved };
+    });
+    assert.equal(counts.after, counts.before - 1, 'nativeTheme updated 구독이 해제됐다');
+    assert.equal(counts.handlerRemoved, true, 'bootstrap 처리기가 거둬졌다');
+  } finally {
+    await setOsDark(app, 'system').catch(() => {});
+    await closeWindow(app);
+  }
+});
+
+test('이미 선택된(지금 쓰이는) 카드를 눌러도 수동 고정이 된다: 라디오 클릭, 라벨·미리보기 클릭, 키보드(Space)', { timeout: 90_000 }, async () => {
+  const dir = await project();
+  const userData = await tempDir('appearance-card');
+  const { app, page } = await launch(userData);
+  try {
+    await setOsDark(app, 'light');
+    await openProject(app, page, dir);
+    await waitTheme(page, 'paper');
+    await page.getByRole('button', { name: '설정', exact: true }).click();
+    const dialog = settingsDialog(page);
+    const follow = dialog.getByRole('checkbox', { name: /자동 전환/ });
+    const current = () => dialog.locator('input[name="theme"]:checked');
+    const fixedAsPaper = async (how: string) => {
+      assert.equal(await follow.isChecked(), false, `${how}: 자동 전환이 꺼졌다`);
+      const saved = await pollSettings(userData, (s) => s.appearance?.followSystem === false && s.appearance.theme === 'paper', `${how}: 저장`);
+      assert.equal(saved.appearance?.theme, 'paper');
+      // OS가 어두워져도 그대로
+      await setOsDark(app, 'dark');
+      await new Promise((r) => setTimeout(r, 250));
+      assert.equal((await look(page)).theme, 'paper', `${how}: 수동 유지`);
+      await setOsDark(app, 'light');
+      await follow.check(); // 다음 방식을 위해 자동 전환으로 되돌린다
+      await waitTheme(page, 'paper');
+    };
+    assert.equal(await follow.isChecked(), true);
+    assert.equal(await current().inputValue(), 'paper');
+    await current().click();
+    await fixedAsPaper('라디오 클릭');
+    await dialog.locator('label.theme-card.on .theme-preview').click();
+    await fixedAsPaper('미리보기 클릭');
+    await dialog.locator('label.theme-card.on strong').click();
+    await fixedAsPaper('이름(라벨) 클릭');
+    await current().focus();
+    await page.keyboard.press('Space');
+    await fixedAsPaper('키보드 Space');
+    // 다른 카드 선택은 그대로 동작
+    await dialog.getByRole('radio', { name: /^등잔불/ }).check();
+    await waitTheme(page, 'lamplight');
+    assert.equal(await follow.isChecked(), false);
+  } finally {
+    await setOsDark(app, 'system').catch(() => {});
+    page.on('dialog', (d) => void d.accept());
     await closeWindow(app);
   }
 });

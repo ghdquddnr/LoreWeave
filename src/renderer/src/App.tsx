@@ -11,6 +11,7 @@ import { FactsPanel } from './FactsPanel.tsx';
 import { IssuesPanel } from './IssuesPanel.tsx';
 import { SearchPanel, type SearchPanelHandle } from './SearchPanel.tsx';
 import { SettingsDialog } from './SettingsDialog.tsx';
+import type { SystemDarkStore } from './systemDark.ts';
 import { useAppearance } from './useAppearance.ts';
 
 interface AiState {
@@ -37,8 +38,8 @@ function firstReadable(project: ProjectOpened): string | null {
   return project.list.chapters.find((c) => !c.unreadable)?.file ?? null;
 }
 
-export function App({ boot }: { boot: AppearanceBootstrap }) {
-  const appearance = useAppearance(boot);
+export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDark: SystemDarkStore }) {
+  const appearance = useAppearance(boot, systemDark);
   const [starting, setStarting] = useState(true);
   const [project, setProject] = useState<ProjectOpened | null>(null);
   const [file, setFile] = useState<string | null>(null);

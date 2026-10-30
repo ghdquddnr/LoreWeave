@@ -7,6 +7,7 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
 import { applyAppearance } from './applyAppearance.ts';
+import { createSystemDarkStore } from './systemDark.ts';
 import './fonts.css';
 import './themes.css';
 import './app.css';
@@ -16,9 +17,13 @@ const FONT_WAIT_MS = 2000;
 
 async function start(): Promise<void> {
   const api = window.loreweave.appearance;
+  // bootstrap을 요청하기 전에 OS 낮·밤 알림부터 받는다 (응답이 늦는 동안의 변경을 놓치지 않는다)
+  const systemDark = createSystemDarkStore(api);
+  window.addEventListener('pagehide', () => systemDark.dispose(), { once: true });
   const boot = await api.bootstrap();
-  applyAppearance(boot.appearance, boot.systemDark);
-  createRoot(document.getElementById('root')!).render(<App boot={boot} />);
+  systemDark.seed(boot.systemDark, boot.systemDarkSeq);
+  applyAppearance(boot.appearance, systemDark.get());
+  createRoot(document.getElementById('root')!).render(<App boot={boot} systemDark={systemDark} />);
   await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, FONT_WAIT_MS))]);
   api.rendererReady();

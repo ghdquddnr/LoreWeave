@@ -82,7 +82,22 @@ export function AppearanceSettings({ controller }: { controller: AppearanceContr
           <label key={t.id} className={`theme-card${t.id === current.id ? ' on' : ''}`}>
             <ThemePreview id={t.id} />
             <span className="theme-card-meta">
-              <input type="radio" name="theme" value={t.id} checked={t.id === current.id} onChange={() => update({ theme: t.id, followSystem: false })} />
+              {/* onClick: 이미 선택된(지금 쓰이는) 카드를 눌러도 수동 고정이 된다. onChange는 값이 바뀔 때만 불려서, 자동 전환 중에 현재 카드를 눌러도 아무 일이 없었다. 라벨·미리보기·키보드(Space/방향키)도 click으로 이어진다 */}
+              {/* 이미 선택된 라디오에서 Space는 click을 만들지 않으므로 Space/Enter를 직접 받는다 (선택되지 않은 카드의 Space는 click이 처리) */}
+              <input
+                type="radio"
+                name="theme"
+                value={t.id}
+                checked={t.id === current.id}
+                onChange={() => undefined}
+                onClick={() => update({ theme: t.id, followSystem: false })}
+                onKeyDown={(e) => {
+                  if ((e.key === ' ' || e.key === 'Enter') && e.currentTarget.checked) {
+                    e.preventDefault();
+                    update({ theme: t.id, followSystem: false });
+                  }
+                }}
+              />
               <span className="theme-card-name">
                 <strong>{t.label}</strong>
                 <span className="muted">{t.description}</span>

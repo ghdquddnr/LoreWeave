@@ -42,7 +42,8 @@ async function createWindow(): Promise<void> {
 
 app.whenReady().then(async () => {
   registerIpc();
-  registerAppearanceIpc(() => app.getPath('userData'));
+  // 종료할 때 OS 낮·밤 구독과 처리기를 거둔다
+  app.once('will-quit', registerAppearanceIpc(() => app.getPath('userData')));
   await createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
