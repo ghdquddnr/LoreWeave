@@ -244,3 +244,52 @@ test('같은 화에서 인용이 없으면 기존 다른 문장 선택을 근거
     assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), current);
   });
 });
+
+// 이 화 인용(IssuesPanel)과 사실 인용(FactsPanel): 지금 본문에 인용이 없으면 이전에 선택해 둔 글자를 남기지 않는다.
+// 감독 재현: TARGET_BODY를 REWRITTEN으로 고쳐 쓴 뒤 REWRITTEN을 선택하고 인용을 누르면 REWRITTEN이 선택된 채 남았다.
+for (const kind of ['target', 'fact'] as const) {
+  test(`${kind === 'target' ? '이 화 인용' : '사실 인용'}: 본문에 인용이 없으면 기존 선택을 접고, 본문·undo·파일은 그대로이며, 인용이 돌아오면 다시 선택한다`, { timeout: 90_000 }, async () => {
+    const dir = await project(ORIGINAL, { '001.md': ORIGINAL, '002.md': TWO });
+    const db = AiStore.open(dir);
+    db.saveAnalysis({
+      file: '002.md',
+      contentHash: 'synthetic',
+      model: 'fake',
+      modelVersion: 'fake',
+      promptVersion: 'fake',
+      summary: 'SYNTHETIC',
+      droppedQuotes: 0,
+      costUsd: 0,
+      createdAt: new Date().toISOString(),
+      entities: [{ name: 'SYNTHETIC', aliases: [] }],
+      facts: [{ entity: 'SYNTHETIC', predicate: 'kind', value: 'value', quote: 'TARGET_BODY', ...at(TWO, 'TARGET_BODY') }],
+    });
+    db.close();
+    const panel = (page: Page) => page.locator(kind === 'target' ? 'section.issues' : 'aside.facts');
+    const button = (page: Page) => panel(page).getByRole('button', { name: kind === 'target' ? '이 화: “TARGET_BODY”' : '“TARGET_BODY”', exact: true });
+    const warning = (page: Page) => panel(page).getByText(kind === 'target' ? '지금 본문에서 이 문장을 찾을 수 없습니다' : '지금 본문에서 이 인용을 찾을 수 없습니다', { exact: false });
+    await withApp(dir, async (_app, page) => {
+      await editor(page).getByText('TARGET_BODY', { exact: true }).click();
+      await page.keyboard.press('Home');
+      await page.keyboard.press('Shift+End');
+      await page.keyboard.type('REWRITTEN');
+      for (let n = 0; n < 2; n++) {
+        await page.keyboard.press('Home');
+        await page.keyboard.press('Shift+End');
+        assert.equal(await selection(page), 'REWRITTEN');
+        await button(page).click();
+        await warning(page).waitFor();
+        await page.waitForFunction(() => window.getSelection()?.toString() === '', null, { timeout: 3000 });
+      }
+      assert.equal(await editor(page).getByText('REWRITTEN', { exact: true }).count(), 1);
+      // 선택만 접었으므로 undo 기록은 그대로다: 되돌리면 인용이 돌아오고, 다시 누르면 선택된다
+      await page.keyboard.press('Control+z');
+      await editor(page).getByText('TARGET_BODY', { exact: true }).waitFor();
+      await button(page).click();
+      await page.waitForFunction(() => window.getSelection()?.toString() === 'TARGET_BODY');
+      assert.equal(await warning(page).count(), 0);
+    });
+    // 입력 중이던 REWRITTEN은 저장됐을 수 있으나, 되돌린 뒤에는 원래 본문이다 (파일은 두 상태 중 하나)
+    assert.match(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), /^# TWO\n\n(REWRITTEN|TARGET_BODY)\n$/);
+  });
+}
