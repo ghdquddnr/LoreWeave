@@ -73,6 +73,7 @@ function loadIpc() {
             analysis: (file: string) => (open(), { file, path }),
             dismiss: (file: string, _c: string, key: string) => (open(), s.dismissed.push(`${file}:${key}`)),
             totalCost: () => (open(), 0),
+            issueCounts: () => (open(), {}),
             recoveredFrom: null,
             assertOpen: open,
           };

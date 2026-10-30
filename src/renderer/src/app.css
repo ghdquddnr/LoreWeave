@@ -1321,3 +1321,8 @@ button {
 .quote-row .chip {
   flex: none;
 }
+
+/* 접이식 섹션 안의 링크 버튼들(확신 낮은 결과 보기 · 무시한 결과 보기)이 붙어 보이지 않게 */
+.sec-body > .link {
+  margin: 0 14px 4px 0;
+}
