@@ -501,3 +501,143 @@ test('진단(자연 스케줄 1회): 다른 화의 근거 jump — chapter read 
     assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), TWO, '다른 화 원고도 그대로다');
   });
 });
+
+// ---- 사실 패널 인용 경로(FactsPanel → jumpHere의 line/from/to 또는 clear)의 입력·저장 경계 ----
+// PR113은 검사 근거(quote) 경로를 봤다. 여기는 사실 패널 인용: 현재(저장 전) 본문에서 인용을 다시 찾아 이동하거나(찾음), 분석 뒤 인용이 지워졌으면 없음 안내와 선택 접기(collapse)가 일어난다.
+// 두 경우만: (found) 분석 뒤 저장 전 입력으로 줄이 밀린 현재 본문에서 FACT_QUOTE를 다시 찾아 선택 / (missing) 분석 뒤 인용이 지워져 안내 + 접기.
+// 순서: jump/collapse가 지연 focus 프레임을 예약(renderer rAF를 테스트가 보관: 합성 스케줄러 제어) → 프레임 해제 전 현재 본문의 PM 선택을 읽기 전용으로 확인 → 사용자가 검색창을 마우스로 선택 →
+//   프레임을 하나씩 실행(콜백 완료 장벽, 목록이 빌 때까지)하며 매번 activeElement·PM 선택 관측: 검색창 포커스·선택 유지·원고 불변 → 사용자가 명시적으로 본문의 TARGET_BODY 문단을 클릭해 돌아와
+//   End 뒤 ' ADDED' 입력 → Ctrl+S(실제 저장 완료) → 디스크 바이트 → 다른 화 이동 → 다시 열기 → 본문/디스크 재확인. 예상 본문은 아래 상수로 미리 정한다.
+// 로컬 합성 분석 fixture(AiStore에 직접 저장, 실제 API·가짜 provider 모두 사용하지 않음)와 격리 userData만 쓴다. 관측은 TipTap `.editor` 읽기 전용(제품 hook 없음); 진단 evaluate는 순서에 끼어들 수 있다.
+const FACT_ANALYZED = `# TWO\n\nTARGET_BODY\n\nFACT_QUOTE\n`;
+// 한 줄 = 한 문단 형식: Enter로 만든 새 문단은 앞 문단 바로 다음 줄에 저장된다 (원래 있던 빈 줄은 그대로). 처음 예상은 빈 줄을 하나 더 넣어 틀렸고, 실제 저장 결과(위 형식)로 바로잡았다
+const FACT_FOUND_EXPECTED = `# TWO\n\nTARGET_BODY${TYPED}\nEXTRA_LINE\n\nFACT_QUOTE\n`;
+const FACT_MISSING_BODY = `# TWO\n\nTARGET_BODY\n\nREWRITTEN\n`;
+const FACT_MISSING_EXPECTED = `# TWO\n\nTARGET_BODY${TYPED}\n\nREWRITTEN\n`;
+
+async function factsProject(current: string): Promise<string> {
+  const dir = await project(ORIGINAL, { '001.md': ORIGINAL, '002.md': current }, '002.md');
+  const db = AiStore.open(dir);
+  db.saveAnalysis({
+    file: '002.md',
+    contentHash: 'synthetic',
+    model: 'fake',
+    modelVersion: 'fake',
+    promptVersion: 'fake',
+    summary: 'SYNTHETIC',
+    droppedQuotes: 0,
+    costUsd: 0,
+    createdAt: new Date().toISOString(),
+    entities: [{ name: 'SYNTHETIC', aliases: [] }],
+    facts: [{ entity: 'SYNTHETIC', predicate: 'kind', value: 'value', quote: 'FACT_QUOTE', ...at(FACT_ANALYZED, 'FACT_QUOTE') }], // 위치는 분석할 때의 본문 기준
+  });
+  db.close();
+  return dir;
+}
+
+async function factsReturnAndType(page: Page, dir: string, kind: 'found' | 'missing') {
+  const two = join(dir, 'chapters', '002.md');
+  const expected = kind === 'found' ? FACT_FOUND_EXPECTED : FACT_MISSING_EXPECTED;
+  const factButton = page.locator('aside.facts').getByRole('button', { name: '“FACT_QUOTE”', exact: true });
+  await factButton.waitFor();
+  await editor(page).getByText('TARGET_BODY', { exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror') === true, null, { timeout: 10_000 }); // 시작 포커스가 끝났다
+  if (kind === 'found') {
+    // 분석 뒤 저장 전 입력: TARGET_BODY 뒤에 새 문단 EXTRA_LINE (FACT_QUOTE의 줄 번호가 분석 때와 달라진다)
+    // PM 상태는 DOM 선택을 selectionchange로 뒤늦게 반영한다(PR112 관측; 키 맵으로 처리되는 Enter는 PM 상태의 선택을 쓴다): 클릭·End 뒤 PM 선택이 반영될 때까지 조건으로 기다린 뒤 Enter를 누른다
+    await editor(page).getByText('TARGET_BODY', { exact: true }).click();
+    await page.waitForFunction(() => (document.querySelector('.ProseMirror') as unknown as { editor: { state: { selection: { from: number } } } }).editor.state.selection.from > 1, null, { timeout: 5000 });
+    await page.keyboard.press('End');
+    await page.waitForFunction(() => (document.querySelector('.ProseMirror') as unknown as { editor: { state: { selection: { from: number } } } }).editor.state.selection.from === 19, null, { timeout: 5000 }); // TARGET_BODY 문단 끝
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('EXTRA_LINE');
+    await editor(page).getByText('EXTRA_LINE', { exact: true }).waitFor({ timeout: 5000 }).catch(async (e) => {
+      throw new Error(`EXTRA_LINE 문단이 보이지 않는다 (편집기 본문: ${JSON.stringify(await editor(page).innerText())})`, { cause: e });
+    });
+  } else {
+    // 접힐 선택을 먼저 만든다: 실제 키로 TARGET_BODY 한 줄 선택
+    await editor(page).getByText('TARGET_BODY', { exact: true }).click();
+    await page.keyboard.press('Home');
+    await page.keyboard.press('Shift+End');
+    assert.equal(await selection(page), 'TARGET_BODY');
+  }
+  await holdFrames(page);
+  // PM 상태는 DOM 선택을 selectionchange로 뒤늦게 반영한다: 조건으로 기다린 뒤 읽는다 (프레임 보관 중이라 polling 간격 사용)
+  if (kind === 'missing') await page.waitForFunction(() => (window as unknown as FrameWindow).readPm().text === 'TARGET_BODY', null, { polling: 25, timeout: 5000 });
+  const preJump = await readPm(page);
+  await page.evaluate(() => void ((window as unknown as FrameWindow).stage = 'jump'));
+  await factButton.click({ force: true }); // 사실 패널의 인용 버튼 (Playwright의 안정 대기가 rAF를 쓰므로 force)
+  if (kind === 'missing') await page.locator('aside.facts').getByText('지금 본문에서 이 인용을 찾을 수 없습니다', { exact: false }).waitFor();
+  // jump/collapse effect 실행 신호: 지연 focus 프레임이 jump 단계로 예약된다. 프레임 해제 전의 PM 선택(현재 본문 기준)을 읽는다
+  await page.waitForFunction(() => (window as unknown as FrameWindow).framesHeld.some((f) => f.stage === 'jump'), null, { polling: 25, timeout: 15_000 });
+  const afterJump = await readPm(page);
+  const missingShown = await page.locator('aside.facts').getByText('지금 본문에서 이 인용을 찾을 수 없습니다', { exact: false }).count();
+  await page.getByRole('searchbox', { name: '원고 검색' }).click({ force: true });
+  const atSearch = await readPm(page);
+  const log = await page.evaluate(async () => {
+    const w = window as unknown as FrameWindow;
+    window.requestAnimationFrame = (cb) => {
+      w.framesHeld.push({ cb, stage: 'run' });
+      return w.framesHeld.length;
+    };
+    const steps: Array<{ order: number; stage: string; afterCallback: PmObs; afterRealFrame: PmObs }> = [];
+    let order = 0;
+    while (w.framesHeld.length > 0 && order < 1000) {
+      const frame = w.framesHeld.shift()!;
+      order += 1;
+      frame.cb(performance.now());
+      const afterCallback = w.readPm();
+      await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+      steps.push({ order, stage: frame.stage, afterCallback, afterRealFrame: w.readPm() });
+    }
+    window.requestAnimationFrame = w.rafOriginal;
+    await new Promise<void>((resolve) => w.rafOriginal(() => resolve()));
+    return { steps, drained: w.framesHeld.length === 0, final: w.readPm() };
+  });
+  // 사용자가 명시적으로 본문으로 돌아온다 (활성 요소·선택을 강제하지 않는다)
+  await editor(page).getByText('TARGET_BODY', { exact: true }).click();
+  const returned = await readPm(page);
+  await page.keyboard.press('End');
+  await page.keyboard.type(TYPED);
+  await page.keyboard.press('Control+S');
+  await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+  const diskAfterSave = await readFile(two, 'utf8');
+  await chapter(page, 'ONE').click();
+  await editor(page).getByText(QUOTE).waitFor();
+  await chapter(page, 'TWO').click();
+  await editor(page).getByText(`TARGET_BODY${TYPED}`, { exact: true }).waitFor({ timeout: 10_000 });
+  const reopened = await page.evaluate(() => (document.querySelector('.ProseMirror') as HTMLElement).innerText.replace(/\n+/g, '⏎'));
+  console.log(JSON.stringify({ kind, preJump, afterJump, missingShown, atSearch, steps: log.steps, final: log.final, returned, reopened }));
+  // 단계별 근거
+  assert.ok(log.steps.some((st) => st.stage === 'jump'), `jump/collapse가 예약한 지연 focus 프레임이 실행됐다: ${JSON.stringify(log.steps.map((st) => [st.order, st.stage]))}`);
+  assert.ok(log.drained, '보관된 프레임이 모두 실행되어 목록이 비었다');
+  if (kind === 'found') {
+    assert.equal(afterJump.text, 'FACT_QUOTE', `현재(저장 전) 본문에서 인용을 다시 찾아 PM 선택이 FACT_QUOTE다: ${JSON.stringify(afterJump)}`);
+    assert.equal(missingShown, 0, '찾았으니 없음 안내는 없다');
+  } else {
+    assert.equal(preJump.text, 'TARGET_BODY', 'collapse 전 PM 선택은 TARGET_BODY였다');
+    assert.equal(afterJump.from, afterJump.to, `collapse로 PM 선택이 접혔다: ${JSON.stringify(afterJump)}`);
+    assert.equal(missingShown, 1, '없음 안내가 보인다');
+  }
+  assert.equal(atSearch.active, 'input', '사용자가 검색창을 선택했다 (실제 마우스 선택)');
+  for (const st of log.steps) {
+    for (const state of [st.afterCallback, st.afterRealFrame]) {
+      assert.equal(state.active, 'input', `${st.order}번째(${st.stage}) 프레임 뒤에도 검색창 포커스가 유지된다 ${JSON.stringify(state)}`);
+      assert.deepEqual({ from: state.from, to: state.to }, { from: afterJump.from, to: afterJump.to }, `${st.order}번째 프레임 뒤에도 PM 선택이 그대로다`);
+    }
+  }
+  assert.equal(returned.active, 'editor', '명시적으로 돌아온 뒤 편집기가 포커스를 가진다');
+  assert.equal(diskAfterSave, expected, '저장된 원고가 예상한 정확한 바이트다 (사용자가 클릭한 문단 끝에 입력만 들어갔다)');
+  assert.equal(await readFile(two, 'utf8'), expected, '다른 화로 이동·다시 연 뒤에도 디스크 바이트가 같다');
+  assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), ORIGINAL, '다른 화 원고는 바뀌지 않는다');
+  assert.equal(reopened.includes(`TARGET_BODY${TYPED}`), true, `다시 연 본문에 입력이 있다: ${reopened}`);
+}
+
+for (const kind of ['found', 'missing'] as const) {
+  test(`사실 패널 인용 ${kind === 'found' ? '(저장 전 본문에서 다시 찾음)' : '(분석 뒤 인용이 지워짐: 없음 안내 + 접기)'}: 검색창 포커스 유지 뒤 본문으로 돌아와 입력·저장·다른 화 이동·다시 열기 정확본문 보존`, { timeout: 120_000 }, async () => {
+    const dir = await factsProject(kind === 'found' ? FACT_ANALYZED : FACT_MISSING_BODY);
+    await withApp(dir, async (_app, page) => {
+      await factsReturnAndType(page, dir, kind);
+    });
+  });
+}
