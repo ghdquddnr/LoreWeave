@@ -153,6 +153,31 @@ test('이전 프로젝트 watcher의 늦은 오류는 새 프로젝트로 퍼지
   }
 });
 
+test('같은 프로젝트에서 새 화로 교체된 이전 watcher의 늦은 오류는 검색을 막지 않고, 현행 watcher의 오류는 기존대로 검색을 막는다', { timeout: 150_000 }, async () => {
+  const { app, page } = await start();
+  try {
+    // 새 화를 만들면 같은 프로젝트의 감시가 다시 시작된다: 이전 watcher(0)는 닫히고 현행 watcher(1)가 생긴다
+    await page.getByRole('button', { name: '+ 새 화', exact: true }).click();
+    await waitUntil(page, '교체된 watcher가 만들어지지 않았다', async () => (await state(app)).watchers === 2);
+    assert.deepEqual((await state(app)).closes, [1, 0], '이전 watcher는 교체될 때 닫혔고 현행 watcher는 열려 있다');
+    await waitUntil(page, '새 화 뒤 검색이 열리지 않았다', async () => {
+      const r = await searchApi(page, 'originalword');
+      return r.ok && r.total === 1;
+    });
+    // 교체되어 닫힌 이전 watcher의 늦은 오류: 처리기는 던지지 않고(emit이 true) 정상 검색을 막지 않는다
+    assert.equal(await emitError(app, 0), true, '닫힌 watcher의 늦은 error도 처리기가 있어 미처리 예외가 되지 않는다');
+    assert.deepEqual(await searchApi(page, 'originalword'), { ok: true, total: 1 }, '교체된 이전 watcher의 늦은 오류가 정상 검색을 막았다');
+    // 현행 watcher의 실제 오류는 기존대로 검색을 막는다
+    assert.equal(await emitError(app, 1), true);
+    const api = await searchApi(page, 'originalword');
+    assert.equal(api.ok, false, '현행 watcher의 오류가 검색을 막지 못했다');
+    assert.match(api.ok ? '' : api.message, /색인/);
+    assert.deepEqual((await state(app)).closes, [2, 1], '현행 watcher의 오류는 그 감시를 닫는다');
+  } finally {
+    await cleanup(app, page);
+  }
+});
+
 test('대조: 정상 감시는 바깥 수정을 알리고 색인한다', { timeout: 120_000 }, async () => {
   const { app, page, path } = await start();
   try {

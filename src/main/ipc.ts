@@ -97,6 +97,8 @@ function updateIndex(work: (index: ManuscriptIndex) => void | Promise<void>): Pr
   });
 }
 let stopWatching: () => void = () => {};
+/** 지금 열려 있는 감시의 표지. 새로 시작하면 바뀐다: 같은 프로젝트에서 새 화로 교체된 이전 감시와 현행 감시를 구분한다 (projectToken·root는 둘이 같다) */
+let currentWatch: object | null = null;
 /** 이 앱이 마지막으로 쓴 내용의 해시. 감시 이벤트가 자기 쓰기 때문이면 알리지 않는다 */
 const ownWrites = new Map<string, string>();
 /**
@@ -114,6 +116,8 @@ function takeIndexTicket(file: string): number {
 
 function startWatching(path: string): void {
   stopWatching();
+  const mine = {};
+  currentWatch = mine;
   // 같은 폴더를 다시 열어도 token이 바뀐다: 이전 watcher가 파일을 읽던 중이었다면 그 읽기가 늦게 끝나도 새 세대에 알리지 않는다
   const generation = projectToken;
   // 같은 파일의 이벤트마다 번호를 매긴다: 더 나중 이벤트의 읽기가 시작됐다면, 먼저 시작한 옛 읽기의 결과는 (더 늦게 끝나도) 알리지 않는다.
@@ -137,8 +141,9 @@ function startWatching(path: string): void {
     });
   }, (e) => {
     // 실행 중 감시가 오류로 닫혔다: 이후의 바깥 변경은 알림도 색인도 되지 않는다. 폴더를 다시 열 때까지 검색이 오래된 색인을 정상으로 답하지 않게 한다.
-    // 이전 프로젝트의 늦은 오류는 새 프로젝트에 퍼지지 않는다
-    if (generation === projectToken && root === path) {
+    // 이전 프로젝트의 늦은 오류와, 같은 프로젝트에서 교체되어 이미 닫힌 이전 감시의 늦은 오류는 정상 검색을 막지 않는다 (현행 감시의 오류만 알린다).
+    // 닫힌 감시의 error 처리기는 그대로 둔다: 리스너를 떼면 늦은 error가 처리되지 않은 예외가 된다
+    if (currentWatch === mine && generation === projectToken && root === path) {
       indexError = e.message;
       indexBroken = `폴더 감시가 중단되었습니다: ${e.message}`;
     }
