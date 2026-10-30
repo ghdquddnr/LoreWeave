@@ -8,6 +8,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { openManuscript, serializeManuscript, type Doc, type Envelope } from '../../core/manuscript/index.ts';
 import { editorProps, extensions } from './editor/extensions.ts';
 import { lineRangeToPositions } from './editor/jump.ts';
+import { locateQuote } from '../../core/ai/locate.ts';
 import { visibleLines } from '../../core/manuscript/lines.ts';
 
 const AUTOSAVE_DELAY_MS = 1500;
@@ -20,13 +21,11 @@ export type SaveStatus =
   | { kind: 'error'; message: string }
   | { kind: 'conflict'; diskHash: string | null };
 
-/** 본문 줄 line의 글자 범위 [from, to)를 선택한다. seq가 바뀔 때마다 다시 이동한다 */
-export interface Jump {
-  line: number;
-  from: number;
-  to: number;
-  seq: number;
-}
+/**
+ * 본문 줄 line의 글자 범위 [from, to)를 선택한다. 또는 quote를 지금 에디터 본문(저장 전 입력 포함)에서 찾아 그 문장을 선택한다
+ * (저장된 위치는 그 뒤 고친 원고와 맞지 않을 수 있다). seq가 바뀔 때마다 다시 이동한다
+ */
+export type Jump = ({ line: number; from: number; to: number } | { quote: string }) & { seq: number };
 
 export interface ChapterEditorHandle {
   /** 저장할 것이 있으면 저장한다. 끝난 뒤 저장 안 된 변경이 남아 있으면 false */
@@ -46,6 +45,8 @@ interface Props {
   /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다). outside: 다른 프로그램의 변경 때문에 자동으로 */
   onReload(outside?: boolean): void;
   jump?: Jump | null;
+  /** jump의 quote를 지금 본문에서 찾지 못했다 (지워졌거나 바뀜). 아무것도 선택하지 않는다 */
+  onQuoteMissing?(quote: string): void;
   /** true면 읽기 전용 (프로젝트를 바꾸는 동안 열린 에디터) */
   locked?: boolean;
 }
@@ -81,7 +82,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
 });
 
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
-  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, locked = false },
+  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, locked = false },
   ref,
 ) {
   const editorRef = useRef<Editor | null>(null);
@@ -200,12 +201,19 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
 
   useEffect(() => {
     if (!editor || !jump) return;
-    const range = lineRangeToPositions(editor, jump.line, jump.from, jump.to);
-    if (!range) return;
+    const at = 'quote' in jump ? locateQuote(visibleLines(editor.getJSON() as Doc), jump.quote) : { line: jump.line, start: jump.from, end: jump.to };
+    const range = at && lineRangeToPositions(editor, at.line, at.start, at.end);
+    if (!range) {
+      if ('quote' in jump) onQuoteMissing?.(jump.quote);
+      // 찾지 못했으면 이전에 선택해 둔 다른 글자가 근거처럼 남지 않게 선택만 접는다 (본문은 그대로)
+      editor.chain().focus().setTextSelection(editor.state.selection.head).run();
+      return;
+    }
     editor.chain().focus().setTextSelection(range).run();
     // 찾은 글자를 화면 가운데로 (가장자리에 걸리지 않게)
     const { node } = editor.view.domAtPos(range.from);
     (node instanceof Element ? node : node.parentElement)?.scrollIntoView({ block: 'center' });
+    // onQuoteMissing이 바뀌어도 다시 이동하지 않는다 (jump가 바뀔 때만)
   }, [editor, jump]);
 
   // 다른 프로그램이 이 화를 바꾸면: 저장 안 된 변경이 없으면 다시 불러오고, 있으면 자동 저장을 멈추고 묻는다

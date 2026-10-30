@@ -25,7 +25,8 @@ interface Props {
   currentLines(): string[] | null;
   onJump(at: QuoteLocation): void;
   /** 다른 화(근거)의 문장으로 이동 */
-  onOpenEvidence(file: string, at: QuoteLocation): void;
+  /** 다른 화(근거)의 문장으로 이동. 위치는 그 화의 지금 본문에서 quote로 다시 찾는다 */
+  onOpenEvidence(file: string, quote: string): void;
 }
 
 export function IssuesPanel({ file, projectToken, locked, state, version, currentLines, onJump, onOpenEvidence }: Props) {
@@ -141,7 +142,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
                     className="quote evidence"
                     title={`${e.chapter}화의 이 문장으로 이동`}
                     disabled={locked}
-                    onClick={() => onOpenEvidence(e.file, e)}
+                    onClick={() => onOpenEvidence(e.file, e.quote)}
                   >
                     {e.chapter}화: {quoted(e.quote)}
                   </button>
