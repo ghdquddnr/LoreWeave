@@ -127,6 +127,13 @@ function startWatching(path: string): void {
       const ticket = takeIndexTicket(file);
       void updateIndex((i) => reindexChapter(i, path, file, () => latestIndexTicket.get(file) === ticket));
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.chapterChangedOutside, { file, hash });
+    }).catch((e: Error) => {
+      // 해시를 읽지 못했다(권한·I/O): 바깥 변경을 알리지도 색인하지도 못했다. 알 수 없는 해시를 삭제(null)로 알리지 않는다 (저장은 쓰기 직전 해시 확인이 지킨다).
+      // 처리되지 않은 rejection으로 남기지 않고, 이 화의 색인이 오래됐을 수 있으니 폴더를 다시 열 때까지 검색이 알리게 한다
+      if (generation === projectToken && root === path) {
+        indexError = e.message;
+        indexBroken = e.message;
+      }
     });
   });
 }
