@@ -8,6 +8,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { openManuscript, serializeManuscript, type Doc, type Envelope } from '../../core/manuscript/index.ts';
 import { editorProps, extensions } from './editor/extensions.ts';
 import { lineRangeToPositions } from './editor/jump.ts';
+import { reviewMarksKey, type MarkRange } from './editor/reviewMarks.ts';
 import { locateQuote } from '../../core/ai/locate.ts';
 import { visibleLines } from '../../core/manuscript/lines.ts';
 
@@ -50,6 +51,12 @@ interface Props {
   onQuoteMissing?(quote: string): void;
   /** true면 읽기 전용 (프로젝트를 바꾸는 동안 열린 에디터) */
   locked?: boolean;
+  /**
+   * 물결 밑줄과 거터 점을 그릴 문장들 (최신 검사 결과의 문제 가능성). 지금 본문에서 다시 찾아 찾은 것만 그린다 (표시 전용, 문서에 저장하지 않는다)
+   */
+  marks?: string[];
+  /** 편집기가 만들어져 본문을 읽을 수 있게 됐다 (패널이 지금 본문과 대조해 다시 그리게 한다) */
+  onReady?(): void;
 }
 
 interface Loaded {
@@ -97,7 +104,7 @@ function focusEditorUnlessTyping(target: Editor): void {
 }
 
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
-  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, locked = false },
+  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, locked = false, marks, onReady },
   ref,
 ) {
   const editorRef = useRef<Editor | null>(null);
@@ -186,6 +193,34 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
   const saveRef = useRef(save);
   saveRef.current = save;
 
+  // 검토 표시: marks를 지금 본문에서 다시 찾아 확인된 범위만 장식으로 건다. 조합 중(한글 등)에는 건드리지 않고 끝난 뒤에 건다
+  const marksRef = useRef<string[]>(marks ?? []);
+  marksRef.current = marks ?? [];
+  const markTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const applyMarks = useCallback(() => {
+    const ed = editorRef.current;
+    if (!ed || ed.isDestroyed) return;
+    if (ed.view.composing) {
+      markTimer.current = setTimeout(applyMarks, 300);
+      return;
+    }
+    const ranges: MarkRange[] = [];
+    if (marksRef.current.length > 0) {
+      const lines = visibleLines(ed.getJSON() as Doc);
+      for (const quote of marksRef.current) {
+        const at = locateQuote(lines, quote);
+        const range = at && lineRangeToPositions(ed, at.line, at.start, at.end);
+        if (range && range.from < range.to) ranges.push(range);
+      }
+    }
+    // 메타만 있는 트랜잭션: 문서·선택·undo 기록을 바꾸지 않는다
+    ed.view.dispatch(ed.state.tr.setMeta(reviewMarksKey, ranges).setMeta('addToHistory', false));
+  }, []);
+  const scheduleMarks = useCallback(() => {
+    if (markTimer.current) clearTimeout(markTimer.current);
+    markTimer.current = setTimeout(applyMarks, 500);
+  }, [applyMarks]);
+
   const editor = useEditor({
     extensions,
     editorProps,
@@ -201,11 +236,13 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     // 선택은 건드리지 않는다: 새 편집기의 기본 선택이 이미 문서 시작이고, 그 사이 같은 화의 검색 결과 이동(jump)이 만든 선택을 시작 위치로 되돌리면 안 된다
     autofocus: false,
     onCreate: ({ editor: created }) => {
+      onReady?.();
       if (jump) return;
       focusEditorUnlessTyping(created);
     },
     editable: !locked,
     onUpdate: () => {
+      if (marksRef.current.length > 0) scheduleMarks();
       version.current++;
       if (status.current.kind === 'conflict') return;
       report({ kind: 'unsaved' });
@@ -228,6 +265,11 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
   useEffect(() => {
     editor?.setEditable(!locked, false);
   }, [editor, locked]);
+
+  const marksKey = (marks ?? []).join('\n');
+  useEffect(() => {
+    if (editor) scheduleMarks();
+  }, [editor, marksKey, scheduleMarks]);
 
   useEffect(() => {
     if (!editor || !jump) return;
@@ -273,6 +315,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
+      if (markTimer.current) clearTimeout(markTimer.current);
     },
     [],
   );

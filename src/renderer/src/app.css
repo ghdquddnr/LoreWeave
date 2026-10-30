@@ -1063,3 +1063,266 @@ button {
     display: inline-block;
   }
 }
+
+/* ───────────── P3: AI 검토 화면과 원고 표시 ───────────── */
+
+/* 인스펙터 접이식 섹션 */
+.ai-panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: var(--lw-fs-ui);
+}
+
+.sec-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--lw-text);
+  font-weight: 600;
+}
+
+.sec-toggle:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--lw-accent);
+}
+
+.count-badge {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--lw-warn);
+  color: var(--lw-on-warn);
+  font: 600 var(--lw-fs-caption) var(--lw-font-mono);
+  text-align: center;
+}
+
+.sec-body[hidden] {
+  display: none;
+}
+
+/* 상태 칩: 색만이 아니라 글자로도 구분한다 */
+.chip {
+  padding: 0 6px;
+  border: 1px solid var(--lw-line-strong);
+  border-radius: var(--lw-radius-xs);
+  color: var(--lw-muted);
+  font: var(--lw-fs-caption) var(--lw-font-mono);
+  white-space: nowrap;
+}
+
+.chip-missing {
+  border-color: var(--lw-err);
+  color: var(--lw-err-text);
+}
+
+.chip-moved,
+.chip-stale {
+  border-color: var(--lw-warn-line);
+  color: var(--lw-warn-text);
+}
+
+/* 문제 가능성 카드 */
+.cards {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.issue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--lw-line-strong);
+  border-radius: var(--lw-radius-lg);
+  background: var(--lw-raised);
+}
+
+.issue-card.low,
+.issue-card.dismissed {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.issue-card.stale {
+  border-left: 3px solid var(--lw-warn-line);
+}
+
+.issue-card .issue-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.warn-square {
+  width: 8px;
+  height: 8px;
+  background: var(--lw-warn);
+}
+
+.issue-card .category {
+  font-weight: 600;
+}
+
+.issue-card .conf {
+  font: var(--lw-fs-caption) var(--lw-font-mono);
+  color: var(--lw-warn-text);
+}
+
+.issue-card .issue-head .link {
+  margin-left: auto;
+}
+
+.issue-card .claim {
+  color: var(--lw-text-2);
+  line-height: 1.6;
+}
+
+.quote-well {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--lw-line);
+  border-radius: var(--lw-radius-md);
+  background: var(--lw-well);
+}
+
+.quote-well .quote {
+  padding: 2px 0;
+  font-size: var(--lw-fs-small);
+  line-height: 1.5;
+}
+
+.quote-well .quote .q-label {
+  font-family: var(--lw-font-mono);
+}
+
+.quote-well .quote.target .q-label {
+  color: var(--lw-warn-text);
+}
+
+.quote-well .quote.evidence {
+  padding-left: 0;
+}
+
+.quote-well .quote.evidence .q-label {
+  color: var(--lw-link);
+}
+
+/* 사실: 속성-값 2열 */
+.facts .entity ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.facts .fact {
+  display: grid;
+  grid-template-columns: minmax(64px, 30%) minmax(0, 1fr);
+  gap: 8px;
+  font-weight: 400;
+}
+
+.facts .fact .attr {
+  color: var(--lw-muted);
+  font-size: var(--lw-fs-small);
+}
+
+.facts .fact .val {
+  font-weight: 600;
+}
+
+/* 접근 이름·복사 텍스트에는 "속성: 값"이 남도록 구분자를 화면에서만 숨긴다 */
+.facts .fact .sep {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* 탐색기 배지: 문제 수 */
+.chapter .mark-issues {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--lw-warn);
+  color: var(--lw-on-warn);
+  text-align: center;
+  font-weight: 600;
+}
+
+/* 원고 거터와 문제 표시: 표시 전용 (문서·복사·검색에 들어가지 않는다) */
+.manuscript .ProseMirror {
+  counter-reset: pno;
+  padding-left: 60px;
+}
+
+.manuscript .ProseMirror > p {
+  position: relative;
+}
+
+/* 표시 문단 번호: 비어 있지 않은 본문 문단만 센다. 제목·인용·구분선·빈 줄은 세지 않는다 (검색 결과의 "N줄"·AI 인용 위치의 논리 줄 번호와 다르다) */
+.manuscript .ProseMirror > p:not(:has(> br.ProseMirror-trailingBreak:only-child)) {
+  counter-increment: pno;
+}
+
+.manuscript .ProseMirror > p:not(:has(> br.ProseMirror-trailingBreak:only-child))::before {
+  content: counter(pno) / "";
+  position: absolute;
+  left: -52px;
+  width: 34px;
+  top: calc(var(--lw-ms-size) * var(--lw-ms-line-height) / 2 - 8px);
+  text-align: right;
+  font: var(--lw-fs-caption) / 1 var(--lw-font-mono);
+  color: var(--lw-gutter);
+  pointer-events: none;
+  user-select: none;
+}
+
+.manuscript .ProseMirror > p.has-issue::after {
+  content: "" / "";
+  position: absolute;
+  left: -12px;
+  top: calc(var(--lw-ms-size) * var(--lw-ms-line-height) / 2 - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lw-warn);
+  pointer-events: none;
+}
+
+.manuscript .ProseMirror .issue-mark {
+  text-decoration: underline wavy var(--lw-warn);
+  text-underline-offset: 6px;
+}
+
+.quote-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.quote-row .quote {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.quote-row .chip {
+  flex: none;
+}
+
+/* 접이식 섹션 안의 링크 버튼들(확신 낮은 결과 보기 · 무시한 결과 보기)이 붙어 보이지 않게 */
+.sec-body > .link {
+  margin: 0 14px 4px 0;
+}

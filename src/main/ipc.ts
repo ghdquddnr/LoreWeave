@@ -8,6 +8,7 @@ import { MODELS } from '../core/ai/models.ts';
 import { CHAPTERS_DIR } from '../core/project/chapters.ts';
 import { CHANNELS, STALE_PROJECT, type AiStatus, type ProjectOpened } from '../preload/api.ts';
 import { createOpenAiClient, toAiError } from './ai-client.ts';
+import { MIN_CONFIDENCE } from '../core/ai/detection.ts';
 import { AiStore } from './ai-db.ts';
 import { analysisStates, analyzeChapters, estimate } from './analyzer.ts';
 import { checkChapter, checkStates, planCheck } from './checker.ts';
@@ -335,11 +336,12 @@ export function registerIpc(): void {
       if (!store) {
         const files = await chapterFileNames(path);
         const none = Object.fromEntries(files.map((f) => [f, 'none' as const]));
-        return { states: none, checkStates: none, totalCostUsd: 0, recoveredFrom: null, consent: settings.aiSendConsent };
+        return { states: none, checkStates: none, issueCounts: {}, totalCostUsd: 0, recoveredFrom: null, consent: settings.aiSendConsent };
       }
       return {
         states: await analysisStates(path, store),
         checkStates: await checkStates(path, store),
+        issueCounts: store.issueCounts(MIN_CONFIDENCE),
         totalCostUsd: store.totalCost(),
         recoveredFrom: store.recoveredFrom,
         consent: settings.aiSendConsent,

@@ -5,6 +5,7 @@ import { Extension, type EditorOptions } from '@tiptap/core';
 import Blockquote from '@tiptap/extension-blockquote';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
+import { ReviewMarks } from './reviewMarks.ts';
 
 /** C3에는 문단 안 줄바꿈이 없으므로 Shift+Enter도 새 문단으로 만든다 */
 const LineIsParagraph = Extension.create({
@@ -33,6 +34,8 @@ export const extensions = [
   // 인용 안에는 문단만 (C3의 `> ` 줄은 문단으로만 읽힌다)
   Blockquote.extend({ content: 'paragraph+' }),
   LineIsParagraph,
+  // 검토 표시(밑줄·거터 점)는 장식뿐이라 문서에 들어가지 않는다
+  ReviewMarks,
 ];
 
 /** 붙여넣기는 서식을 지우고 글자만, 줄마다 문단으로 넣는다. 바깥에서 끌어다 놓기는 받지 않는다 */

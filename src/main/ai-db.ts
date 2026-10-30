@@ -397,6 +397,23 @@ export class AiStore {
     return out;
   }
 
+  /**
+   * 화마다 지금 보이는 문제 가능성 수: 확신도가 minConfidence 이상이고 무시하지 않은 결과. 검사한 화만 나온다.
+   * 한 번의 조회로 읽는다 (화마다 검사 결과 전체를 읽지 않는다). 탐색기 배지의 숫자다.
+   */
+  issueCounts(minConfidence: number): Record<string, number> {
+    const rows = this.db
+      .prepare(
+        `SELECT c.file AS file, count(f.ord) AS n
+         FROM checks c LEFT JOIN findings f
+           ON f.check_id = c.id AND f.confidence >= ?
+          AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.file = c.file AND d.category = f.category AND d.target_key = f.target_key)
+         GROUP BY c.file`,
+      )
+      .all(minConfidence);
+    return Object.fromEntries(rows.map((r) => [String(r['file']), Number(r['n'])]));
+  }
+
   /** 같은 화, 같은 종류, 같은 문장의 결과를 앞으로 숨긴다 */
   dismiss(file: string, category: Category, targetKey: string, at: string): void {
     this.db.prepare('INSERT OR IGNORE INTO dismissals (file, category, target_key, created_at) VALUES (?, ?, ?, ?)').run(file, category, targetKey, at);
