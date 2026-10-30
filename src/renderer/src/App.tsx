@@ -6,6 +6,7 @@ import { chapterInfo } from '../../core/project/chapters.ts';
 import type { QuoteLocation } from '../../core/ai/locate.ts';
 import type { AnalysisState, AppearanceBootstrap, CheckState, ProjectOpened, SearchHit } from '../../preload/api.ts';
 import { AnalysisBar } from './AnalysisBar.tsx';
+import { ActivityBar, ChapterTabs } from './Shell.tsx';
 import { ChapterEditor, type ChapterEditorHandle, type Jump, type SaveStatus } from './ChapterEditor.tsx';
 import { FactsPanel } from './FactsPanel.tsx';
 import { IssuesPanel } from './IssuesPanel.tsx';
@@ -26,6 +27,9 @@ const MARK_TITLE: Record<AnalysisState, string> = { none: '', fresh: 'AI 분석�
 
 const api = window.loreweave;
 
+/** 저장 상태는 색만으로 구분하지 않는다: 글자 앞에 기호를 함께 둔다 (스크린리더에는 글자만 읽힌다) */
+const STATUS_SYMBOL: Record<SaveStatus['kind'], string> = { saved: '✓', unsaved: '●', saving: '…', error: '✕', conflict: '⚠' };
+
 const STATUS_TEXT: Record<SaveStatus['kind'], string> = {
   saved: '저장됨',
   unsaved: '저장 대기',
@@ -43,6 +47,19 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const [starting, setStarting] = useState(true);
   const [project, setProject] = useState<ProjectOpened | null>(null);
   const [file, setFile] = useState<string | null>(null);
+  /**
+   * 열린 화 탭: 파일 이름만 가진다 (제목은 화 목록에서 읽는다). 항상 file이 있으면 tabs에 들어 있다.
+   * 에디터는 지금 화 하나뿐이라 미저장 입력을 가진 탭은 최대 하나이고, 탭 전환·닫기는 openChapter/leave와 같은 저장 경로를 거친다.
+   * 프로젝트를 열 때(같은 폴더 다시 열기 포함)마다 새로 시작한다. 디스크에 남기지 않는다.
+   */
+  const [tabs, setTabs] = useState<string[]>([]);
+  const tabsRef = useRef<string[]>([]);
+  tabsRef.current = tabs;
+  const fileRef = useRef<string | null>(null);
+  fileRef.current = file;
+  /** 에디터 도구줄과 탐색기 "AI 작업" 자리 (AnalysisBar가 portal로 그린다) */
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
+  const [explorerSlot, setExplorerSlot] = useState<HTMLElement | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   /**
    * 프로젝트를 열 때마다 1씩 는다. 에디터·검색·AI 패널의 key에 넣어, 다른 프로젝트에 같은 이름의 화(001.md)가 있어도
@@ -135,7 +152,9 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       setProjectGen(projectGenRef.current);
       setError(p.rememberError ? `폴더는 열었지만 다음 실행 때 다시 열 폴더로 기억하지 못했습니다: ${p.rememberError}` : null);
       setProject(p);
-      setFile(firstReadable(p));
+      const first = firstReadable(p);
+      setFile(first);
+      setTabs(first ? [first] : []);
       // 이전 프로젝트의 이동 위치·저장 상태·알림·AI 상태를 지운다 (새 에디터와 AI 상태가 다시 알린다)
       setJump(null);
       setSave({ status: { kind: 'saved' }, changesOnReopen: null });
@@ -206,18 +225,50 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     return isCurrent(gen);
   };
 
+  /** 탭을 (없으면) 더하고 그 화로 옮긴다 */
+  const activate = (next: string) => {
+    setTabs((t) => (t.includes(next) ? t : [...t, next]));
+    setFile(next);
+  };
+
   const openChapter = (next: string) =>
     run(async (gen) => {
       if (switchingRef.current || actingRef.current || next === file || !(await leave()) || !isCurrent(gen)) return;
       setJump(null);
-      setFile(next);
+      activate(next);
+    });
+
+  /**
+   * 탭 닫기. 지금 화가 아닌 탭은 목록에서 빼기만 한다 (미저장 입력은 지금 화에만 있다).
+   * 지금 화를 닫으면 먼저 저장하고(저장 못 하면 화 이동과 같이 계속할지 묻고, 거절하면 그대로 둔다) 오른쪽, 없으면 왼쪽 탭으로 간다.
+   * 마지막 탭을 닫으면 화 없음(안내 화면)이 된다. 저장하는 동안 사용자가 다른 화로 옮겼으면 그 선택을 존중하고 탭만 뺀다.
+   */
+  const closeTab = (target: string) =>
+    run(async (gen) => {
+      if (switchingRef.current || actingRef.current) return;
+      if (target !== file) {
+        setTabs((t) => t.filter((f) => f !== target));
+        return;
+      }
+      if (!(await leave()) || !isCurrent(gen)) return;
+      const list = tabsRef.current;
+      const at = list.indexOf(target);
+      const neighbor = list[at + 1] ?? list[at - 1] ?? null;
+      setTabs((t) => t.filter((f) => f !== target));
+      if (fileRef.current !== target) return;
+      setJump(null);
+      setFile(neighbor);
+      if (neighbor === null) {
+        setSave({ status: { kind: 'saved' }, changesOnReopen: null });
+        setNotice(null);
+      }
     });
 
   /** 검색 결과로 이동: 그 화를 열고 찾은 글자를 선택한다 */
   const openResult = (hit: SearchHit, match: SearchHit['matches'][number]) =>
     run(async (gen) => {
       if (switchingRef.current || actingRef.current || (hit.file !== file && !(await leave())) || !isCurrent(gen)) return;
-      setFile(hit.file);
+      activate(hit.file);
       setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
     });
 
@@ -225,7 +276,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const openEvidence = (target: string, quote: string) =>
     run(async (gen) => {
       if (switchingRef.current || actingRef.current || (target !== file && !(await leave())) || !isCurrent(gen)) return;
-      setFile(target);
+      activate(target);
       setNotice(null);
       setJump((j) => ({ quote, seq: (j?.seq ?? 0) + 1 }));
     });
@@ -251,7 +302,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       const list = await api.chapters.list(project.token);
       if (!isCurrent(gen)) return false;
       setProject((p) => p && { ...p, list });
-      setFile(created.file);
+      activate(created.file);
       return true;
     });
 
@@ -321,148 +372,212 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       <main className="welcome">
         <h1>LoreWeave</h1>
         <p>원고 폴더를 여세요. 폴더 안 `chapters/`의 `001.md`, `002.md` … 를 화로 읽습니다.</p>
-        <button onClick={chooseFolder}>원고 폴더 열기</button>
+        <p className="muted">원고 파일은 이 컴퓨터의 폴더에 저장됩니다. AI 분석은 작가가 동의하고 버튼을 누를 때에만 본문을 OpenAI로 보냅니다.</p>
+        <div className="row">
+          <button onClick={chooseFolder}>원고 폴더 열기</button>
+          <button onClick={() => setSettingsOpen(true)}>환경설정</button>
+        </div>
         {error && <p className="error">{error}</p>}
+        {settingsOpen && <SettingsDialog appearance={appearance} totalCostUsd={0} onClose={() => setSettingsOpen(false)} onChange={() => undefined} />}
       </main>
     );
   }
 
   const current = project.list.chapters.find((c) => c.file === file);
+  const titleOf = (f: string) => project.list.chapters.find((c) => c.file === f)?.title ?? f;
+  const busy = switching || acting;
+  const aiStateOf = (f: string) => ai?.states[f] ?? 'none';
+
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <header>
-          <strong title={project.name}>{project.name}</strong>
-          <button onClick={chooseFolder} title="다른 원고 폴더 열기" disabled={switching}>
-            열기
-          </button>
-          <button onClick={() => setSettingsOpen(true)} title="환경설정">
-            설정
-          </button>
-        </header>
-        <button className="new-chapter" onClick={newChapter} disabled={switching || acting}>
-          + 새 화
+    <div className="shell">
+      <header className="titlebar">
+        <span className="brand">LoreWeave</span>
+        <button type="button" className="search-trigger" title="원고 전체 검색 (Ctrl+Shift+F)" onClick={() => search.current?.focus()}>
+          <span aria-hidden="true">⌕</span> 전체 검색 <kbd>Ctrl+Shift+F</kbd>
         </button>
-        {ai && !switching && (
-          <AnalysisBar
-            file={file}
-            projectToken={project.token}
-            states={ai.states}
-            consent={ai.consent}
-            beforeAnalyze={() => editor.current?.flush() ?? Promise.resolve()}
-            onAnalyzed={() => {
-              refreshAi();
-              setAiVersion((v) => v + 1);
-            }}
-            onNeedKey={() => setSettingsOpen(true)}
-          />
-        )}
-        <SearchPanel
-          key={projectGen}
-          ref={search}
-          active={searching}
-          onActiveChange={setSearching}
-          beforeSearch={() => editor.current?.flush() ?? Promise.resolve()}
-          onOpen={openResult}
+        <button onClick={chooseFolder} title="다른 원고 폴더 열기" disabled={switching}>
+          열기
+        </button>
+      </header>
+      <div className="shell-body">
+        <ActivityBar
+          searching={searching}
+          onExplorer={() => search.current?.clear()}
+          onSearch={() => search.current?.focus()}
+          onSettings={() => setSettingsOpen(true)}
         />
-        {project.list.duplicateIds.length > 0 && (
-          <div className="warning duplicates" role="alert">
-            같은 id를 쓰는 화가 있습니다 (파일 복사로 생김). 하나만 남기고 새 id를 주세요.
-            {project.list.duplicateIds.map((files) => (
-              <ul key={files[0]}>
-                {files.map((f, i) => (
-                  <li key={f}>
-                    {f}{' '}
-                    {i > 0 && (
-                      <button type="button" className="link" onClick={() => reissueId(f)}>
-                        새 id 발급
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+        <aside className="sidebar">
+          <header>
+            <strong title={project.name}>{project.name}</strong>
+            <button className="new-chapter" onClick={newChapter} disabled={busy}>
+              + 새 화
+            </button>
+          </header>
+          <SearchPanel
+            key={projectGen}
+            ref={search}
+            active={searching}
+            onActiveChange={setSearching}
+            beforeSearch={() => editor.current?.flush() ?? Promise.resolve()}
+            onOpen={openResult}
+          />
+          {project.list.duplicateIds.length > 0 && (
+            <div className="warning duplicates" role="alert">
+              같은 id를 쓰는 화가 있습니다 (파일 복사로 생김). 하나만 남기고 새 id를 주세요.
+              {project.list.duplicateIds.map((files) => (
+                <ul key={files[0]}>
+                  {files.map((f, i) => (
+                    <li key={f}>
+                      {f}{' '}
+                      {i > 0 && (
+                        <button type="button" className="link" onClick={() => reissueId(f)}>
+                          새 id 발급
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ))}
+            </div>
+          )}
+          <nav aria-label="화 목록" hidden={searching}>
+            <h2 className="section-label">원고</h2>
+            {project.list.chapters.length === 0 && <p className="empty">아직 화가 없습니다. 위의 [+ 새 화]로 만드세요.</p>}
+            {project.list.chapters.map((c) => (
+              <button
+                key={c.file}
+                className={c.file === file ? 'chapter current' : 'chapter'}
+                data-no={c.file.replace(/\.md$/, '')}
+                data-ai={ai && !c.unreadable ? aiStateOf(c.file) : undefined}
+                aria-current={c.file === file ? 'page' : undefined}
+                disabled={c.unreadable}
+                title={c.unreadable ? 'UTF-8이 아닌 파일이라 열 수 없습니다' : c.file}
+                onClick={() => openChapter(c.file)}
+              >
+                {c.title}
+                {ai && ai.states[c.file] && ai.states[c.file] !== 'none' && (
+                  <span className={`mark mark-${ai.states[c.file]}`} title={MARK_TITLE[ai.states[c.file]!]} aria-label={MARK_TITLE[ai.states[c.file]!]}>
+                    {ai.states[c.file] === 'fresh' ? '✓' : '◐'}
+                  </span>
+                )}
+              </button>
             ))}
+          </nav>
+          <section className="ai-work" aria-label="AI 작업">
+            <h2 className="section-label">AI 작업</h2>
+            <div ref={setExplorerSlot} />
+            <p className="local-note">
+              원고 파일은 이 컴퓨터의 폴더에 저장됩니다. AI는 작가가 버튼을 눌러 동의한 때에만 그 화의 본문을 OpenAI로 보냅니다.
+            </p>
+          </section>
+        </aside>
+        <section className="workspace" aria-label="원고 작업 영역">
+          {tabs.length > 0 && (
+            <ChapterTabs tabs={tabs} current={file} titleOf={titleOf} disabled={busy} onSelect={openChapter} onClose={closeTab} />
+          )}
+          {file && (
+            <div className="editor-toolbar">
+              <span className="file-path" title={`chapters/${file}`}>
+                chapters/{file}
+              </span>
+              <div ref={setToolbarSlot} className="toolbar-actions" />
+            </div>
+          )}
+          <main className="editor-pane">
+            {file ? (
+              <ChapterEditor
+                key={`${projectGen}:${file}:${reloadKey}`}
+                ref={editor}
+                file={file}
+                projectToken={project.token}
+                locked={editorLocked}
+                onStatus={onStatus}
+                onSaved={onSaved}
+                onReload={onReload}
+                jump={jump}
+                onQuoteMissing={onQuoteMissing}
+              />
+            ) : (
+              <p className="editor-message">
+                {project.list.chapters.length === 0 ? '아직 화가 없습니다. 왼쪽 위의 [+ 새 화]로 첫 화를 만드세요.' : '왼쪽에서 화를 고르거나 새 화를 만드세요.'}
+              </p>
+            )}
+          </main>
+        </section>
+        {file && (
+          <div className="ai-panel">
+            <IssuesPanel
+              // 형제(FactsPanel)와 key가 같으면 React가 이전 프로젝트의 패널을 지우지 못하고 새 패널 옆에 남긴다
+              key={`issues:${projectGen}`}
+              file={file}
+              projectToken={project.token}
+              locked={switching}
+              state={ai?.checkStates[file]}
+              version={aiVersion}
+              currentLines={() => editor.current?.lines() ?? null}
+              onJump={jumpHere}
+              onOpenEvidence={openEvidence}
+            />
+            <FactsPanel
+              key={`facts:${projectGen}`}
+              file={file}
+              projectToken={project.token}
+              locked={switching}
+              state={ai?.states[file]}
+              version={aiVersion}
+              currentLines={() => editor.current?.lines() ?? null}
+              onJump={jumpHere}
+            />
           </div>
         )}
-        <nav aria-label="화 목록" hidden={searching}>
-          {project.list.chapters.length === 0 && <p className="empty">아직 화가 없습니다.</p>}
-          {project.list.chapters.map((c) => (
-            <button
-              key={c.file}
-              className={c.file === file ? 'chapter current' : 'chapter'}
-              disabled={c.unreadable}
-              title={c.unreadable ? 'UTF-8이 아닌 파일이라 열 수 없습니다' : c.file}
-              onClick={() => openChapter(c.file)}
-            >
-              {c.title}
-              {ai && ai.states[c.file] && ai.states[c.file] !== 'none' && (
-                <span className={`mark mark-${ai.states[c.file]}`} title={MARK_TITLE[ai.states[c.file]!]} aria-label={MARK_TITLE[ai.states[c.file]!]}>
-                  ●
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-      </aside>
-      <main className="editor-pane">
-        {file ? (
-          <ChapterEditor
-            key={`${projectGen}:${file}:${reloadKey}`}
-            ref={editor}
-            file={file}
-            projectToken={project.token}
-            locked={editorLocked}
-            onStatus={onStatus}
-            onSaved={onSaved}
-            onReload={onReload}
-            jump={jump}
-            onQuoteMissing={onQuoteMissing}
-          />
-        ) : (
-          <p className="editor-message">왼쪽에서 화를 고르거나 새 화를 만드세요.</p>
-        )}
-      </main>
-      {file && (
-        <div className="ai-panel">
-          <IssuesPanel
-            // 형제(FactsPanel)와 key가 같으면 React가 이전 프로젝트의 패널을 지우지 못하고 새 패널 옆에 남긴다
-            key={`issues:${projectGen}`}
-            file={file}
-            projectToken={project.token}
-            locked={switching}
-            state={ai?.checkStates[file]}
-            version={aiVersion}
-            currentLines={() => editor.current?.lines() ?? null}
-            onJump={jumpHere}
-            onOpenEvidence={openEvidence}
-          />
-          <FactsPanel
-            key={`facts:${projectGen}`}
-            file={file}
-            projectToken={project.token}
-            locked={switching}
-            state={ai?.states[file]}
-            version={aiVersion}
-            currentLines={() => editor.current?.lines() ?? null}
-            onJump={jumpHere}
-          />
-        </div>
-      )}
+      </div>
       <footer className="statusbar" role="status">
         <span>{current?.title ?? ''}</span>
         <span className={`save save-${save.status.kind}`}>
-          {STATUS_TEXT[save.status.kind]}
-          {save.status.kind === 'error' && `: ${save.status.message}`}
+          <span aria-hidden="true">{STATUS_SYMBOL[save.status.kind]}</span>{' '}
+          <span>
+            {STATUS_TEXT[save.status.kind]}
+            {save.status.kind === 'error' && `: ${save.status.message}`}
+          </span>
         </span>
         {save.changesOnReopen !== null && (
           <span className="warning">
-            {save.changesOnReopen + 1}번째 줄 근처는 다시 열면 다르게 보입니다 (예: `*` 두 개 사이가 기울임이 됨)
+            <span aria-hidden="true">⚠</span> {save.changesOnReopen + 1}번째 줄 근처는 다시 열면 다르게 보입니다 (예: `*` 두 개 사이가 기울임이 됨)
           </span>
         )}
-        {notice && <span className="notice">{notice}</span>}
-        {ai?.recoveredFrom && <span className="warning">AI 분석 파일이 깨져 옮겨 두었습니다: {ai.recoveredFrom}</span>}
-        {error && <span className="error">{error}</span>}
+        {notice && (
+          <span className="notice">
+            <span aria-hidden="true">ℹ</span> {notice}
+          </span>
+        )}
+        {ai?.recoveredFrom && (
+          <span className="warning">
+            <span aria-hidden="true">⚠</span> AI 분석 파일이 깨져 옮겨 두었습니다: {ai.recoveredFrom}
+          </span>
+        )}
+        {error && (
+          <span className="error">
+            <span aria-hidden="true">✕</span> {error}
+          </span>
+        )}
+        {ai && ai.totalCostUsd > 0 && <span className="cost">이 프로젝트 AI 비용 ${ai.totalCostUsd.toFixed(4)}</span>}
       </footer>
+      {ai && !switching && (
+        <AnalysisBar
+          file={file}
+          projectToken={project.token}
+          states={ai.states}
+          consent={ai.consent}
+          beforeAnalyze={() => editor.current?.flush() ?? Promise.resolve()}
+          onAnalyzed={() => {
+            refreshAi();
+            setAiVersion((v) => v + 1);
+          }}
+          onNeedKey={() => setSettingsOpen(true)}
+          toolbarSlot={toolbarSlot}
+          explorerSlot={explorerSlot}
+        />
+      )}
       {settingsOpen && (
         <SettingsDialog appearance={appearance} totalCostUsd={ai?.totalCostUsd ?? 0} onClose={() => setSettingsOpen(false)} onChange={() => refreshAi()} />
       )}

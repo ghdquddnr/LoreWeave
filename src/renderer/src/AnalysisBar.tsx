@@ -4,6 +4,7 @@
 //   - 진행 중: n/전체, 지금까지 비용, [취소]
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { AnalysisState, AnalyzeProgress, CheckOutcome, CheckPlan } from '../../preload/api.ts';
 
 const api = window.loreweave;
@@ -18,6 +19,12 @@ interface Props {
   beforeAnalyze(): Promise<unknown>;
   onAnalyzed(): void;
   onNeedKey(): void;
+  /**
+   * 버튼을 놓을 자리 두 곳. 컨트롤러(상태·동의·비용·진행·취소)는 이 컴포넌트 하나뿐이고, 같은 컴포넌트가 portal로 두 자리에 그린다
+   * (에디터 도구줄: 이 화 분석·이 화 검사 / 탐색기 "AI 작업": 남은 화 분석과 진행·결과). 자리가 없으면 그 버튼은 그리지 않는다.
+   */
+  toolbarSlot: HTMLElement | null;
+  explorerSlot: HTMLElement | null;
 }
 
 type Dialog =
@@ -27,7 +34,7 @@ type Dialog =
 
 type Result = { kind: 'analysis'; progress: AnalyzeProgress } | { kind: 'check'; outcome: CheckOutcome };
 
-export function AnalysisBar({ file, projectToken, states, consent, beforeAnalyze, onAnalyzed, onNeedKey }: Props) {
+export function AnalysisBar({ file, projectToken, states, consent, beforeAnalyze, onAnalyzed, onNeedKey, toolbarSlot, explorerSlot }: Props) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [progress, setProgress] = useState<AnalyzeProgress | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -87,18 +94,27 @@ export function AnalysisBar({ file, projectToken, states, consent, beforeAnalyze
     });
 
   return (
-    <div className="analysis">
-      <div className="row">
-        <button type="button" disabled={!!running || !file} onClick={() => file && startAnalysis([file], false)}>
-          이 화 분석
-        </button>
-        <button type="button" disabled={!!running || pending.length === 0} onClick={() => startAnalysis(pending, true)}>
-          남은 화 분석 ({pending.length})
-        </button>
-        <button type="button" disabled={!!running || !file} onClick={() => file && startCheck(file)}>
-          이 화 검사
-        </button>
-      </div>
+    <>
+      {toolbarSlot &&
+        createPortal(
+          <div className="row">
+            <button type="button" disabled={!!running || !file} onClick={() => file && startAnalysis([file], false)}>
+              이 화 분석
+            </button>
+            <button type="button" disabled={!!running || !file} onClick={() => file && startCheck(file)}>
+              이 화 검사
+            </button>
+          </div>,
+          toolbarSlot,
+        )}
+      {explorerSlot &&
+        createPortal(
+          <div className="analysis">
+            <div className="row">
+              <button type="button" disabled={!!running || pending.length === 0} onClick={() => startAnalysis(pending, true)}>
+                남은 화 분석 ({pending.length})
+              </button>
+            </div>
       {running && (
         <p className="muted" role="status">
           {running === 'check' && (!progress || progress.done === progress.total)
@@ -127,6 +143,9 @@ export function AnalysisBar({ file, projectToken, states, consent, beforeAnalyze
         </p>
       )}
       {error && <p className="error">{error}</p>}
+          </div>,
+          explorerSlot,
+        )}
 
       {dialog?.kind === 'consent' && (
         <div className="modal-backdrop">
@@ -202,6 +221,6 @@ export function AnalysisBar({ file, projectToken, states, consent, beforeAnalyze
           </section>
         </div>
       )}
-    </div>
+    </>
   );
 }
