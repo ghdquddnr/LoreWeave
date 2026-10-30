@@ -9,9 +9,10 @@ export interface FriendlyError {
 }
 
 const IPC_PREFIX = /^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/;
-/** 절대 경로 (Windows 드라이브·UNC·유닉스 루트) */
-const PATH = /(?:[A-Za-z]:[\\/]|\\\\|\/(?:Users|home|tmp|var|private)\/)[^\s'"`]*/g;
-const TECHNICAL = /(?:Error invoking|\b(?:E[A-Z]{3,}|HPE_[A-Z_]+)\b|[A-Za-z]:[\\/]|\\\\|operation not permitted|illegal operation|no such file)/;
+/** 기술 문구(코드·경로·영문 시스템 메시지)가 들어 있는가 */
+const TECHNICAL = /Error invoking|\b(?:E[A-Z]{3,}|HPE_[A-Z_]+)\b|[A-Za-z]:[\\/]|\\\\|operation not permitted|illegal operation|no such file/;
+/** 기술 문구가 시작되는 자리 (그 앞까지가 사람이 쓴 설명) */
+const TECH_START = /\b(?:E[A-Z]{3,}|HPE_[A-Z_]+)\b|[A-Za-z]:[\\/]|\\\\|operation not permitted|permission denied|illegal operation|no such file/;
 
 const KNOWN: [RegExp, string][] = [
   [/EPERM|EACCES|operation not permitted|permission denied/i, '파일에 쓸 수 없습니다. 읽기 전용이거나 다른 프로그램이 파일을 쓰고 있을 수 있습니다'],
@@ -26,9 +27,10 @@ export function friendlyError(error: unknown, fallback = '예상하지 못한 �
   const raw = (error instanceof Error ? error.message : typeof error === 'string' ? error : String(error ?? '')).trim();
   const cleaned = raw.replace(IPC_PREFIX, '').trim();
   if (!TECHNICAL.test(raw)) return { summary: cleaned || fallback, detail: '' };
+  // 사람이 쓴 한국어 설명이 앞에 있으면 그것을 기본 안내로 쓴다 (기술 문구가 시작되기 전까지). 없으면 알려진 코드의 안내, 그것도 없으면 일반 안내
+  const cut = cleaned.search(TECH_START);
+  const lead = (cut === -1 ? cleaned : cleaned.slice(0, cut)).replace(/[\s:：,;(（-]+$/u, '').trim();
   const known = KNOWN.find(([re]) => re.test(raw));
-  // 기술 문구가 섞인 메시지에서 사람이 읽을 부분(경로·코드를 뺀 문장)이 남으면 그것을 쓴다
-  const readable = cleaned.replace(PATH, '').replace(/\b(?:E[A-Z]{3,}|HPE_[A-Z_]+)\b:?/g, '').replace(/\s{2,}/g, ' ').trim();
-  const summary = known ? known[1] : /[가-힣]/.test(readable) && !TECHNICAL.test(readable) ? readable : fallback;
+  const summary = /[가-힣]/.test(lead) && lead.length >= 4 ? lead : known ? known[1] : fallback;
   return { summary, detail: raw };
 }

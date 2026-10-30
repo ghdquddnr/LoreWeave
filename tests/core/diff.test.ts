@@ -63,5 +63,9 @@ test('friendlyError: IPC 문구·파일 시스템 코드·절대 경로는 기�
   const unknown = friendlyError(new Error('ECONNRESET at Socket.onClose C:\\x\\y.js:10'));
   assert.doesNotMatch(unknown.summary, /ECONNRESET|C:\\/);
   assert.match(unknown.detail, /ECONNRESET/);
+  // 한국어 설명이 앞에 있으면 그것이 기본 안내다 (코드·경로는 상세로)
+  const index = friendlyError(new Error("색인을 갱신하지 못했습니다: EACCES: permission denied, stat 'C:\\x\\y.md'"));
+  assert.equal(index.summary, '색인을 갱신하지 못했습니다');
+  assert.match(index.detail, /EACCES/);
   assert.equal(friendlyError(null).summary, '예상하지 못한 오류가 발생했습니다');
 });
