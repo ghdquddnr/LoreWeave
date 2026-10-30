@@ -70,7 +70,9 @@ export async function syncIndex(
     await reindexChapter(index, root, file, begin(file));
     reindexed++;
   }
-  for (const file of indexed.keys()) index.removeChapter(file);
+  // 폴더 목록을 잡은 뒤 다시 만들어졌을 수 있으니 바로 빼지 않고 지금 디스크를 다시 본다: 없으면 reindexChapter가 색인에서 빼고(ENOENT), 새로 있으면 최신 본문을 색인한다.
+  // 표(begin)도 받으므로 그 사이 watcher나 저장이 더 최신 본문을 색인했다면 이 정리는 건너뛴다
+  for (const file of indexed.keys()) await reindexChapter(index, root, file, begin(file));
   return { reindexed, removed: indexed.size };
 }
 
