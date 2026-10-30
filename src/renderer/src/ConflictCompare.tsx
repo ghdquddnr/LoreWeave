@@ -70,7 +70,8 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
   }, [editor]);
 
   const copyMine = async () => {
-    const current = view.kind === 'ready' ? view.mine : visibleLines(editor.getJSON() as Doc);
+    // 누른 순간의 편집기 문서를 읽는다 (화면의 비교 표는 debounce 때문에 최신 입력보다 늦을 수 있다)
+    const current = visibleLines(editor.getJSON() as Doc);
     try {
       await navigator.clipboard.writeText(current.join('\n'));
       setCopied(true);

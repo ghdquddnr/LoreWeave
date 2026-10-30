@@ -155,3 +155,32 @@ test('충돌을 디스크 내용 불러오기로 풀거나 다른 화로 옮기�
     await closeWindow(app);
   }
 });
+
+test('내 내용 복사는 누른 순간의 편집기 문서를 복사한다: 비교가 열린 채 바로 이어서 쓰고 복사해도, 연속 복사해도 최신 입력이 들어간다', { timeout: 90_000 }, async () => {
+  const { app, page, two } = await start();
+  try {
+    await typeIn(page, 'KEEP_A', ' MINE');
+    await writeFile(two, `${envelope('two', 'TWO')}${lines('KEEP_A', '', 'CHANGE_ME', '', 'KEEP_B', 'DISK_LINE')}`);
+    await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).waitFor({ timeout: 15_000 });
+    await page.getByRole('button', { name: '차이 보기' }).click();
+    await compare(page).locator('.diff li').first().waitFor({ timeout: 10_000 });
+    const clipboard = () => app.evaluate(({ clipboard }) => clipboard.readText());
+    // 비교가 준비된 뒤 편집하고 debounce(400ms) 전에 바로 복사
+    await typeIn(page, 'KEEP_A MINE', ' LATEST_BACKUP_MARKER');
+    await compare(page).getByRole('button', { name: '내 내용 복사' }).click();
+    await compare(page).getByText('복사했습니다').waitFor();
+    let clip = await clipboard();
+    assert.match(clip, /LATEST_BACKUP_MARKER/, '복사 직전의 입력이 백업에 있다');
+    assert.match(clip, /KEEP_A MINE LATEST_BACKUP_MARKER/);
+    // 연속 복사: 또 쓰고 바로 다시 복사
+    await typeIn(page, 'KEEP_A MINE LATEST_BACKUP_MARKER', ' SECOND_MARKER');
+    await compare(page).getByRole('button', { name: '내 내용 복사' }).click();
+    await page.waitForTimeout(150);
+    clip = await clipboard();
+    assert.match(clip, /LATEST_BACKUP_MARKER SECOND_MARKER/);
+    assert.doesNotMatch(clip, /DISK_LINE/, '디스크 내용이 섞이지 않는다');
+  } finally {
+    page.on('dialog', (d) => void d.accept());
+    await closeWindow(app);
+  }
+});

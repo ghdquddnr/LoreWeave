@@ -60,6 +60,9 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
 ) {
   const [dialog, setDialog] = useState<ConfirmDialog | null>(null);
   const [planning, setPlanning] = useState(false);
+  /** 확인 뒤 동의 저장·저장·재계산을 기다리는 중 */
+  const [starting, setStarting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [progress, setProgress] = useState<AnalyzeProgress | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [running, setRunning] = useState<'analysis' | 'check' | null>(null);
@@ -68,7 +71,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
   const consentRef = useRef(consent);
   consentRef.current = consent;
   const busyRef = useRef(false);
-  busyRef.current = planning || running !== null || dialog !== null;
+  busyRef.current = planning || starting || running !== null || dialog !== null;
   const dialogEl = useRef<HTMLElement>(null);
   const pending = Object.entries(states)
     .filter(([, s]) => s !== 'fresh')
@@ -114,6 +117,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     if (busyRef.current) return;
     const mine = ++requestSeq.current;
     setError(null);
+    setNotice(null);
     setPlanning(true);
     try {
       const status = await api.ai.status();
@@ -130,14 +134,19 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     }
   };
 
+  /** 확인 창의 범위·비용은 저장된 원고 기준이다 (분석은 저장된 파일을 읽는다). 그래서 계획을 계산하기 전에 먼저 저장하고, 저장할 수 없으면 계획도 전송도 하지 않는다 */
+  const unsavedMessage = (p: Plan) => `저장하지 못해 ${p.kind === 'check' ? '검사를' : '분석을'} 시작하지 않았습니다. 작성한 내용은 화면에 그대로 있습니다.`;
   const startAnalysis = (files: string[]) => {
     if (files.length === 0) return;
-    void begin(async () => ({ kind: 'analysis', files, ...(await api.ai.estimate(files, projectToken)) }));
+    void begin(async () => {
+      if ((await beforeAnalyze()) === false) throw new Error(unsavedMessage({ kind: 'analysis', files, chars: 0, costUsd: 0 }));
+      return { kind: 'analysis', files, ...(await api.ai.estimate(files, projectToken)) };
+    });
   };
 
   const startCheck = (target: string) =>
     void begin(async () => {
-      await beforeAnalyze();
+      if ((await beforeAnalyze()) === false) throw new Error(unsavedMessage({ kind: 'check', file: target, plan: { analyze: [], priors: 0, batches: 1, costUsd: 0 } }));
       return { kind: 'check', file: target, plan: await api.ai.planCheck(target, projectToken) };
     });
 
@@ -148,21 +157,54 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     isBusy: () => busyRef.current,
   }));
 
+  /** 확인 창을 연 뒤 원고·모델이 달라졌는지 본다: 범위·비용 상한이나 모델이 다르면 보내지 않고 새 값으로 다시 확인받는다 */
+  const replan = async (p: Plan): Promise<Plan> =>
+    p.kind === 'analysis'
+      ? { kind: 'analysis', files: p.files, ...(await api.ai.estimate(p.files, projectToken)) }
+      : { kind: 'check', file: p.file, plan: await api.ai.planCheck(p.file, projectToken) };
+  const samePlan = (a: Plan, b: Plan) =>
+    a.kind === 'analysis' && b.kind === 'analysis'
+      ? a.chars === b.chars && a.costUsd === b.costUsd
+      : a.kind === 'check' && b.kind === 'check' && a.plan.costUsd === b.plan.costUsd && a.plan.priors === b.plan.priors && a.plan.batches === b.plan.batches && a.plan.analyze.join() === b.plan.analyze.join();
+
   const confirmRun = async () => {
     const d = dialog;
     if (!d) return;
+    // 동의 저장·저장·재계산을 기다리는 동안에도 새 실행을 시작하지 못하게 starting으로 막고, 그 사이 프로젝트가 바뀌면(request 번호) 보내지 않는다
+    const mine = requestSeq.current;
     setDialog(null);
-    if (d.needsConsent && !consentRef.current) {
-      try {
-        await api.ai.setConsent(true);
-      } catch (e) {
-        setError(friendlyError(e));
+    setStarting(true);
+    try {
+      if (d.needsConsent && !consentRef.current) {
+        try {
+          await api.ai.setConsent(true);
+        } catch (e) {
+          if (mine === requestSeq.current) setError(friendlyError(e));
+          return;
+        }
+        if (mine !== requestSeq.current) return;
+        onAnalyzed();
+      }
+      // 확인한 범위·비용은 저장된 원고 기준이다: 보내기 직전에 다시 저장하고, 저장할 수 없으면 보내지 않는다
+      if ((await beforeAnalyze()) === false) {
+        if (mine === requestSeq.current) setError(friendlyError(new Error(unsavedMessage(d.plan))));
         return;
       }
-      onAnalyzed();
+      const [fresh, status] = await Promise.all([replan(d.plan), api.ai.status()]);
+      if (mine !== requestSeq.current) return;
+      const model = status.models.find((m) => m.id === status.model)?.label ?? status.model;
+      if (!samePlan(d.plan, fresh) || model !== d.model) {
+        // 확인 뒤 원고나 모델이 달라졌다: 보내지 않고 새 값으로 다시 확인받는다
+        setError(null);
+        setNotice('확인한 뒤 원고 내용이나 모델이 달라져 범위와 비용을 다시 확인합니다. 아직 아무것도 보내지 않았습니다.');
+        setDialog({ plan: fresh, model, needsConsent: false });
+        return;
+      }
+      if (d.plan.kind === 'analysis') await analyze(d.plan.files);
+      else await check(d.plan.file);
+    } finally {
+      setStarting(false);
     }
-    if (d.plan.kind === 'analysis') await analyze(d.plan.files);
-    else await check(d.plan.file);
   };
 
   const cancelConfirm = () => {
@@ -171,7 +213,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     setDialog(null);
   };
 
-  const idle = !planning && !running && !dialog;
+  const idle = !planning && !starting && !running && !dialog;
   const plan = dialog?.plan;
 
   return (
@@ -196,9 +238,14 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
                 남은 화 분석 ({pending.length})
               </button>
             </div>
-            {planning && (
+            {notice && (
+              <p className="warning" role="status">
+                {notice}
+              </p>
+            )}
+            {(planning || starting) && !running && (
               <p className="muted" role="status">
-                실행 계획을 계산하는 중… (아직 아무것도 보내지 않았습니다)
+                {planning ? '실행 계획을 계산하는 중… (아직 아무것도 보내지 않았습니다)' : '실행을 준비하는 중… (저장하고 확인합니다)'}
               </p>
             )}
             {running && (

@@ -654,7 +654,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
           <span aria-hidden="true">{STATUS_SYMBOL[save.status.kind]}</span>{' '}
           <span>
             {STATUS_TEXT[save.status.kind]}
-            {save.status.kind === 'error' && `: ${saveError?.summary}`}
+            {save.status.kind === 'error' && `: ${saveError?.summary}.`}
           </span>
           {save.status.kind === 'error' && (
             <>

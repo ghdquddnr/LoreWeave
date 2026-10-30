@@ -54,6 +54,11 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
           e.preventDefault();
           onCancel();
         }
+        // 모달 밖(헤더 버튼 등)으로 Tab이 새지 않는다: 입력란이 유일한 조작 대상이므로 Tab·Shift+Tab 모두 입력란에 머문다
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          input.current?.focus();
+        }
       }}
     >
       <section className="palette" role="dialog" aria-modal="true" aria-label="명령 팔레트">

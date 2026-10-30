@@ -15,13 +15,16 @@ interface Props {
   inline?: boolean;
 }
 
+/** 문장 끝에 마침표가 없으면 붙인다 (안내와 힌트가 이어 붙지 않게) */
+const sentence = (text: string) => (/[.!?。…]$/.test(text) ? text : `${text}.`);
+
 export function ErrorNote({ error, hint, onRetry, retryLabel = '다시 시도', prefix, inline = false }: Props) {
   const [open, setOpen] = useState(false);
   return (
     <span className={inline ? 'error-note inline' : 'error-note'}>
       <span aria-hidden="true">✕</span> {prefix && <>{prefix}: </>}
-      {error.summary}
-      {hint && <> {hint}</>}
+      {sentence(error.summary)}
+      {hint && <> {sentence(hint)}</>}
       {onRetry && (
         <>
           {' '}
