@@ -12,6 +12,15 @@ importers:
         specifier: 7.43.0
         version: 7.43.0(undici@7.30.1)
     devDependencies:
+      '@fontsource/ibm-plex-sans-kr':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/jetbrains-mono':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource/noto-serif-kr':
+        specifier: 5.3.1
+        version: 5.3.1
       '@tiptap/core':
         specifier: 3.32.0
         version: 3.32.0(@tiptap/pm@3.32.0)
@@ -315,6 +324,15 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fontsource/ibm-plex-sans-kr@5.3.0':
+    resolution: {integrity: sha512-Malq1TQAnpPHASG76fAthnCY0E41py2r7pZ5JEjgmGfA5tVGz7gwBfvrkhPvT3ZmyMobQrJakHhKZVuXQp7FjQ==}
+
+  '@fontsource/jetbrains-mono@5.3.0':
+    resolution: {integrity: sha512-fqDfB5I9f1p1TV486aUgB9t8zP84P0O1FtQR5Ol9vjwPy+S+EIGlVYm1cvj2W5shcZMTg2nZFdVMoH5wFu8a1A==}
+
+  '@fontsource/noto-serif-kr@5.3.1':
+    resolution: {integrity: sha512-xtsAgK4S4MjPllHRSAFaMiB7xnFb8Nlhx47uPaD/qvyTP5WgRICNawZmwGzLVshCyA/QmydSVzA9kWF8otycpQ==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1242,6 +1260,12 @@ snapshots:
 
   '@floating-ui/utils@0.2.12':
     optional: true
+
+  '@fontsource/ibm-plex-sans-kr@5.3.0': {}
+
+  '@fontsource/jetbrains-mono@5.3.0': {}
+
+  '@fontsource/noto-serif-kr@5.3.1': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

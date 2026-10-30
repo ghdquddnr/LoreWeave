@@ -1,0 +1,269 @@
+/*
+ * LoreWeave 테마 토큰 — 디자인 확정본 (2026-10-30)
+ * 위치 제안: src/renderer/src/themes.css  (main.tsx에서 app.css보다 먼저 import)
+ *
+ * 규칙
+ *  - 컴포넌트 CSS는 아래 --lw-* 의미 토큰만 참조한다. 색상 hex를 직접 쓰지 않는다.
+ *  - <html data-theme="midnight|daylight|paper|lamplight" data-scheme="dark|light">
+ *    두 속성은 applyAppearance()가 설정한다. data-theme 선택자는 <html>뿐 아니라 어느 요소에도 붙을 수 있다 (환경설정의 테마 미리보기).
+ *  - 테마 키(midnight 등)는 저장용 식별자다. 화면에 보이는 이름(심야 등)은 바뀌어도 키는 유지한다.
+ */
+
+/* ───────────── 공통 (테마와 무관) ───────────── */
+:root {
+  /* 글꼴 — 로컬 우선 앱이므로 Google Fonts CDN이 아니라 번들된 폰트를 쓴다 (DESIGN-SPEC 4절) */
+  --lw-font-ui: 'IBM Plex Sans KR', system-ui, 'Malgun Gothic', sans-serif;
+  --lw-font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --lw-font-sans-ms: 'IBM Plex Sans KR', system-ui, 'Malgun Gothic', sans-serif;
+  --lw-font-serif-ms: 'Noto Serif KR', 'Batang', serif;
+
+  /* 글자 크기 */
+  --lw-fs-caption: 11px;   /* 섹션 라벨(대문자 간격), 배지, 파일명 */
+  --lw-fs-small: 12px;     /* 보조 설명, 인용 */
+  --lw-fs-ui: 13px;        /* 기본 UI */
+  --lw-fs-dialog-title: 16px;
+  --lw-fs-chapter-title: 28px;
+  --lw-label-tracking: 0.08em;
+
+  /* 원고 — 사용자가 환경설정에서 바꾼다 (style.setProperty로 덮어씀) */
+  --lw-ms-size: 17px;
+  --lw-ms-line-height: 1.9;
+  --lw-ms-max-width: 760px;
+  --lw-ms-paragraph-gap: 18px;
+
+  /* 레이아웃 */
+  --lw-titlebar-h: 40px;
+  --lw-activitybar-w: 52px;
+  --lw-explorer-w: 248px;
+  --lw-inspector-w: 380px;
+  --lw-tabs-h: 36px;
+  --lw-statusbar-h: 26px;
+
+  /* 모서리 */
+  --lw-radius-xs: 4px;   /* 배지, kbd */
+  --lw-radius-sm: 5px;   /* 툴바 버튼, 목록 행 */
+  --lw-radius-md: 6px;   /* 입력, 일반 버튼 */
+  --lw-radius-lg: 8px;   /* 카드 */
+  --lw-radius-xl: 10px;  /* 모달, 큰 패널 */
+
+  /* 간격 (4px 단위) */
+  --lw-space-1: 4px;
+  --lw-space-2: 8px;
+  --lw-space-3: 12px;
+  --lw-space-4: 16px;
+  --lw-space-5: 20px;
+  --lw-space-6: 24px;
+}
+
+/* ───────────── 심야 (midnight) · 기본값 · 다크 · 고딕 원고 ───────────── */
+:root,
+[data-theme='midnight'] {
+  color-scheme: dark;
+  --lw-backdrop: #0B0D10;     /* 모달 뒤 배경, 환경설정 바깥 */
+  --lw-bg: #121418;           /* 에디터 바탕 */
+  --lw-panel: #15181D;        /* 탐색기, 인스펙터, 탭 줄 */
+  --lw-chrome: #0E1013;       /* 타이틀 바, 액티비티 바 */
+  --lw-raised: #1B1F26;       /* 카드 (문제 가능성 등) */
+  --lw-overlay: #181B21;      /* 모달, 명령 팔레트 */
+  --lw-well: #121418;         /* 카드 안 인용 상자 */
+  --lw-line: #262A33;
+  --lw-line-strong: #2E333D;  /* 입력·버튼 테두리 */
+  --lw-btn: #1C2027;
+  --lw-text: #E4E6EA;
+  --lw-text-2: #C7CBD3;
+  --lw-body: #D5D8DE;         /* 원고 본문 */
+  --lw-muted: #9AA1AE;
+  --lw-gutter: #5E6573;       /* 문단 번호 (장식, aria-hidden) */
+  --lw-accent: #7AB8F5;
+  --lw-on-accent: #0B1622;
+  --lw-link: #8CC2F7;
+  --lw-sel: #232936;          /* 선택된 목록 행 */
+  --lw-sel-fg: #FFFFFF;
+  --lw-act-sel: #1F2430;      /* 액티비티 바 선택 */
+  --lw-ok: #7FC79A;
+  --lw-warn: #E9B562;         /* 경고 채움 (점, 배지, 밑줄) */
+  --lw-on-warn: #1B1206;
+  --lw-warn-text: #F2C97F;
+  --lw-warn-bg: #2A2213;
+  --lw-warn-line: #5A4520;
+  --lw-err: #F08A80;
+  --lw-on-err: #2A0B08;
+  --lw-err-bg: #2A1615;
+  --lw-err-text: #F3C7C2;
+  --lw-add-bg: #1E3326;
+  --lw-add-fg: #B6E3C4;
+  --lw-del-bg: #3A2121;
+  --lw-del-fg: #F3B9B3;
+  --lw-prog-bg: #2A3A52;
+  --lw-prog-track: #1B2433;
+  --lw-shadow: rgba(0, 0, 0, 0.5);
+  --lw-font-ms: var(--lw-font-sans-ms);
+  --lw-ms-size: 17px;
+}
+
+/* ───────────── 한낮 (daylight) · 라이트 · 고딕 원고 ───────────── */
+[data-theme='daylight'] {
+  color-scheme: light;
+  --lw-backdrop: #E4E7EC;
+  --lw-bg: #FFFFFF;
+  --lw-panel: #F5F6F8;
+  --lw-chrome: #EBEDF0;
+  --lw-raised: #FFFFFF;
+  --lw-overlay: #FFFFFF;
+  --lw-well: #F5F6F8;
+  --lw-line: #DFE2E7;
+  --lw-line-strong: #CED2D9;
+  --lw-btn: #FFFFFF;
+  --lw-text: #1C2028;
+  --lw-text-2: #3A404C;
+  --lw-body: #2A2F38;
+  --lw-muted: #5E6573;
+  --lw-gutter: #7A808C;
+  --lw-accent: #1F6FD1;
+  --lw-on-accent: #FFFFFF;
+  --lw-link: #1F5FB5;
+  --lw-sel: #E3ECFA;
+  --lw-sel-fg: #0F2F5C;
+  --lw-act-sel: #DCE3EE;
+  --lw-ok: #2E7D4F;
+  --lw-warn: #D18A1E;
+  --lw-on-warn: #1B1206;
+  --lw-warn-text: #8A5200;
+  --lw-warn-bg: #FCF1DE;
+  --lw-warn-line: #E8C88E;
+  --lw-err: #C8372D;
+  --lw-on-err: #FFFFFF;
+  --lw-err-bg: #FCECEA;
+  --lw-err-text: #8E2018;
+  --lw-add-bg: #E3F4E8;
+  --lw-add-fg: #1D5A35;
+  --lw-del-bg: #FBE6E4;
+  --lw-del-fg: #8E2018;
+  --lw-prog-bg: #DCE8FA;
+  --lw-prog-track: #BFD3F2;
+  --lw-shadow: rgba(28, 32, 40, 0.14);
+  --lw-font-ms: var(--lw-font-sans-ms);
+  --lw-ms-size: 17px;
+}
+
+/* ───────────── 미색 종이 (paper) · 라이트 · 명조 원고 ───────────── */
+[data-theme='paper'] {
+  color-scheme: light;
+  --lw-backdrop: #E6E1D6;
+  --lw-bg: #F7F5F0;
+  --lw-panel: #EFEBE3;
+  --lw-chrome: #E8E3D8;
+  --lw-raised: #FFFFFF;
+  --lw-overlay: #FFFFFF;
+  --lw-well: #F7F5F0;
+  --lw-line: #E2DDD2;
+  --lw-line-strong: #D6CFC1;
+  --lw-btn: #FFFFFF;
+  --lw-text: #1F1D1A;
+  --lw-text-2: #4A463F;
+  --lw-body: #2A2723;
+  --lw-muted: #6B665C;
+  --lw-gutter: #A39C8E;
+  --lw-accent: #2B4C7E;
+  --lw-on-accent: #FFFFFF;
+  --lw-link: #2B4C7E;
+  --lw-sel: #FFFFFF;
+  --lw-sel-fg: #1F1D1A;
+  --lw-act-sel: #E2DCCF;
+  --lw-ok: #2F6B3E;           /* 패널 위 4.5:1 확보 (시안 #3C7A4A에서 조정) */
+  --lw-warn: #D69A3A;
+  --lw-on-warn: #2A1A04;
+  --lw-warn-text: #8A4B08;
+  --lw-warn-bg: #FBEFD9;
+  --lw-warn-line: #EBCB91;
+  --lw-err: #A3302A;
+  --lw-on-err: #FFFFFF;
+  --lw-err-bg: #FBEDEB;
+  --lw-err-text: #7A231E;
+  --lw-add-bg: #E6F1E6;
+  --lw-add-fg: #24502F;
+  --lw-del-bg: #F8E4E1;
+  --lw-del-fg: #7A231E;
+  --lw-prog-bg: #DDE3EC;
+  --lw-prog-track: #C3CDDC;
+  --lw-shadow: rgba(40, 32, 20, 0.14);
+  --lw-font-ms: var(--lw-font-serif-ms);
+  --lw-ms-size: 18px;
+}
+
+/* ───────────── 등잔불 (lamplight) · 다크 · 명조 원고 ───────────── */
+[data-theme='lamplight'] {
+  color-scheme: dark;
+  --lw-backdrop: #141210;
+  --lw-bg: #1E1B17;
+  --lw-panel: #24201B;
+  --lw-chrome: #181512;
+  --lw-raised: #2B2620;
+  --lw-overlay: #2B2620;
+  --lw-well: #1E1B17;
+  --lw-line: #3A342C;
+  --lw-line-strong: #474036;
+  --lw-btn: #2B2620;
+  --lw-text: #EDE6D9;
+  --lw-text-2: #D2C9B8;
+  --lw-body: #E3DACB;
+  --lw-muted: #A89F8F;
+  --lw-gutter: #6E6658;
+  --lw-accent: #D9B47A;
+  --lw-on-accent: #1E1B17;
+  --lw-link: #E6C48E;
+  --lw-sel: #352E25;
+  --lw-sel-fg: #FFF6E6;
+  --lw-act-sel: #332C23;
+  --lw-ok: #9CC79A;
+  --lw-warn: #E0A458;
+  --lw-on-warn: #1E1B17;
+  --lw-warn-text: #EBBE7E;
+  --lw-warn-bg: #3A2E1C;
+  --lw-warn-line: #6A5230;
+  --lw-err: #E58A7E;
+  --lw-on-err: #1E1B17;
+  --lw-err-bg: #3A211C;
+  --lw-err-text: #F2C3BB;
+  --lw-add-bg: #273526;
+  --lw-add-fg: #BFDDBA;
+  --lw-del-bg: #3E2422;
+  --lw-del-fg: #F2C3BB;
+  --lw-prog-bg: #3A3226;
+  --lw-prog-track: #2A241C;
+  --lw-shadow: rgba(0, 0, 0, 0.5);
+  --lw-font-ms: var(--lw-font-serif-ms);
+  --lw-ms-size: 18px;
+}
+
+/* ───────────── 향후 화면용 (관계도·간트·칸반) — 다크/라이트 계열별 ───────────── */
+:root,
+:root[data-scheme='dark'] {
+  --lw-entity-person: #7AB8F5;
+  --lw-entity-org: #8FD3B6;
+  --lw-entity-place: #C9A2F2;
+  --lw-entity-item: #E4C08A;
+  --lw-relation-ai: #C9A2F2;   /* AI 추정 관계 (점선) */
+  --lw-level: #E4C08A;         /* 스테이터스 창 Lv, 주요 이벤트 ◆ */
+  --lw-seed: #C9A2F2;          /* 복선 */
+}
+:root[data-scheme='light'] {
+  --lw-entity-person: #1F6FD1;
+  --lw-entity-org: #2E7D4F;
+  --lw-entity-place: #8A5CC7;
+  --lw-entity-item: #B8860B;
+  --lw-relation-ai: #8A5CC7;
+  --lw-level: #B8860B;
+  --lw-seed: #8A5CC7;
+}
+
+/* ───────────── 원고 글꼴 사용자 지정 (환경설정 › 원고 글꼴) ───────────── */
+:root[data-ms-font='serif'] { --lw-font-ms: var(--lw-font-serif-ms); }
+:root[data-ms-font='sans'] { --lw-font-ms: var(--lw-font-sans-ms); }
+
+/* 테마 전환 순간 깜빡임 방지: applyAppearance()가 전환 중에만 붙인다 */
+:root.lw-theme-switching *,
+:root.lw-theme-switching *::before,
+:root.lw-theme-switching *::after {
+  transition: none !important;
+}

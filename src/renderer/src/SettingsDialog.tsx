@@ -1,18 +1,21 @@
-// AI 설정 (M3-PLAN 1절): API 키 저장·삭제, 모델 선택, 연결 확인, 이 프로젝트에서 쓴 비용.
+// 환경설정: 테마와 글꼴(AppearanceSettings) + AI 설정 (M3-PLAN 1절: API 키 저장·삭제, 모델 선택, 연결 확인, 이 프로젝트에서 쓴 비용).
 // 저장한 키는 다시 볼 수 없다 (main만 읽는다).
 
 import { useEffect, useState } from 'react';
 import type { AiStatus } from '../../preload/api.ts';
+import { AppearanceSettings } from './AppearanceSettings.tsx';
+import type { AppearanceController } from './useAppearance.ts';
 
 const api = window.loreweave;
 
 interface Props {
+  appearance: AppearanceController;
   totalCostUsd: number;
   onClose(): void;
   onChange(status: AiStatus): void;
 }
 
-export function SettingsDialog({ totalCostUsd, onClose, onChange }: Props) {
+export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [key, setKey] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -42,7 +45,9 @@ export function SettingsDialog({ totalCostUsd, onClose, onChange }: Props) {
   if (!status) return null;
   return (
     <div className="modal-backdrop" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <section className="modal" role="dialog" aria-modal="true" aria-label="AI 설정">
+      <section className="modal settings" role="dialog" aria-modal="true" aria-label="환경설정">
+        <AppearanceSettings controller={appearance} />
+
         <h2>AI 설정</h2>
         <p className="muted">
           AI 분석은 작가가 버튼을 누를 때만, 그 화의 본문을 OpenAI로 보냅니다. 비용은 작가의 OpenAI 계정에 청구됩니다.

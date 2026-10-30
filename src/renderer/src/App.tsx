@@ -4,13 +4,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chapterInfo } from '../../core/project/chapters.ts';
 import type { QuoteLocation } from '../../core/ai/locate.ts';
-import type { AnalysisState, CheckState, ProjectOpened, SearchHit } from '../../preload/api.ts';
+import type { AnalysisState, AppearanceBootstrap, CheckState, ProjectOpened, SearchHit } from '../../preload/api.ts';
 import { AnalysisBar } from './AnalysisBar.tsx';
 import { ChapterEditor, type ChapterEditorHandle, type Jump, type SaveStatus } from './ChapterEditor.tsx';
 import { FactsPanel } from './FactsPanel.tsx';
 import { IssuesPanel } from './IssuesPanel.tsx';
 import { SearchPanel, type SearchPanelHandle } from './SearchPanel.tsx';
 import { SettingsDialog } from './SettingsDialog.tsx';
+import type { SystemDarkStore } from './systemDark.ts';
+import { useAppearance } from './useAppearance.ts';
 
 interface AiState {
   states: Record<string, AnalysisState>;
@@ -36,7 +38,8 @@ function firstReadable(project: ProjectOpened): string | null {
   return project.list.chapters.find((c) => !c.unreadable)?.file ?? null;
 }
 
-export function App() {
+export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDark: SystemDarkStore }) {
+  const appearance = useAppearance(boot, systemDark);
   const [starting, setStarting] = useState(true);
   const [project, setProject] = useState<ProjectOpened | null>(null);
   const [file, setFile] = useState<string | null>(null);
@@ -333,7 +336,7 @@ export function App() {
           <button onClick={chooseFolder} title="다른 원고 폴더 열기" disabled={switching}>
             열기
           </button>
-          <button onClick={() => setSettingsOpen(true)} title="AI 설정">
+          <button onClick={() => setSettingsOpen(true)} title="환경설정">
             설정
           </button>
         </header>
@@ -461,7 +464,7 @@ export function App() {
         {error && <span className="error">{error}</span>}
       </footer>
       {settingsOpen && (
-        <SettingsDialog totalCostUsd={ai?.totalCostUsd ?? 0} onClose={() => setSettingsOpen(false)} onChange={() => refreshAi()} />
+        <SettingsDialog appearance={appearance} totalCostUsd={ai?.totalCostUsd ?? 0} onClose={() => setSettingsOpen(false)} onChange={() => refreshAi()} />
       )}
     </div>
   );

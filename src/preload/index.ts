@@ -2,6 +2,16 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { CHANNELS, type LoreweaveApi } from './api.ts';
 
 const api: LoreweaveApi = {
+  appearance: {
+    bootstrap: () => ipcRenderer.invoke(CHANNELS.appearanceBootstrap),
+    update: (patch) => ipcRenderer.invoke(CHANNELS.appearanceUpdate, patch),
+    rendererReady: () => ipcRenderer.send(CHANNELS.appearanceRendererReady),
+    onSystemDarkChange(listener) {
+      const handler = (_e: Electron.IpcRendererEvent, change: { systemDark: boolean; seq: number }) => listener(change);
+      ipcRenderer.on(CHANNELS.appearanceSystemDark, handler);
+      return () => ipcRenderer.off(CHANNELS.appearanceSystemDark, handler);
+    },
+  },
   project: {
     choose: () => ipcRenderer.invoke(CHANNELS.projectChoose),
     reopenLast: () => ipcRenderer.invoke(CHANNELS.projectReopenLast),

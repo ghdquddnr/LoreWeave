@@ -219,6 +219,8 @@ test('편집기가 예약한 시작 포커스가 실행되기 전에 검색창�
   const { app, page } = await launch(await tempDir('first-search-raf-userdata'));
   try {
     await stubFolderDialog(app, dir);
+    // 첫 화면은 외관 설정을 받은 뒤에 그려진다 (P1): 버튼이 나타난 뒤에 rAF를 가로챈다
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).waitFor();
     await page.evaluate(() => {
       const w = window as unknown as { framesHeld: Array<(t: number) => void>; rafOriginal: typeof window.requestAnimationFrame };
       w.framesHeld = [];
