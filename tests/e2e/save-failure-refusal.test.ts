@@ -1,5 +1,5 @@
 // 저장이 실패한 채 사용자가 "변경 버림"을 거절하면(화 이동·창 닫기), 같은 화·같은 창·받아들인 입력 A+B가 그대로이고 디스크는 기존 바이트이며,
-// 마지막 입력이 "저장됨"으로 보이지 않는다. 오류 주입을 풀고 명시적으로 저장하면 A+B가 정확한 바이트로 남고, 이동·종료·재실행 뒤에도 그대로다.
+// 마지막 입력이 "저장됨"으로 보이지 않는다. 오류 주입을 풀고 저장하면(명시적 Ctrl+S와 자동 재시도를 구분하지 않는다) A+B가 정확한 바이트로 남고, 이동·종료·재실행 뒤에도 그대로다.
 // (기존 save-race의 rename-fails는 오류와 화면 입력만 보고 닫기를 허용한다. 거절과 복구는 보지 않는다.)
 // 실제 앱(Electron + Playwright). 장벽·주입은 main의 디스크 호출이다: 화 파일의 임시 파일을 연(open) 직후 첫 저장을 붙잡고, 풀기 전에 이름 바꾸기(rename)를 EPERM으로 만든다.
 // 장벽은 호출 카운터로 수신·해제·다음 저장 시작을 구분한다. 합성 원고(BOM + CRLF + frontmatter). 실제 API는 쓰지 않는다.
@@ -103,11 +103,16 @@ for (const how of ['move', 'close'] as const) {
     const first = await start(userData, dir);
     let app = first.app;
     const page = first.page;
+    // 확인 창은 단계별로 모은다. refuse: 이 테스트가 기대하는 확인 창을 거절한다 / recovery: 복구 뒤에는 하나도 없어야 한다(뜨면 기록하고 안전하게 거절) /
+    // cleanup: 실패한 테스트의 정리용으로만 수락한다 (판정에 쓰지 않는다)
+    let phase: 'refuse' | 'recovery' | 'cleanup' = 'refuse';
     const dialogs: string[] = [];
-    const onDialog = (d: import('playwright').Dialog) => {
-      dialogs.push(d.message());
-      void d.dismiss(); // 변경 버림을 거절한다
-    };
+    const unexpected: string[] = [];
+    page.on('dialog', (d) => {
+      if (phase === 'cleanup') return void d.accept();
+      (phase === 'refuse' ? dialogs : unexpected).push(d.message());
+      void d.dismiss(); // 변경을 버리지 않는다
+    });
     try {
       // 1) 저장 A를 붙잡고, 그동안 입력 B를 받아들인다
       await set(app, 'armed', true);
@@ -120,7 +125,6 @@ for (const how of ['move', 'close'] as const) {
       // 2) 이름 바꾸기를 실패시키고 A를 풀어, 저장 오류를 만든다 (이 뒤로 화면의 모든 상태 변화를 기록한다)
       await recordStatus(page);
       await set(app, 'failRename', true);
-      page.on('dialog', onDialog);
       await release(app);
       await page.getByRole('status').getByText('EPERM', { exact: false }).waitFor({ timeout: 30_000 });
       assert.ok((await counters(app)).renames >= 1, '이름 바꾸기 실패가 주입되지 않았다');
@@ -140,9 +144,8 @@ for (const how of ['move', 'close'] as const) {
       assert.equal(await read(dir), ONE, '거절 뒤에도 디스크는 기존 바이트다');
       assert.deepEqual(await tempFiles(dir), []);
       assert.deepEqual((await statusSeen(page)).filter((t) => t.includes('저장됨')), [], '저장이 실패하는 동안 "저장됨"이 보이면 안 된다');
-      // 4) 오류 주입을 풀고 명시적으로 저장한다
-      page.off('dialog', onDialog);
-      const settled = dialogs.length;
+      // 4) 오류 주입을 풀고 저장한다. Ctrl+S와 5초 자동 재시도 중 어느 쪽이 저장했는지는 구분하지 않는다 (명시적 Ctrl+S 경로는 이 테스트로 검증하지 않는다)
+      phase = 'recovery';
       const before = await counters(app);
       await set(app, 'failRename', false);
       await page.keyboard.press('Control+S');
@@ -154,12 +157,12 @@ for (const how of ['move', 'close'] as const) {
       if (how === 'move') {
         await chapter(page, 'Two').click();
         await editor(page).getByText('Beta text').waitFor();
-        assert.equal(dialogs.length, settled, '복구 뒤 이동에는 확인 창이 없어야 한다');
         await closeWindow(app);
       } else {
         await closeWindow(app); // 확인 창 없이 닫힌다 (닫힘이 끝나야 이 줄을 지난다)
-        assert.equal(dialogs.length, settled, '복구 뒤 닫기에는 확인 창이 없어야 한다');
       }
+      // 복구 뒤 이동/닫기가 끝날 때까지 예상 못 한 확인 창이 하나도 없었다
+      assert.deepEqual(unexpected, [], '복구 뒤에는 확인 창이 없어야 한다');
       // 5) 다시 실행해서 다시 열어도 A+B가 바이트로 남아 있다
       const second = await launch(userData);
       app = second.app;
@@ -168,6 +171,7 @@ for (const how of ['move', 'close'] as const) {
       assert.equal(await read(dir), withText('Alpha text A B'));
       assert.equal(await read(dir, '002.md'), TWO);
     } finally {
+      phase = 'cleanup';
       await set(app, 'failRename', false).catch(() => {});
       await release(app).catch(() => {});
       await closeWindow(app).catch(() => {});
