@@ -83,9 +83,11 @@ const ownWrites = new Map<string, string>();
 
 function startWatching(path: string): void {
   stopWatching();
+  // 같은 폴더를 다시 열어도 token이 바뀐다: 이전 watcher가 파일을 읽던 중이었다면 그 읽기가 늦게 끝나도 새 세대에 알리지 않는다
+  const generation = projectToken;
   stopWatching = watchChapters(path, (file) => {
     void chapterHash(path, file).then((hash) => {
-      if (root !== path || (hash !== null && ownWrites.get(file) === hash)) return;
+      if (generation !== projectToken || root !== path || (hash !== null && ownWrites.get(file) === hash)) return;
       void updateIndex((i) => reindexChapter(i, path, file));
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.chapterChangedOutside, { file, hash });
     });
