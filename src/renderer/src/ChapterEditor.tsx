@@ -205,6 +205,8 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     const range = at && lineRangeToPositions(editor, at.line, at.start, at.end);
     if (!range) {
       if ('quote' in jump) onQuoteMissing?.(jump.quote);
+      // 찾지 못했으면 이전에 선택해 둔 다른 글자가 근거처럼 남지 않게 선택만 접는다 (본문은 그대로)
+      editor.chain().focus().setTextSelection(editor.state.selection.head).run();
       return;
     }
     editor.chain().focus().setTextSelection(range).run();

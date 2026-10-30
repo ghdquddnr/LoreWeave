@@ -223,3 +223,24 @@ test('늦은 응답: 근거 화를 읽는 동안 다른 화로 옮기거나 다�
     }
   });
 });
+
+test('같은 화에서 인용이 없으면 기존 다른 문장 선택을 근거처럼 남기지 않고 본문은 그대로다', { timeout: 90_000 }, async () => {
+  const checked = `# TWO\n\nTARGET_BODY\n\n${QUOTE}\n`;
+  const current = '# TWO\n\nTARGET_BODY\n\nREWRITTEN\n';
+  const dir = await project(checked, { '001.md': ORIGINAL, '002.md': current }, '002.md');
+  await withApp(dir, async (_app, page) => {
+    for (let n = 0; n < 2; n++) {
+      await editor(page).getByText('TARGET_BODY', { exact: true }).click();
+      await page.keyboard.press('Home');
+      await page.keyboard.press('Shift+End');
+      assert.equal(await selection(page), 'TARGET_BODY');
+      await evidence(page, 2).click();
+      await page.getByText(MISSING, { exact: false }).waitFor();
+      assert.equal(await selection(page), '');
+    }
+    // 본문과 파일은 바뀌지 않는다 (저장 대기도 생기지 않는다)
+    assert.equal(await editor(page).getByText('REWRITTEN', { exact: true }).count(), 1);
+    await page.waitForTimeout(1500);
+    assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), current);
+  });
+});
