@@ -82,6 +82,8 @@ let stopWatching: () => void = () => {};
 const ownWrites = new Map<string, string>();
 /** watcher가 바깥 변경이라고 판단해 색인을 시작한 횟수(화별). 저장 처리의 색인 갱신이 끝나기 전에 늘었다면 그 저장의 색인은 옛것이다 */
 const externalChanges = new Map<string, number>();
+/** 이 앱의 저장이 성공한 횟수(화별). 그 전에 시작한 옛 watcher 색인 읽기가 저장 뒤에 끝나 저장의 색인을 옛 바이트로 덮지 않게 한다 */
+const savedWrites = new Map<string, number>();
 
 function startWatching(path: string): void {
   stopWatching();
@@ -93,10 +95,11 @@ function startWatching(path: string): void {
   stopWatching = watchChapters(path, (file) => {
     const seq = (latest.get(file) ?? 0) + 1;
     latest.set(file, seq);
+    const saves = savedWrites.get(file) ?? 0;
     void chapterHash(path, file).then((hash) => {
       if (latest.get(file) !== seq || generation !== projectToken || root !== path || (hash !== null && ownWrites.get(file) === hash)) return;
       externalChanges.set(file, (externalChanges.get(file) ?? 0) + 1);
-      void updateIndex((i) => reindexChapter(i, path, file, () => latest.get(file) === seq));
+      void updateIndex((i) => reindexChapter(i, path, file, () => latest.get(file) === seq && (savedWrites.get(file) ?? 0) === saves));
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.chapterChangedOutside, { file, hash });
     });
   });
@@ -137,6 +140,7 @@ async function openProject(path: string): Promise<ProjectOpened> {
   const token = projectToken;
   ownWrites.clear();
   externalChanges.clear();
+  savedWrites.clear();
   startWatching(path);
   openIndex(path);
   // 열기는 여기서 끝났다 (root·token이 바뀌었다). 다음 실행 때 다시 열 폴더를 기억하지 못해도 열기를 실패로 돌리지 않는다:
@@ -218,6 +222,7 @@ export function registerIpc(): void {
     const result = await writeChapter(path, file, text, expectedHash);
     if (result.status === 'saved' && stillOpen(token)) {
       ownWrites.set(file, result.hash);
+      savedWrites.set(file, (savedWrites.get(file) ?? 0) + 1);
       const external = externalChanges.get(file) ?? 0;
       await updateIndex(async (i) => {
         const info = await stat(join(path, CHAPTERS_DIR, file));
