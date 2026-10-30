@@ -30,7 +30,9 @@ const chapter = (page: Page, title: string) => page.getByRole('navigation', { na
 const search = (page: Page, q: string) => page.evaluate(`window.loreweave.chapters.search(${JSON.stringify(q)}).then((r) => r.total)`) as Promise<number>;
 
 type G = {
-  mode: 'off' | 'after-read';
+  mode: 'off' | 'after-read' | 'hash';
+  statArm: boolean;
+  statPlain: number;
   skip: number;
   statPending: boolean;
   held: boolean;
@@ -50,7 +52,7 @@ type G = {
 async function install(app: ElectronApplication, target: string) {
   await app.evaluate(({ ipcMain }, target) => {
     const g = globalThis as unknown as G;
-    Object.assign(g, { mode: 'off', skip: 0, statPending: false, held: false, statHeld: false, readReturned: 0, statReturned: 0, plainReads: 0, gate: false, queued: [], delivered: 0, writeDone: 0 });
+    Object.assign(g, { mode: 'off', skip: 0, statPending: false, statArm: false, statPlain: 0, held: false, statHeld: false, readReturned: 0, statReturned: 0, plainReads: 0, gate: false, queued: [], delivered: 0, writeDone: 0 });
     const fs = process.getBuiltinModule('fs');
     const fsp = process.getBuiltinModule('fs/promises');
     const readFile = fsp.readFile;
@@ -60,7 +62,7 @@ async function install(app: ElectronApplication, target: string) {
         if (g.skip > 0) g.skip--;
         else {
           hold = true;
-          g.statPending = true; // 바로 뒤이어 호출되는 같은 reindexChapter의 stat도 붙잡는다
+          g.statPending = g.mode === 'after-read'; // after-read: 바로 뒤이어 호출되는 같은 reindexChapter의 stat도 붙잡는다 (hash: chapterHash 읽기만)
           g.mode = 'off'; // 이 읽기 하나만 붙잡는다
         }
       }
@@ -75,15 +77,19 @@ async function install(app: ElectronApplication, target: string) {
     }) as typeof fsp.readFile;
     const stat = fsp.stat;
     fsp.stat = (async (path: unknown, ...args: unknown[]) => {
-      const hold = String(path) === target && g.statPending;
-      if (hold) g.statPending = false;
+      const mine = String(path) === target;
+      const hold = mine && (g.statPending || g.statArm);
+      if (hold) {
+        g.statPending = false;
+        g.statArm = false;
+      }
       const info = await (stat as (...a: unknown[]) => Promise<unknown>)(path, ...args);
       if (hold) {
         g.statHeld = true;
         await new Promise<void>((resolve) => (g.statRelease = resolve));
         g.statHeld = false;
         g.statReturned++;
-      }
+      } else if (mine) g.statPlain++;
       return info;
     }) as typeof fsp.stat;
     // 실제 fs.watch 이벤트의 전달만 붙잡는다 (닫혀 있으면 쌓아 두었다가 열 때 그대로 전달한다)
@@ -121,6 +127,10 @@ async function install(app: ElectronApplication, target: string) {
     });
   }, target);
 }
+/** 다음 readFile(자기 쓰기 이벤트의 chapterHash 읽기)이 바이트를 얻은 직후 반환을 붙잡는다 */
+const armHashRead = (app: ElectronApplication) => app.evaluate(() => void Object.assign(globalThis as unknown as G, { mode: 'hash', skip: 0 }));
+/** 다음 stat(저장 처리의 색인 stat)이 값을 얻은 직후 반환을 붙잡는다 */
+const armStat = (app: ElectronApplication) => app.evaluate(() => void ((globalThis as unknown as G).statArm = true));
 /** 다음 이벤트의 첫 readFile(chapterHash)은 지나가고, 그 다음 색인 읽기(와 stat)를 붙잡는다 */
 const armIndexRead = (app: ElectronApplication) => app.evaluate(() => void Object.assign(globalThis as unknown as G, { mode: 'after-read', skip: 1 }));
 const closeGate = (app: ElectronApplication) => app.evaluate(() => void ((globalThis as unknown as G).gate = true));
@@ -138,7 +148,7 @@ const openGate = (app: ElectronApplication) =>
   });
 const releaseIndexRead = (app: ElectronApplication) => app.evaluate(() => { const g = globalThis as unknown as G; g.release?.(); g.statRelease?.(); });
 const state = (app: ElectronApplication) =>
-  app.evaluate(() => { const g = globalThis as unknown as G; return { held: g.held, statHeld: g.statHeld, readReturned: g.readReturned, statReturned: g.statReturned, plainReads: g.plainReads, queued: g.queued.length, delivered: g.delivered, writeDone: g.writeDone }; });
+  app.evaluate(() => { const g = globalThis as unknown as G; return { held: g.held, statHeld: g.statHeld, readReturned: g.readReturned, statReturned: g.statReturned, plainReads: g.plainReads, statPlain: g.statPlain, queued: g.queued.length, delivered: g.delivered, writeDone: g.writeDone }; });
 async function waitUntil(page: Page, what: string, ok: () => Promise<boolean>, app?: ElectronApplication) {
   for (let n = 0; n < 400 && !(await ok()); n++) await page.waitForTimeout(25);
   assert.equal(await ok(), true, app ? `${what} ${JSON.stringify(await state(app))}` : what);
@@ -224,3 +234,56 @@ for (const order of ['event-first', 'event-held'] as const) {
     }
   });
 }
+
+test('두 저장 사이의 옛 자기 쓰기 해시 읽기: 저장 색인과 watcher 색인이 둘 다 건너뛰어 최신 본문이 색인에서 빠지지 않는다', { timeout: 90_000 }, async () => {
+  const { app, page, path } = await start();
+  try {
+    // 1) 첫 저장 (firstsave): 그 자기 쓰기 이벤트 전달은 붙잡아 둔다. 저장 처리 완료와 색인(검색 1)을 확인한다
+    await closeGate(app);
+    await editor(page).getByText('originalword').click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' firstsave');
+    let done = (await state(app)).writeDone;
+    await page.keyboard.press('Control+S');
+    await waitUntil(page, '첫 저장 처리가 끝나지 않았다', async () => (await state(app)).writeDone === done + 1, app);
+    await waitUntil(page, '첫 저장이 색인에 반영되지 않았다', async () => (await search(page, 'firstsave')) === 1, app);
+    // 2) 그 (실제) 자기 쓰기 이벤트를 전달하고, chapterHash가 firstsave 바이트를 얻은 직후 반환을 붙잡는다
+    await armHashRead(app);
+    assert.ok((await openGate(app)) >= 1, '첫 저장의 자기 쓰기 이벤트가 쌓이지 않았다');
+    await waitUntil(page, '자기 쓰기 이벤트의 해시 읽기를 붙잡지 못했다', async () => (await state(app)).held, app);
+    // 3) 두 번째 저장 (secondword): 쓰기는 성공하고 저장 색인 stat 반환이 붙잡힌다. 그 새 자기 쓰기 이벤트 전달도 붙잡는다
+    await closeGate(app);
+    await armStat(app);
+    await editor(page).getByText('firstsave').click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' secondword');
+    done = (await state(app)).writeDone;
+    await page.keyboard.press('Control+S');
+    await waitUntil(page, '두 번째 저장의 색인 stat을 붙잡지 못했다', async () => (await state(app)).statHeld, app);
+    assert.equal(await readFile(path, 'utf8'), body('Alpha originalword firstsave secondword'));
+    // 4) 옛 해시 읽기를 푼다: 해시(firstsave)는 지금 자기 쓰기와 달라 바깥 변경으로 보이고, watcher 색인이 최신 바이트(secondword)를 읽는다.
+    //    그 색인 읽기의 readFile과 stat이 모두 반환될 때까지 (옛 해시 읽기 하나 + 색인 읽기 하나) 기다린 뒤 이벤트 루프를 한 번 돈다
+    const before = await state(app);
+    await app.evaluate(() => (globalThis as unknown as G).release?.());
+    await waitUntil(page, 'watcher 색인 읽기(readFile+stat)가 끝나지 않았다', async () => {
+      const s = await state(app);
+      return s.plainReads > before.plainReads && s.statPlain > before.statPlain;
+    }, app);
+    await turn(app);
+    // 5) 저장의 색인 stat을 푼다: 저장 처리(쓰기+색인)가 끝날 때까지 기다린다
+    await app.evaluate(() => (globalThis as unknown as G).statRelease?.());
+    await waitUntil(page, '두 번째 저장 처리가 끝나지 않았다', async () => (await state(app)).writeDone === done + 1, app);
+    await turn(app);
+    // 6) 두 번째 저장의 자기 쓰기 이벤트를 전달하고 그 해시 읽기(자기 쓰기 억제)가 끝난 뒤의 최종 상태
+    const reads = (await state(app)).plainReads;
+    assert.ok((await openGate(app)) >= 1, '두 번째 저장의 자기 쓰기 이벤트가 쌓이지 않았다');
+    await waitUntil(page, '자기 쓰기 이벤트의 해시 읽기가 끝나지 않았다', async () => (await state(app)).plainReads > reads, app);
+    await turn(app);
+    assert.equal(await search(page, 'secondword'), 1, '최신 본문(secondword)이 색인에서 빠졌다');
+    assert.equal(await readFile(path, 'utf8'), body('Alpha originalword firstsave secondword'));
+    assert.equal(await editor(page).getByText('Alpha originalword firstsave secondword', { exact: true }).count(), 1, '수락한 입력이 화면에 남아야 한다');
+    assert.equal(await page.getByRole('alert').count(), 0, '자기 쓰기가 바깥 변경 충돌로 보이면 안 된다');
+  } finally {
+    await cleanup(app, page);
+  }
+});
