@@ -170,6 +170,10 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const [settingsOpen, setSettingsOpen] = useState(false);
   const editor = useRef<ChapterEditorHandle>(null);
   const search = useRef<SearchPanelHandle>(null);
+  /** 가장 최근 검색 직전의 열린 화 상태 (결과 이동의 정확성 확인용) */
+  const searchSnapshot = useRef<{ file: string; editId: string | null } | null>(null);
+  /** 방금 시작한 검색 직전의 상태. 그 검색 결과가 실제로 게시될 때만 searchSnapshot이 된다 (실패·취소된 검색이 이전 결과에 적용되지 않게) */
+  const pendingSnapshot = useRef<{ file: string; editId: string | null } | null>(null);
 
   const refreshAi = useCallback(() => {
     // 프로젝트를 바꾼 뒤에 도착한 이전 프로젝트의 응답은 버린다. main도 이전 token의 요청은 거절한다:
@@ -334,8 +338,21 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const openResult = (hit: SearchHit, match: SearchHit['matches'][number]) =>
     run(async (gen) => {
       if (switchingRef.current || actingRef.current || (hit.file !== file && !(await leave())) || !isCurrent(gen)) return;
+      // 같은 화에서 검색했고 그 뒤 편집기가 한 번도 바뀌지 않았다면(다른 화로 갔다 오면 편집기가 새로 만들어져 아니다) 옛 좌표가 맞다.
+      // 검색 당시의 앞뒤 줄은 결과(hit)가 갖고 있어, 화를 옮긴 뒤에도 같은 발생을 식별한다
+      const snap = searchSnapshot.current;
+      const pristine = !!snap && snap.file === hit.file && hit.file === fileRef.current && snap.editId !== null && snap.editId === editor.current?.editId();
       activate(hit.file);
-      setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
+      setJump((j) => ({
+        line: hit.line,
+        from: match.from,
+        to: match.to,
+        text: hit.text,
+        pristine,
+        prev: hit.prev,
+        next: hit.next,
+        seq: (j?.seq ?? 0) + 1,
+      }));
     });
 
   /** 검사 근거로 이동: 그 화를 열고, 저장된 위치 대신 지금 본문에서 근거 문장을 다시 찾아 선택한다 (못 찾으면 알린다) */
@@ -479,6 +496,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     [],
   );
 
+  const onMatchMissing = useCallback(() => setNotice('검색한 뒤 본문이 바뀌어 그 일치를 찾을 수 없습니다. 다시 검색해 주세요.'), []);
+
   const jumpHere = (at: QuoteLocation | null) =>
     setJump((j) => ({ ...(at ? { line: at.line, from: at.start, to: at.end } : { clear: true as const }), seq: (j?.seq ?? 0) + 1 }));
 
@@ -586,8 +605,14 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             ref={search}
             active={searching}
             onActiveChange={setSearching}
-            beforeSearch={() => editor.current?.flush() ?? Promise.resolve()}
+            beforeSearch={async () => {
+              const saved = await (editor.current?.flush() ?? Promise.resolve());
+              // 이 검색이 본 열린 화의 편집 상태를 기억한다 (결과로 이동할 때 그 뒤 편집기가 바뀌었는지 알기 위해)
+              pendingSnapshot.current = editor.current && fileRef.current ? { file: fileRef.current, editId: editor.current.editId() } : null;
+              return saved;
+            }}
             onOpen={openResult}
+            onResultShown={() => (searchSnapshot.current = pendingSnapshot.current)}
           />
           {project.list.duplicateIds.length > 0 && (
             <div className="warning duplicates" role="alert">
@@ -667,6 +692,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 onReload={onReload}
                 jump={jump}
                 onQuoteMissing={onQuoteMissing}
+                onMatchMissing={onMatchMissing}
                 marks={reviewMarks.file === file ? reviewMarks.quotes : undefined}
                 onReady={() => setEditorTick((t) => t + 1)}
               />

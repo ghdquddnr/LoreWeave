@@ -15,6 +15,8 @@ interface Props {
   /** 검색 직전에 현재 화의 저장 안 된 변경을 저장한다 (결과가 화면과 같도록). false면 저장하지 못한 것이다 (편집기가 없으면 undefined) */
   beforeSearch(): Promise<boolean | void>;
   onOpen(hit: SearchHit, match: SearchHit['matches'][number]): void;
+  /** 새 검색 결과가 실제로 화면에 게시됐다 (실패·취소·대체된 요청은 부르지 않는다) */
+  onResultShown?(): void;
   /** 검색 결과를 보여 주는 중인지 (목록 대신) */
   onActiveChange(active: boolean): void;
   active: boolean;
@@ -24,7 +26,7 @@ const NOT_SAVED = 'not-saved';
 const NOT_SAVED_NOTE = '저장하지 못해 검색하지 않았습니다. 저장 문제(저장 상태 표시)를 해결한 뒤 다시 검색하세요. 입력한 글은 그대로입니다.';
 
 export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchPanel(
-  { beforeSearch, onOpen, onActiveChange, active },
+  { beforeSearch, onOpen, onResultShown, onActiveChange, active },
   ref,
 ) {
   const input = useRef<HTMLInputElement>(null);
@@ -59,6 +61,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
       const found = await window.loreweave.chapters.search(q);
       if (mine !== seq.current) return;
       setResult({ ...found, query: q });
+      onResultShown?.();
       onActiveChange(true);
     } catch (e) {
       if (mine === seq.current) {
