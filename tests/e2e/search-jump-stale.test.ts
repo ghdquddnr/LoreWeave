@@ -155,3 +155,37 @@ test('다른 화를 거쳐 돌아와도(편집기가 새로 만들어져도) 검
     await closeWindow(app);
   }
 });
+
+test('다음 검색이 실패해도 이전 결과의 이동은 그 결과의 검색 당시 상태를 기준으로 한다 (실패한 검색의 스냅샷을 이전 결과에 적용하지 않는다)', { timeout: 90_000 }, async () => {
+  const { app, page } = await start('sjs-failed-search', '001.md', DUP, 'DUP');
+  try {
+    assert.equal(await results(page).count(), 2);
+    await results(page).nth(1).click();
+    await settled(page);
+    assert.equal(await selectedParagraph(page), 2, '둘째 결과(변경 전)');
+    // 첫 문단 앞에 TOP1/TOP2 삽입 → 다음 검색 IPC만 실패시킨다
+    await editor(page).getByText('지현이 말했다 반복').first().click();
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.insertText('TOP1');
+    await page.keyboard.press('Enter');
+    await page.keyboard.insertText('TOP2');
+    await page.keyboard.press('Enter');
+    await editor(page).getByText('TOP2', { exact: true }).waitFor();
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler('chapters:search');
+      ipcMain.handle('chapters:search', () => {
+        throw new Error('REVIEW_SEARCH_FAILURE');
+      });
+    });
+    await box(page).press('Enter');
+    await page.locator('.search .error').waitFor({ timeout: 15_000 });
+    assert.equal(await results(page).count(), 2, '실패해도 이전 결과가 남는다');
+    // 이전 결과의 둘째: 실패한 검색 직전의 편집 상태가 아니라 이 결과의 검색 당시 기준 → 옛 좌표를 믿지 않고 원래 둘째(문단 4)로
+    await results(page).nth(1).click();
+    await settled(page);
+    assert.equal(await selection(page), '지현');
+    assert.equal(await selectedParagraph(page), 4, '실패한 검색 때문에 옛 좌표(다른 첫 발생)를 믿지 않는다');
+  } finally {
+    await closeWindow(app);
+  }
+});

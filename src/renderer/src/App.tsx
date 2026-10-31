@@ -172,6 +172,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const search = useRef<SearchPanelHandle>(null);
   /** 가장 최근 검색 직전의 열린 화 상태 (결과 이동의 정확성 확인용) */
   const searchSnapshot = useRef<{ file: string; editId: string | null } | null>(null);
+  /** 방금 시작한 검색 직전의 상태. 그 검색 결과가 실제로 게시될 때만 searchSnapshot이 된다 (실패·취소된 검색이 이전 결과에 적용되지 않게) */
+  const pendingSnapshot = useRef<{ file: string; editId: string | null } | null>(null);
 
   const refreshAi = useCallback(() => {
     // 프로젝트를 바꾼 뒤에 도착한 이전 프로젝트의 응답은 버린다. main도 이전 token의 요청은 거절한다:
@@ -606,10 +608,11 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             beforeSearch={async () => {
               const saved = await (editor.current?.flush() ?? Promise.resolve());
               // 이 검색이 본 열린 화의 편집 상태를 기억한다 (결과로 이동할 때 그 뒤 편집기가 바뀌었는지 알기 위해)
-              searchSnapshot.current = editor.current && fileRef.current ? { file: fileRef.current, editId: editor.current.editId() } : null;
+              pendingSnapshot.current = editor.current && fileRef.current ? { file: fileRef.current, editId: editor.current.editId() } : null;
               return saved;
             }}
             onOpen={openResult}
+            onResultShown={() => (searchSnapshot.current = pendingSnapshot.current)}
           />
           {project.list.duplicateIds.length > 0 && (
             <div className="warning duplicates" role="alert">
