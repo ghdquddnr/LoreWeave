@@ -27,6 +27,7 @@ export function FactsPanel({ file, projectToken, locked, state, version, current
   /** 보이는 분석과 그 분석을 읽은 화. 화를 바꾼 직후(새 결과를 읽기 전)에도 이전 화의 분석을 보이지 않는다 */
   const [loaded, setLoaded] = useState<{ file: string; analysis: StoredAnalysis | null } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  /** 누른 인용이 지금 본문에 없다는 안내. 그 화·그 분석에서 누른 것이라 화·분석이 바뀌면 지운다 */
   const [missing, setMissing] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [open, setOpen] = useState(true);
@@ -35,6 +36,7 @@ export function FactsPanel({ file, projectToken, locked, state, version, current
     let cancelled = false;
     setLoaded(null);
     setFailed(null);
+    setMissing(null); // 다른 화의 분석(또는 다시 분석한 결과)에 이전 인용 없음 안내를 남기지 않는다
     // 거절·실패도 받는다: 지금 조회의 실패는 안내와 [다시 읽기]로 보이고, 이전 조회(다른 화·다른 프로젝트)의 실패는 조용히 버린다
     api.ai.analysis(file, projectToken).then(
       (a) => !cancelled && setLoaded({ file, analysis: a }),
