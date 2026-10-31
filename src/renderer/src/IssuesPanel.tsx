@@ -54,12 +54,19 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   const [showDismissed, setShowDismissed] = useState(false);
   const [showLow, setShowLow] = useState(false);
   const [missing, setMissing] = useState<string | null>(null);
-  /** 무시 실패. 그 결과의 화에서만 보인다 */
-  const [error, setError] = useState<{ file: string; message: string } | null>(null);
+  /** 무시 실패. 실패한 요청이 누른 그 결과(화·프로젝트·검사 결과)가 아직 보이는 동안에만 보인다 */
+  const [error, setError] = useState<{ file: string; ctx: number; message: string } | null>(null);
+  /** 결과의 문맥 세대: 화·프로젝트·검사 결과(version)가 바뀔 때만 오른다. 무시 뒤의 다시 읽기로는 오르지 않는다 */
+  const ctxRef = useRef(0);
+  const [ctx, setCtx] = useState(0);
   /** 마지막 무시 요청의 차례. 안내는 마지막 요청의 결과만 따른다 (늦게 끝난 이전 요청이 최신 상태를 바꾸지 않는다) */
   const dismissSeq = useRef(0);
   const [reload, setReload] = useState(0);
   const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    setCtx(++ctxRef.current);
+  }, [file, projectToken, version]);
 
   useEffect(() => {
     const mine = ++seq.current;
@@ -93,14 +100,16 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
     if (!ready || loaded.seq !== seq.current) return;
     const target = loaded.file;
     const mine = ++dismissSeq.current;
+    const at = ctxRef.current;
     void api.ai.dismiss(target, f.ord, projectToken).then(
       () => {
-        // 저장은 성공했으니 다시 읽고 배지를 갱신한다. 이전 실패 안내는 마지막 요청이 성공했을 때만 거둔다
-        if (mine === dismissSeq.current) setError(null);
+        // 저장은 성공했으니 다시 읽고 배지를 갱신한다. 이전 실패 안내는 같은 결과에서 마지막 요청이 성공했을 때만 거둔다
+        if (mine === dismissSeq.current) setError((cur) => (cur?.ctx === at ? null : cur));
         setReload((n) => n + 1);
         onDismissed();
       },
-      (e: Error) => mine === dismissSeq.current && setError({ file: target, message: e.message }),
+      // 마지막 요청이고, 누른 결과의 문맥(화·프로젝트·검사 결과)이 아직 같을 때만 안내한다 (화를 거치거나 새로 읽은 뒤의 늦은 실패는 버린다)
+      (e: Error) => mine === dismissSeq.current && at === ctxRef.current && setError({ file: target, ctx: at, message: e.message }),
     );
   };
 
@@ -166,7 +175,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
                 <span className="chip chip-missing">MISSING</span> 지금 본문에서 이 문장을 찾을 수 없습니다: {quoted(missing)}
               </p>
             )}
-            {error?.file === file && (
+            {error?.file === file && error.ctx === ctx && (
               <p className="error" role="alert">
                 <ErrorNote error={friendlyError(error.message)} />
               </p>
