@@ -52,6 +52,8 @@ interface ConfirmDialog {
   model: string;
   /** 처음 필요한 실행이라 같은 창에서 전송 동의도 받는다 */
   needsConsent: boolean;
+  /** 이 계획이 속한 화 (null: 프로젝트 범위) */
+  owner: string | null;
 }
 
 type Result = { kind: 'analysis'; progress: AnalyzeProgress } | { kind: 'check'; outcome: CheckOutcome };
@@ -77,6 +79,13 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     releaseRef.current = null;
   };
   const requestSeq = useRef(0);
+  /**
+   * 아직 보내지 않은 계획(기다리는 중·오류·재시도)이 속한 화. null이면 프로젝트 범위(남은 화 분석 등)라 화를 옮겨도 그대로다.
+   * 현재 화 대상의 계획은 다른 화로 옮기면 버린다 (늦게 온 응답이 지금 화의 확인 창으로 열리지 않게). 이미 보낸 실행은 건드리지 않는다
+   */
+  const planOwner = useRef<string | null>(null);
+  const planningRef = useRef(false);
+  planningRef.current = planning;
   const consentRef = useRef(consent);
   consentRef.current = consent;
   const busyRef = useRef(false);
@@ -95,6 +104,19 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     setPlanning(false);
     setStarting(false);
   }, [projectToken]);
+  useEffect(() => {
+    const owner = planOwner.current;
+    if (owner === null || owner === file) return;
+    // 현재 화 대상으로 계획을 기다리던 중이면 그 요청을 버린다 (보낸 실행이 아니다). 오류·재시도·안내도 그 화의 것이라 거둔다
+    if (planningRef.current) {
+      requestSeq.current++;
+      setPlanning(false);
+    }
+    planOwner.current = null;
+    setError(null);
+    setRetry(null);
+    setNotice(null);
+  }, [file]);
   useEffect(
     () => () => {
       requestSeq.current++;
@@ -106,6 +128,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
 
   const execute = async (kind: 'analysis' | 'check', work: () => Promise<Result>, unsavedText: string) => {
     setDialog(null);
+    planOwner.current = null; // 보낸 실행은 화를 옮겨도 이어진다
     setRunning(kind);
     setError(null);
     setRetry(null);
@@ -132,9 +155,10 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     execute('check', async () => ({ kind: 'check', outcome: await api.ai.runCheck(target, projectToken) }), unsavedText);
 
   /** 키를 확인하고, main이 계산한 계획(범위·비용 상한)을 받아 확인 창을 연다. 아무것도 보내지 않는다 */
-  const begin = async (build: () => Promise<Plan>) => {
+  const begin = async (build: () => Promise<Plan>, owner: string | null = null) => {
     if (busyRef.current) return;
     const mine = ++requestSeq.current;
+    planOwner.current = owner;
     setError(null);
     setNotice(null);
     setRetry(null);
@@ -146,11 +170,11 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       const plan = await build();
       if (mine !== requestSeq.current) return;
       const model = status.models.find((m) => m.id === status.model)?.label ?? status.model;
-      setDialog({ plan, model, needsConsent: !consentRef.current });
+      setDialog({ plan, model, needsConsent: !consentRef.current, owner });
     } catch (e) {
       if (mine === requestSeq.current) {
         setError(friendlyError(e));
-        setRetry(() => () => void begin(build));
+        setRetry(() => () => void begin(build, owner));
       }
     } finally {
       if (mine === requestSeq.current) setPlanning(false);
@@ -159,22 +183,22 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
 
   /** 확인 창의 범위·비용은 저장된 원고 기준이다 (분석은 저장된 파일을 읽는다). 그래서 계획을 계산하기 전에 먼저 저장하고, 저장할 수 없으면 계획도 전송도 하지 않는다 */
   const unsavedMessage = (p: Plan) => `저장하지 못해 ${p.kind === 'check' ? '검사를' : '분석을'} 시작하지 않았습니다. 작성한 내용은 화면에 그대로 있습니다.`;
-  const startAnalysis = (files: string[]) => {
+  const startAnalysis = (files: string[], owner: string | null = null) => {
     if (files.length === 0) return;
     void begin(async () => {
       if ((await beforeAnalyze()) === false) throw new Error(unsavedMessage({ kind: 'analysis', files, chars: 0, costUsd: 0 }));
       return { kind: 'analysis', files, ...(await api.ai.estimate(files, projectToken)) };
-    });
+    }, owner);
   };
 
   const startCheck = (target: string) =>
     void begin(async () => {
       if ((await beforeAnalyze()) === false) throw new Error(unsavedMessage({ kind: 'check', file: target, plan: { analyze: [], priors: 0, batches: 1, costUsd: 0 } }));
       return { kind: 'check', file: target, plan: await api.ai.planCheck(target, projectToken) };
-    });
+    }, target);
 
   useImperativeHandle(ref, () => ({
-    analyzeCurrent: () => file && startAnalysis([file]),
+    analyzeCurrent: () => file && startAnalysis([file], file),
     analyzePending: () => startAnalysis(pending),
     checkCurrent: () => file && startCheck(file),
     isBusy: () => busyRef.current,
@@ -215,7 +239,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
         // 확인 뒤 원고나 모델이 달라졌다: 보내지 않고 새 값으로 다시 확인받는다
         setError(null);
         setNotice('확인한 뒤 원고 내용이나 모델이 달라져 범위와 비용을 다시 확인합니다. 아직 아무것도 보내지 않았습니다.');
-        setDialog({ plan: fresh, model, needsConsent: false });
+        setDialog({ plan: fresh, model, needsConsent: false, owner: d.owner });
         return;
       }
       // 같은 값이 확인됐다: 요청을 보내는 순간까지 잠금을 유지하고(execute가 보낸 직후 푼다) 실행한다
@@ -225,7 +249,8 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       // 확인 뒤의 어떤 단계가 실패해도 조용히 닫지 않는다: 사용자용 안내와 기술 상세, 다시 시도. (프로젝트가 바뀐 뒤의 늦은 오류는 보이지 않는다)
       if (mine === requestSeq.current) {
         setError(friendlyError(e));
-        setRetry(() => () => (d.plan.kind === 'analysis' ? startAnalysis(d.plan.files) : startCheck(d.plan.file)));
+        planOwner.current = d.owner;
+        setRetry(() => () => (d.plan.kind === 'analysis' ? startAnalysis(d.plan.files, d.owner) : startCheck(d.plan.file)));
       }
     } finally {
       unlock();
@@ -247,7 +272,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       {toolbarSlot &&
         createPortal(
           <div className="row">
-            <button type="button" disabled={!idle || !file} onClick={() => file && startAnalysis([file])}>
+            <button type="button" disabled={!idle || !file} onClick={() => file && startAnalysis([file], file)}>
               이 화 분석
             </button>
             <button type="button" disabled={!idle || !file} onClick={() => file && startCheck(file)}>
