@@ -19,6 +19,9 @@ export interface SearchHit {
   /** 본문 줄 번호 (0부터) */
   line: number;
   text: string;
+  /** 검색 당시 앞·뒤 줄 (null은 화의 처음·끝) */
+  prev: string | null;
+  next: string | null;
   matches: MatchRange[];
 }
 

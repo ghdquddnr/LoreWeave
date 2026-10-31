@@ -42,6 +42,9 @@ export interface LineHit {
   title: string;
   line: number;
   text: string;
+  /** 검색 당시 앞·뒤 줄의 글 (null은 화의 처음·끝). 결과로 이동할 때 본문이 바뀌었어도 같은 발생을 식별하는 데 쓴다 */
+  prev: string | null;
+  next: string | null;
 }
 
 export class ManuscriptIndex {
@@ -118,7 +121,10 @@ export class ManuscriptIndex {
     };
     const hits = this.db
       .prepare(
-        `SELECT l.file, c.title, l.line, l.text FROM lines l JOIN chapters c ON c.file = l.file
+        `SELECT l.file, c.title, l.line, l.text,
+                (SELECT p.text FROM lines p WHERE p.file = l.file AND p.line = l.line - 1) AS prev,
+                (SELECT n.text FROM lines n WHERE n.file = l.file AND n.line = l.line + 1) AS next
+         FROM lines l JOIN chapters c ON c.file = l.file
          WHERE instr(l.norm, ?) > 0
          ORDER BY c.num IS NULL, c.num, l.file, l.line
          LIMIT ?`,

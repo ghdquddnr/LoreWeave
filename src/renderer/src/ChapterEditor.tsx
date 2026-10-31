@@ -332,7 +332,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     else {
       // 검색 결과: 검색한 뒤 이 편집기가 바뀌지 않았으면 옛 좌표가 그대로 맞다. 바뀌었다면 줄 글이 같다는 것만으로 같은 일치라고 보지 않는다 (같은 문장이 반복되면
       // 앞에 문단이 더해진 뒤 옛 좌표에 다른 반복이 놓일 수 있다): 검색 당시 앞뒤 줄까지 같은 줄이 본문에 하나뿐일 때만 그 줄로 간다.
-      // 앞뒤 줄을 모르면(다른 화에서 열었을 때) 같은 자리의 같은 줄, 아니면 같은 줄이 하나뿐일 때. 정할 수 없으면 엉뚱한 글자를 일치처럼 선택하지 않는다
+      // 정할 수 없으면 엉뚱한 글자를 일치처럼 선택하지 않는다 (앞뒤 줄 정보가 없는 이동은 같은 자리의 같은 줄, 아니면 같은 줄이 하나뿐일 때)
       let line = -1;
       if (jump.pristine && current[jump.line] === jump.text) line = jump.line;
       else if (jump.prev !== undefined && jump.next !== undefined) {

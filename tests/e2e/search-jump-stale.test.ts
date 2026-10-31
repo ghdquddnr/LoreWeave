@@ -27,10 +27,11 @@ const selectedParagraph = (page: Page) =>
   });
 const settled = (page: Page) => page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
 
-async function start(prefix: string, file: string, text: string, title: string) {
+async function start(prefix: string, file: string, text: string, title: string, extra: Record<string, string> = {}) {
   const dir = await tempDir(prefix);
   await mkdir(join(dir, 'chapters'));
   await writeFile(join(dir, 'chapters', file), text);
+  for (const [f, t] of Object.entries(extra)) await writeFile(join(dir, 'chapters', f), t);
   const { app, page } = await launch(await tempDir(`${prefix}-ud`));
   await stubFolderDialog(app, dir);
   await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
@@ -109,6 +110,44 @@ test('본문이 그대로이면 같은 문구가 반복돼도 누른 결과의 �
     assert.equal(await selection(page), '지현');
     assert.equal(await selectedParagraph(page), 4, '옛 좌표를 차지한 다른 발생(첫째)이 아니라 원래 둘째 발생');
     // 원래 첫째 결과는 앞줄이 바뀌어(문서 처음 → TOP2) 안전하게 식별할 수 없으므로 선택을 접는다 (둘째로 가지 않는다)
+    await results(page).nth(0).click();
+    await settled(page);
+    assert.equal(await selection(page), '', '식별할 수 없으면 선택하지 않는다');
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+const OTHER = `${envelope('other', 'OTHER')}${lines('지현 OTHER 본문')}`;
+
+test('다른 화를 거쳐 돌아와도(편집기가 새로 만들어져도) 검색 당시 앞뒤 줄로 원래 발생을 식별하고, 식별할 수 없으면 선택을 접는다', { timeout: 90_000 }, async () => {
+  const { app, page } = await start('sjs-reopen', '001.md', DUP, 'DUP', { '002.md': OTHER });
+  try {
+    assert.equal(await results(page).count(), 3, 'DUP 2건 + OTHER 1건');
+    await results(page).nth(1).click();
+    await settled(page);
+    assert.equal(await selectedParagraph(page), 2, '둘째 결과(변경 전)');
+    await results(page).nth(0).click();
+    await settled(page);
+    assert.equal(await selectedParagraph(page), 0, '첫째 결과(변경 전)');
+    // DUP 첫 문단 앞에 TOP1/TOP2 삽입
+    await editor(page).getByText('지현이 말했다 반복').first().click();
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.insertText('TOP1');
+    await page.keyboard.press('Enter');
+    await page.keyboard.insertText('TOP2');
+    await page.keyboard.press('Enter');
+    await editor(page).getByText('TOP2', { exact: true }).waitFor();
+    // 다른 화(OTHER)로 갔다 온다: 정상 이동은 보존된다
+    await results(page).nth(2).click();
+    await editor(page).getByText('지현 OTHER 본문').waitFor();
+    assert.equal(await selection(page), '지현', '다른 화 결과의 정상 이동');
+    // DUP 편집기는 새로 만들어진다: 원래 둘째는 문단 4로, 원래 첫째는 선택을 접는다
+    await results(page).nth(1).click();
+    await editor(page).getByText('TOP2', { exact: true }).waitFor();
+    await settled(page);
+    assert.equal(await selection(page), '지현');
+    assert.equal(await selectedParagraph(page), 4, '다른 화를 거친 뒤에도 원래 둘째 발생');
     await results(page).nth(0).click();
     await settled(page);
     assert.equal(await selection(page), '', '식별할 수 없으면 선택하지 않는다');

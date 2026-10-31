@@ -171,7 +171,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const editor = useRef<ChapterEditorHandle>(null);
   const search = useRef<SearchPanelHandle>(null);
   /** 가장 최근 검색 직전의 열린 화 상태 (결과 이동의 정확성 확인용) */
-  const searchSnapshot = useRef<{ file: string; editId: string | null; lines: string[] | null } | null>(null);
+  const searchSnapshot = useRef<{ file: string; editId: string | null } | null>(null);
 
   const refreshAi = useCallback(() => {
     // 프로젝트를 바꾼 뒤에 도착한 이전 프로젝트의 응답은 버린다. main도 이전 token의 요청은 거절한다:
@@ -336,11 +336,10 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const openResult = (hit: SearchHit, match: SearchHit['matches'][number]) =>
     run(async (gen) => {
       if (switchingRef.current || actingRef.current || (hit.file !== file && !(await leave())) || !isCurrent(gen)) return;
-      // 같은 화에서 검색했고 그 뒤 편집기가 바뀌지 않았다면 옛 좌표가 맞다. 앞뒤 줄은 검색 당시 열린 화의 줄에서 안다 (그 화가 아니면 모름)
+      // 같은 화에서 검색했고 그 뒤 편집기가 한 번도 바뀌지 않았다면(다른 화로 갔다 오면 편집기가 새로 만들어져 아니다) 옛 좌표가 맞다.
+      // 검색 당시의 앞뒤 줄은 결과(hit)가 갖고 있어, 화를 옮긴 뒤에도 같은 발생을 식별한다
       const snap = searchSnapshot.current;
-      const sameFile = !!snap && snap.file === hit.file && hit.file === fileRef.current;
-      const seen = sameFile && snap!.lines?.[hit.line] === hit.text;
-      const pristine = sameFile && snap!.editId !== null && snap!.editId === editor.current?.editId();
+      const pristine = !!snap && snap.file === hit.file && hit.file === fileRef.current && snap.editId !== null && snap.editId === editor.current?.editId();
       activate(hit.file);
       setJump((j) => ({
         line: hit.line,
@@ -348,7 +347,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         to: match.to,
         text: hit.text,
         pristine,
-        ...(seen ? { prev: snap!.lines![hit.line - 1] ?? null, next: snap!.lines![hit.line + 1] ?? null } : {}),
+        prev: hit.prev,
+        next: hit.next,
         seq: (j?.seq ?? 0) + 1,
       }));
     });
@@ -605,8 +605,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             onActiveChange={setSearching}
             beforeSearch={async () => {
               const saved = await (editor.current?.flush() ?? Promise.resolve());
-              // 이 검색이 본 열린 화의 상태를 기억한다 (결과로 이동할 때 그 뒤 본문이 바뀌었는지, 일치의 앞뒤 줄이 무엇이었는지 알기 위해)
-              searchSnapshot.current = editor.current && fileRef.current ? { file: fileRef.current, editId: editor.current.editId(), lines: editor.current.lines() } : null;
+              // 이 검색이 본 열린 화의 편집 상태를 기억한다 (결과로 이동할 때 그 뒤 편집기가 바뀌었는지 알기 위해)
+              searchSnapshot.current = editor.current && fileRef.current ? { file: fileRef.current, editId: editor.current.editId() } : null;
               return saved;
             }}
             onOpen={openResult}
