@@ -82,7 +82,7 @@ test('일치한 문구를 지운 뒤에는 아무 글자도 일치처럼 선택�
   }
 });
 
-test('본문이 그대로이면 같은 문구가 반복돼도 누른 결과의 줄을 정확히 선택하고, 앞에 문단을 넣어 하나로 정할 수 없으면 첫 일치로 가지 않고 선택을 접는다', { timeout: 90_000 }, async () => {
+test('본문이 그대로이면 같은 문구가 반복돼도 누른 결과의 줄을 정확히 선택하고, 앞에 문단을 넣은 뒤에는 옛 좌표를 차지한 다른 발생이 아니라 앞뒤 줄로 식별되는 원래 발생으로 가고 식별할 수 없으면 선택을 접는다', { timeout: 90_000 }, async () => {
   const { app, page } = await start('sjs-dup', '001.md', DUP, 'DUP');
   try {
     assert.equal(await results(page).count(), 2);
@@ -93,15 +93,25 @@ test('본문이 그대로이면 같은 문구가 반복돼도 누른 결과의 �
     await results(page).nth(0).click();
     await settled(page);
     assert.equal(await selectedParagraph(page), 0, '첫 결과는 첫 줄');
-    // 앞에 문단을 넣으면 같은 줄이 둘이라 어느 쪽인지 정할 수 없다: 임의의 첫 일치로 가지 않는다
-    await editor(page).getByText('CCCC 사이', { exact: true }).click();
-    await page.keyboard.press('Home');
-    await page.keyboard.insertText('NEWMID');
+    // 첫 문단 앞에 두 문단을 넣는다: 같은 줄이 둘이고, 옛 좌표(문단 2)에는 이제 첫 발생이 놓인다
+    await editor(page).getByText('지현이 말했다 반복').first().click();
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.insertText('TOP1');
     await page.keyboard.press('Enter');
-    await editor(page).getByText('NEWMID', { exact: true }).waitFor();
+    await page.keyboard.insertText('TOP2');
+    await page.keyboard.press('Enter');
+    await editor(page).getByText('TOP2', { exact: true }).waitFor();
+    const lines = await editor(page).locator('> p').allInnerTexts();
+    assert.deepEqual(lines.map((t) => t.trim()), ['TOP1', 'TOP2', '지현이 말했다 반복', 'CCCC 사이', '지현이 말했다 반복'], '삽입 뒤 본문');
+    // 원래 둘째 결과: 옛 좌표(문단 2)는 첫 발생이지만, 앞뒤 줄로 식별되는 원래 둘째(문단 4)로 간다
     await results(page).nth(1).click();
     await settled(page);
-    assert.equal(await selection(page), '', '정할 수 없으면 선택하지 않는다');
+    assert.equal(await selection(page), '지현');
+    assert.equal(await selectedParagraph(page), 4, '옛 좌표를 차지한 다른 발생(첫째)이 아니라 원래 둘째 발생');
+    // 원래 첫째 결과는 앞줄이 바뀌어(문서 처음 → TOP2) 안전하게 식별할 수 없으므로 선택을 접는다 (둘째로 가지 않는다)
+    await results(page).nth(0).click();
+    await settled(page);
+    assert.equal(await selection(page), '', '식별할 수 없으면 선택하지 않는다');
   } finally {
     await closeWindow(app);
   }

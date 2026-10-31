@@ -170,6 +170,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const [settingsOpen, setSettingsOpen] = useState(false);
   const editor = useRef<ChapterEditorHandle>(null);
   const search = useRef<SearchPanelHandle>(null);
+  /** 가장 최근 검색 직전의 열린 화 상태 (결과 이동의 정확성 확인용) */
+  const searchSnapshot = useRef<{ file: string; editId: string | null; lines: string[] | null } | null>(null);
 
   const refreshAi = useCallback(() => {
     // 프로젝트를 바꾼 뒤에 도착한 이전 프로젝트의 응답은 버린다. main도 이전 token의 요청은 거절한다:
@@ -334,8 +336,21 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const openResult = (hit: SearchHit, match: SearchHit['matches'][number]) =>
     run(async (gen) => {
       if (switchingRef.current || actingRef.current || (hit.file !== file && !(await leave())) || !isCurrent(gen)) return;
+      // 같은 화에서 검색했고 그 뒤 편집기가 바뀌지 않았다면 옛 좌표가 맞다. 앞뒤 줄은 검색 당시 열린 화의 줄에서 안다 (그 화가 아니면 모름)
+      const snap = searchSnapshot.current;
+      const sameFile = !!snap && snap.file === hit.file && hit.file === fileRef.current;
+      const seen = sameFile && snap!.lines?.[hit.line] === hit.text;
+      const pristine = sameFile && snap!.editId !== null && snap!.editId === editor.current?.editId();
       activate(hit.file);
-      setJump((j) => ({ line: hit.line, from: match.from, to: match.to, text: hit.text, seq: (j?.seq ?? 0) + 1 }));
+      setJump((j) => ({
+        line: hit.line,
+        from: match.from,
+        to: match.to,
+        text: hit.text,
+        pristine,
+        ...(seen ? { prev: snap!.lines![hit.line - 1] ?? null, next: snap!.lines![hit.line + 1] ?? null } : {}),
+        seq: (j?.seq ?? 0) + 1,
+      }));
     });
 
   /** 검사 근거로 이동: 그 화를 열고, 저장된 위치 대신 지금 본문에서 근거 문장을 다시 찾아 선택한다 (못 찾으면 알린다) */
@@ -588,7 +603,12 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             ref={search}
             active={searching}
             onActiveChange={setSearching}
-            beforeSearch={() => editor.current?.flush() ?? Promise.resolve()}
+            beforeSearch={async () => {
+              const saved = await (editor.current?.flush() ?? Promise.resolve());
+              // 이 검색이 본 열린 화의 상태를 기억한다 (결과로 이동할 때 그 뒤 본문이 바뀌었는지, 일치의 앞뒤 줄이 무엇이었는지 알기 위해)
+              searchSnapshot.current = editor.current && fileRef.current ? { file: fileRef.current, editId: editor.current.editId(), lines: editor.current.lines() } : null;
+              return saved;
+            }}
             onOpen={openResult}
           />
           {project.list.duplicateIds.length > 0 && (
