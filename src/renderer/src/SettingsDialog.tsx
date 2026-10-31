@@ -129,9 +129,11 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
               className="row"
               onSubmit={(e) => {
                 e.preventDefault();
+                const submitted = key;
                 void run(async () => {
-                  apply(await api.ai.setKey(key));
-                  setKey('');
+                  apply(await api.ai.setKey(submitted));
+                  // 응답을 기다리는 동안 새로 입력한 초안은 지우지 않는다: 제출한 값 그대로일 때만 비운다
+                  setKey((current) => (current === submitted ? '' : current));
                   setMessage({ ok: true, text: '키를 저장했습니다' });
                 });
               }}
