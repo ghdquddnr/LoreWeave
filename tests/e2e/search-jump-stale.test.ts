@@ -141,6 +141,9 @@ test('다른 화를 거쳐 돌아와도(편집기가 새로 만들어져도) 검
     // 다른 화(OTHER)로 갔다 온다: 정상 이동은 보존된다
     await results(page).nth(2).click();
     await editor(page).getByText('지현 OTHER 본문').waitFor();
+    // 본문이 보이는 것과 이동(선택)이 적용되는 것은 다르다: 올바른 선택이 적용될 때까지 조건으로 기다린다 (시간 제한 안에 안 되면 실패)
+    await page.waitForFunction(() => window.getSelection()?.toString() === '지현', undefined, { timeout: 10_000 });
+    await settled(page);
     assert.equal(await selection(page), '지현', '다른 화 결과의 정상 이동');
     // DUP 편집기는 새로 만들어진다: 원래 둘째는 문단 4로, 원래 첫째는 선택을 접는다
     await results(page).nth(1).click();
