@@ -49,6 +49,8 @@ test('없는 인용 안내는 그 화에 묶여 다른 화(분석 있음·없음
     assert.equal(await missingNote(page).count(), 0);
     await facts(page).getByRole('button', { name: /“NOT_IN_THE_BODY”/ }).click();
     await missingNote(page).waitFor();
+    // 안내 표시는 선택 적용 완료의 증거가 아니다: 선택이 실제로 접힐 때까지 조건으로 기다린 뒤 단언한다
+    await page.waitForFunction(() => (window.getSelection()?.toString() ?? '') === '', undefined, { timeout: 10_000 });
     assert.equal(await selection(page), '', '없는 인용은 선택을 접는다');
     await facts(page).getByRole('button', { name: /“ONE_BODY”/ }).click();
     await missingNote(page).waitFor({ state: 'detached' });
