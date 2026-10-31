@@ -532,7 +532,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             <ErrorNote error={{ summary: error, detail: errorDetail }} />
           </p>
         )}
-        {settingsOpen && <SettingsDialog appearance={appearance} totalCostUsd={0} onClose={() => setSettingsOpen(false)} onChange={() => undefined} />}
+        {settingsOpen && <SettingsDialog appearance={appearance} totalCostUsd={null} hasProject={false} onClose={() => setSettingsOpen(false)} onChange={() => undefined} />}
       </main>
     );
   }
@@ -860,7 +860,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         />
       )}
       {settingsOpen && (
-        <SettingsDialog appearance={appearance} totalCostUsd={ai?.totalCostUsd ?? 0} onClose={() => setSettingsOpen(false)} onChange={() => refreshAi()} />
+        <SettingsDialog appearance={appearance} totalCostUsd={ai ? ai.totalCostUsd : null} hasProject onClose={() => setSettingsOpen(false)} onChange={() => refreshAi()} />
       )}
     </div>
   );

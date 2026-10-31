@@ -12,12 +12,15 @@ const api = window.loreweave;
 
 interface Props {
   appearance: AppearanceController;
-  totalCostUsd: number;
+  /** 이 프로젝트의 AI 비용. null이면 아직 읽지 못했다 (읽는 중이거나 읽기에 실패): 0으로 보이지 않게 미확인으로 안내한다 */
+  totalCostUsd: number | null;
+  /** 열린 프로젝트가 있는가 (없으면 비용은 "미확인"이 아니라 해당 없음) */
+  hasProject: boolean;
   onClose(): void;
   onChange(status: AiStatus): void;
 }
 
-export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: Props) {
+export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, onChange }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [key, setKey] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -189,7 +192,10 @@ export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: 
           </>
         )}
 
-        <p className="muted">이 프로젝트에서 AI에 쓴 비용: ${totalCostUsd.toFixed(4)}</p>
+        <p className="muted">
+          이 프로젝트에서 AI에 쓴 비용:{' '}
+          {!hasProject ? '원고 폴더를 열면 볼 수 있습니다' : totalCostUsd === null ? '아직 확인하지 못했습니다' : `$${totalCostUsd.toFixed(4)}`}
+        </p>
         <div className="row end">
           <button type="button" onClick={onClose}>
             닫기
