@@ -12,13 +12,16 @@ export interface SearchPanelHandle {
 }
 
 interface Props {
-  /** 검색 직전에 현재 화의 저장 안 된 변경을 저장한다 (결과가 화면과 같도록) */
-  beforeSearch(): Promise<unknown>;
+  /** 검색 직전에 현재 화의 저장 안 된 변경을 저장한다 (결과가 화면과 같도록). false면 저장하지 못한 것이다 (편집기가 없으면 undefined) */
+  beforeSearch(): Promise<boolean | void>;
   onOpen(hit: SearchHit, match: SearchHit['matches'][number]): void;
   /** 검색 결과를 보여 주는 중인지 (목록 대신) */
   onActiveChange(active: boolean): void;
   active: boolean;
 }
+
+const NOT_SAVED = 'not-saved';
+const NOT_SAVED_NOTE = '저장하지 못해 검색하지 않았습니다. 저장 문제(저장 상태 표시)를 해결한 뒤 다시 검색하세요. 입력한 글은 그대로입니다.';
 
 export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchPanel(
   { beforeSearch, onOpen, onActiveChange, active },
@@ -46,15 +49,26 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     const mine = ++seq.current;
     setBusy(true);
     setError(null);
+    let searched = false;
     try {
-      await beforeSearch();
+      const saved = await beforeSearch();
+      // 저장하지 못했으면 검색하지 않는다: 디스크만 찾은 "없음/찾음"이 화면의 저장 안 된 본문에 대한 결과처럼 보이면 안 된다 (입력·원고는 건드리지 않는다)
+      if (saved === false && mine === seq.current) throw new Error(NOT_SAVED);
       if (mine !== seq.current) return; // 저장을 기다리는 사이 취소됐거나 새 요청이 생겼다: 검색 요청을 보내지 않는다
+      searched = true;
       const found = await window.loreweave.chapters.search(q);
       if (mine !== seq.current) return;
       setResult({ ...found, query: q });
       onActiveChange(true);
     } catch (e) {
-      if (mine === seq.current) setError(friendlyError(e).summary);
+      if (mine === seq.current) {
+        if (!searched) {
+          // 저장 단계에서 멈췄다: 이전 검색 결과를 이 검색의 결과처럼 남기지 않고 화 목록으로 돌아간다 (검색어는 남겨 다시 검색할 수 있다)
+          setResult(null);
+          onActiveChange(false);
+          setError(e instanceof Error && e.message === NOT_SAVED ? NOT_SAVED_NOTE : `저장 중 오류로 검색하지 않았습니다: ${friendlyError(e).summary}`);
+        } else setError(friendlyError(e).summary);
+      }
     } finally {
       if (mine === seq.current) setBusy(false);
     }
