@@ -351,10 +351,16 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const reissueId = (target: string) =>
     lockedAction(async (gen) => {
       if (!project || !(await leave()) || !isCurrent(gen)) return false;
-      const list = await api.chapters.reissueId(target, project.token);
+      const issued = await api.chapters.reissueId(target, project.token);
       // 다른 프로젝트가 열렸으면 그 화면의 에디터가 대신한다 (잠금이 풀리면 열린다)
       if (!(await settled(gen))) return true;
-      setProject((p) => p && { ...p, list });
+      if (issued.list) setProject((p) => p && { ...p, list: issued.list });
+      else {
+        // 발급은 성공했고 목록 조회만 실패했다: 발급 실패와 구별해 알리고, 목록만 다시 읽을 수 있게 한다 (다시 발급하지 않는다)
+        fail(issued.listError, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        setUnlisted({ file: null, seq: errorSeqRef.current });
+      }
+      // 열린 화가 대상이면 새 id가 든 디스크 내용으로 다시 연다 (옛 envelope가 새 id를 되돌리지 않게)
       if (target !== file) return false;
       setReloadKey((k) => k + 1);
       return true;
@@ -364,7 +370,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    * 화 만들기는 성공했지만 화 목록을 다시 읽지 못한 경우: 만들어진 파일 이름. 목록만 다시 읽어 복구한다 (생성은 다시 실행하지 않는다).
    * 프로젝트가 바뀌면 지운다
    */
-  const [unlisted, setUnlisted] = useState<{ file: string; seq: number } | null>(null);
+  const [unlisted, setUnlisted] = useState<{ file: string | null; seq: number } | null>(null);
 
   /** 만들어진 화를 목록에 반영하고 연다. 목록을 읽지 못하면 "만들어졌다"고 알리고 [목록 다시 읽기]를 남긴다 (false: 에디터를 그대로 둔다) */
   const showCreated = async (gen: number, token: number, file: string, recovering = false, unlistedSeq = -1): Promise<boolean> => {
@@ -399,7 +405,22 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     lockedAction(async (gen) => {
       const target = unlisted;
       if (!project || !target || !(await leave()) || !isCurrent(gen)) return false;
-      return showCreated(gen, project.token, target.file, true, target.seq);
+      if (target.file) return showCreated(gen, project.token, target.file, true, target.seq);
+      // id 발급 뒤의 복구: 목록만 다시 읽는다 (화는 이미 새 id로 열려 있다)
+      let list;
+      try {
+        list = await api.chapters.list(project.token);
+      } catch (e) {
+        if (!isCurrent(gen)) return false;
+        fail(e, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        setUnlisted({ file: null, seq: errorSeqRef.current });
+        return false;
+      }
+      if (!isCurrent(gen)) return false;
+      setProject((p) => p && { ...p, list });
+      if (target.seq === errorSeqRef.current) setError(null);
+      setUnlisted(null);
+      return false;
     });
 
   const chooseFolder = () =>
@@ -746,7 +767,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         )}
         {unlisted && unlisted.seq !== errorSeq && (
           <span className="warning">
-            <span aria-hidden="true">⚠</span> 새 화({unlisted.file})가 목록에 아직 없습니다{' '}
+            <span aria-hidden="true">⚠</span> {unlisted.file ? `새 화(${unlisted.file})가 목록에 아직 없습니다` : '화 목록이 아직 갱신되지 않았습니다'}{' '}
             <button type="button" className="link" disabled={busy} onClick={() => void rereadList()}>
               목록 다시 읽기
             </button>
