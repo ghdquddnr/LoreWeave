@@ -295,7 +295,12 @@ export function registerIpc(): void {
       ownWrites.set(file, hash);
       await updateIndex((i) => reindexChapter(i, path, file));
     }
-    return listChapters(path);
+    // id는 이미 디스크에 바뀌었다: 목록 조회가 실패해도 발급 실패로 돌려주지 않는다 (화면이 다시 발급하게 되지 않도록)
+    try {
+      return { list: await listChapters(path) };
+    } catch (e) {
+      return { list: null, listError: e instanceof Error ? e.message : String(e) };
+    }
   });
   ipcMain.handle(CHANNELS.aiStatus, () => aiStatus());
   ipcMain.handle(CHANNELS.aiSetKey, async (_e, key: string) => {

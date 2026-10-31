@@ -83,8 +83,11 @@ export interface LoreweaveApi {
     create(token: number): Promise<{ file: string } & ChapterContent>;
     /** 원고 전체 검색. 색인이 준비될 때까지 기다린다 */
     search(query: string): Promise<SearchResult>;
-    /** frontmatter id를 새로 발급한다 (중복 id 해결). 새 화 목록을 돌려준다 */
-    reissueId(file: string, token: number): Promise<ChapterList>;
+    /**
+     * frontmatter id를 새로 발급한다 (중복 id 해결). 새 화 목록을 돌려준다.
+     * 발급은 디스크에 성공했지만 뒤이은 목록 조회가 실패하면 list는 null이고 listError에 이유가 있다 (발급 실패가 아니다: 다시 발급하지 않는다)
+     */
+    reissueId(file: string, token: number): Promise<{ list: ChapterList } | { list: null; listError: string }>;
     /** 다른 프로그램이 화 파일을 바꾸거나 지웠을 때 (지웠으면 hash는 null). 이 앱이 쓴 변경은 알리지 않는다 */
     onChangedOutside(listener: (change: { file: string; hash: string | null }) => void): () => void;
   };
