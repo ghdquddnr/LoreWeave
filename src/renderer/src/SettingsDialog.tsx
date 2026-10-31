@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { AiStatus } from '../../preload/api.ts';
 import { AppearanceSettings } from './AppearanceSettings.tsx';
 import type { AppearanceController } from './useAppearance.ts';
-import { friendlyError } from './userError.ts';
+import { ErrorNote } from './ErrorNote.tsx';
+import { type FriendlyError, friendlyError } from './userError.ts';
 
 const api = window.loreweave;
 
@@ -21,11 +22,29 @@ export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: 
   const [key, setKey] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  /** AI 상태를 읽지 못했다 (키 없음·암호화 불가와 다르다: 아직 모른다). 다시 시도로 처음부터 읽는다 (자동 재시도 없음) */
+  const [statusError, setStatusError] = useState<FriendlyError | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const dialog = useRef<HTMLElement>(null);
 
+  // 대화상자를 닫거나 다시 시도하면 이전 요청의 늦은 응답은 버린다
   useEffect(() => {
-    void api.ai.status().then(setStatus);
-  }, []);
+    let cancelled = false;
+    api.ai.status().then(
+      (next) => {
+        if (!cancelled) setStatus(next);
+      },
+      (e: unknown) => {
+        if (cancelled) return;
+        // 쓰기 오류 문구로 바뀌지 않게 안내는 고정하고, 원래 이유는 기술 상세로 둔다
+        const f = friendlyError(e);
+        setStatusError({ summary: 'AI 설정을 읽지 못했습니다', detail: f.detail || f.summary });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
 
   // 키보드 focus: 열 때 대화상자로 들어가고, 닫으면 연 버튼(또는 열기 전 포커스)으로 돌아간다
   useEffect(() => {
@@ -34,7 +53,7 @@ export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: 
     return () => {
       if (opener?.isConnected) opener.focus();
     };
-  }, [status === null]);
+  }, []);
 
   const apply = (next: AiStatus) => {
     setStatus(next);
@@ -53,7 +72,6 @@ export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: 
     }
   };
 
-  if (!status) return null;
   return (
     <div
       className="modal-backdrop"
@@ -82,72 +100,93 @@ export function SettingsDialog({ appearance, totalCostUsd, onClose, onChange }: 
           AI 분석은 작가가 버튼을 누를 때만, 그 화의 본문을 OpenAI로 보냅니다. 비용은 작가의 OpenAI 계정에 청구됩니다.
         </p>
 
-        <h3>OpenAI API 키</h3>
-        {!status.canEncrypt && <p className="error">이 컴퓨터에서는 키를 암호화해 저장할 수 없어 AI 분석을 쓸 수 없습니다.</p>}
-        <p>{status.hasKey ? '저장됨 (암호화해 이 컴퓨터에만 보관)' : '없음'}</p>
-        <form
-          className="row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run(async () => {
-              apply(await api.ai.setKey(key));
-              setKey('');
-              setMessage({ ok: true, text: '키를 저장했습니다' });
-            });
-          }}
-        >
-          <input
-            type="password"
-            aria-label="API 키"
-            placeholder={status.hasKey ? '새 키로 바꾸기' : 'sk-…'}
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <button type="submit" disabled={busy || !key.trim() || !status.canEncrypt}>
-            저장
-          </button>
-          {status.hasKey && (
-            <button type="button" disabled={busy} onClick={() => void run(async () => apply(await api.ai.deleteKey()))}>
-              삭제
-            </button>
-          )}
-        </form>
+        {!status ? (
+          statusError ? (
+            <p className="error" role="alert">
+              <ErrorNote
+                error={statusError}
+                hint="환경설정의 다른 항목과 원고는 그대로입니다."
+                onRetry={() => {
+                  setStatusError(null);
+                  setAttempt((n) => n + 1);
+                }}
+              />
+            </p>
+          ) : (
+            <p className="muted" role="status">
+              AI 설정을 읽는 중…
+            </p>
+          )
+        ) : (
+          <>
+            <h3>OpenAI API 키</h3>
+            {!status.canEncrypt && <p className="error">이 컴퓨터에서는 키를 암호화해 저장할 수 없어 AI 분석을 쓸 수 없습니다.</p>}
+            <p>{status.hasKey ? '저장됨 (암호화해 이 컴퓨터에만 보관)' : '없음'}</p>
+            <form
+              className="row"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(async () => {
+                  apply(await api.ai.setKey(key));
+                  setKey('');
+                  setMessage({ ok: true, text: '키를 저장했습니다' });
+                });
+              }}
+            >
+              <input
+                type="password"
+                aria-label="API 키"
+                placeholder={status.hasKey ? '새 키로 바꾸기' : 'sk-…'}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button type="submit" disabled={busy || !key.trim() || !status.canEncrypt}>
+                저장
+              </button>
+              {status.hasKey && (
+                <button type="button" disabled={busy} onClick={() => void run(async () => apply(await api.ai.deleteKey()))}>
+                  삭제
+                </button>
+              )}
+            </form>
 
-        <h3>모델</h3>
-        <select
-          aria-label="모델"
-          value={status.model}
-          disabled={busy}
-          onChange={(e) => void run(async () => apply(await api.ai.setModel(e.target.value)))}
-        >
-          {status.models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+            <h3>모델</h3>
+            <select
+              aria-label="모델"
+              value={status.model}
+              disabled={busy}
+              onChange={(e) => void run(async () => apply(await api.ai.setModel(e.target.value)))}
+            >
+              {status.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
 
-        <div className="row">
-          <button
-            type="button"
-            disabled={busy || !status.hasKey}
-            onClick={() =>
-              void run(async () => {
-                const result = await api.ai.check();
-                setMessage(result.ok ? { ok: true, text: '연결됨: 이 키로 선택한 모델을 쓸 수 있습니다' } : { ok: false, text: result.message });
-              })
-            }
-          >
-            연결 확인
-          </button>
-          {busy && <span className="muted">확인 중…</span>}
-        </div>
-        {message && (
-          <p className={message.ok ? 'notice' : 'error'} role="status">
-            {message.text}
-          </p>
+            <div className="row">
+              <button
+                type="button"
+                disabled={busy || !status.hasKey}
+                onClick={() =>
+                  void run(async () => {
+                    const result = await api.ai.check();
+                    setMessage(result.ok ? { ok: true, text: '연결됨: 이 키로 선택한 모델을 쓸 수 있습니다' } : { ok: false, text: result.message });
+                  })
+                }
+              >
+                연결 확인
+              </button>
+              {busy && <span className="muted">확인 중…</span>}
+            </div>
+            {message && (
+              <p className={message.ok ? 'notice' : 'error'} role="status">
+                {message.text}
+              </p>
+            )}
+          </>
         )}
 
         <p className="muted">이 프로젝트에서 AI에 쓴 비용: ${totalCostUsd.toFixed(4)}</p>
