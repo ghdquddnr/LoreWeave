@@ -30,8 +30,16 @@ const show = (text: string) => (text === '' ? '(빈 줄)' : text);
 
 export function ConflictCompare({ file, projectToken, diskHash, editor }: Props) {
   const [view, setView] = useState<View>({ kind: 'loading' });
-  const [copied, setCopied] = useState(false);
+  /** 내 내용 복사의 결과: 가장 최근에 누른 복사의 대기·성공·실패만 보인다 */
+  const [copy, setCopy] = useState<'idle' | 'pending' | 'ok' | 'fail'>('idle');
+  const copySeq = useRef(0);
   const seq = useRef(0);
+  useEffect(
+    () => () => {
+      copySeq.current++; // 비교를 닫은 뒤의 늦은 복사 응답은 버린다
+    },
+    [],
+  );
 
   const load = useCallback(async () => {
     const mine = ++seq.current;
@@ -72,11 +80,13 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
   const copyMine = async () => {
     // 누른 순간의 편집기 문서를 읽는다 (화면의 비교 표는 debounce 때문에 최신 입력보다 늦을 수 있다)
     const current = visibleLines(editor.getJSON() as Doc);
+    const mine = ++copySeq.current;
+    setCopy('pending'); // 이전 성공·실패 안내를 이번 조작의 결과처럼 남기지 않는다
     try {
       await navigator.clipboard.writeText(current.join('\n'));
-      setCopied(true);
+      if (mine === copySeq.current) setCopy('ok');
     } catch {
-      setCopied(false);
+      if (mine === copySeq.current) setCopy('fail');
     }
   };
 
@@ -100,7 +110,12 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
           <button type="button" className="link" onClick={() => void copyMine()}>
             내 내용 복사
           </button>
-          {copied && <span className="muted"> 복사했습니다</span>}
+          {copy !== 'idle' && (
+            <span className={`copy-note ${copy === 'fail' ? 'error' : 'muted'}`} role="status">
+              {' '}
+              {copy === 'pending' ? '복사하는 중…' : copy === 'ok' ? '복사했습니다' : '복사하지 못했습니다. 원고는 그대로입니다. 다시 눌러 주세요'}
+            </span>
+          )}
         </span>
       </header>
       <p className="muted">
