@@ -71,23 +71,47 @@ interface Loaded {
 export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function ChapterEditor(props, ref) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** [다시 시도]로 같은 화를 다시 읽은 횟수 (사용자가 누를 때만 늘어난다. 자동 재시도는 없다) */
+  const [attempt, setAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     window.loreweave.chapters.read(props.file, props.projectToken).then(
       ({ text, hash }) => {
-        if (!cancelled) setLoaded({ ...openManuscript(text), hash });
+        if (cancelled) return;
+        setLoaded({ ...openManuscript(text), hash });
+        setLoadError(null);
+        setRetrying(false);
       },
       (e: Error) => {
-        if (!cancelled) setLoadError(e.message);
+        if (cancelled) return;
+        setLoadError(e.message);
+        setRetrying(false);
       },
     );
+    // 화·프로젝트가 바뀌거나 다시 시도하면 이전 읽기의 늦은 응답은 버린다
     return () => {
       cancelled = true;
     };
-  }, [props.file, props.projectToken]);
+  }, [props.file, props.projectToken, attempt]);
 
-  if (loadError) return <p className="editor-message">이 화를 열 수 없습니다: {loadError}</p>;
+  if (loadError && !retrying)
+    return (
+      <p className="editor-message">
+        이 화를 열 수 없습니다: {loadError}{' '}
+        <button
+          type="button"
+          className="link"
+          onClick={() => {
+            setRetrying(true);
+            setAttempt((n) => n + 1);
+          }}
+        >
+          다시 시도
+        </button>
+      </p>
+    );
   if (!loaded) return <p className="editor-message">여는 중…</p>;
   return <LoadedEditor ref={ref} {...props} loaded={loaded} />;
 });
