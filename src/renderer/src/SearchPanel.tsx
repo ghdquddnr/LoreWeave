@@ -1,6 +1,6 @@
 // 원고 전체 검색 (M2-PLAN 1·4절). 검색어를 입력하고 Enter를 누르면 찾고, 결과를 누르면 그 줄로 이동한다.
 
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { snippet } from '../../core/search.ts';
 import type { SearchHit, SearchResult } from '../../preload/api.ts';
 import { friendlyError } from './userError.ts';
@@ -31,26 +31,41 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
   const [error, setError] = useState<string | null>(null);
 
 
+  // 요청 번호: 가장 최근에 시작했고 지우기·새 요청·언마운트로 무효화되지 않은 요청만 결과·오류·찾는 중을 반영한다
+  const seq = useRef(0);
+  useEffect(
+    () => () => {
+      seq.current++;
+    },
+    [],
+  );
+
   const search = async () => {
     const q = query;
     if (!q.trim()) return clear();
+    const mine = ++seq.current;
     setBusy(true);
     setError(null);
     try {
       await beforeSearch();
-      setResult({ ...(await window.loreweave.chapters.search(q)), query: q });
+      if (mine !== seq.current) return; // 저장을 기다리는 사이 취소됐거나 새 요청이 생겼다: 검색 요청을 보내지 않는다
+      const found = await window.loreweave.chapters.search(q);
+      if (mine !== seq.current) return;
+      setResult({ ...found, query: q });
       onActiveChange(true);
     } catch (e) {
-      setError(friendlyError(e).summary);
+      if (mine === seq.current) setError(friendlyError(e).summary);
     } finally {
-      setBusy(false);
+      if (mine === seq.current) setBusy(false);
     }
   };
 
   const clear = () => {
+    seq.current++; // 진행 중인 요청도 무효화한다
     setQuery('');
     setResult(null);
     setError(null);
+    setBusy(false);
     onActiveChange(false);
   };
 
