@@ -30,6 +30,8 @@ const show = (text: string) => (text === '' ? '(빈 줄)' : text);
 
 export function ConflictCompare({ file, projectToken, diskHash, editor }: Props) {
   const [view, setView] = useState<View>({ kind: 'loading' });
+  /** 디스크를 다시 읽는 중 (이미 비교나 오류가 보이는 상태에서의 다시 비교·새 해시 읽기). 가장 최근 요청이 끝날 때만 풀린다 */
+  const [refreshing, setRefreshing] = useState(false);
   /** 내 내용 복사의 결과: 가장 최근에 누른 복사의 대기·성공·실패만 보인다 */
   const [copy, setCopy] = useState<'idle' | 'pending' | 'ok' | 'fail'>('idle');
   const copySeq = useRef(0);
@@ -43,6 +45,7 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
 
   const load = useCallback(async () => {
     const mine = ++seq.current;
+    setRefreshing(true);
     try {
       const { text, hash } = await window.loreweave.chapters.read(file, projectToken);
       if (mine !== seq.current) return;
@@ -51,6 +54,9 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
       setView({ kind: 'ready', diskHash: hash, disk, mine: current, ops: diffLines(current, disk) });
     } catch (e) {
       if (mine === seq.current) setView({ kind: 'error', error: friendlyError(e, '디스크의 이 화를 읽지 못했습니다') });
+    } finally {
+      // 가장 최근 요청만 대기를 푼다 (오래된 요청의 늦은 응답이 최신 요청의 대기를 풀지 않는다)
+      if (mine === seq.current) setRefreshing(false);
     }
   }, [file, projectToken, editor]);
 
@@ -90,7 +96,8 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
     }
   };
 
-  const stale = view.kind === 'ready' && view.diskHash !== diskHash;
+  const stale = view.kind === 'ready' && view.diskHash !== diskHash && !refreshing;
+  const rereading = refreshing && view.kind !== 'loading';
   const stats = view.kind === 'ready' && view.ops ? diffStats(view.ops) : null;
 
   return (
@@ -123,7 +130,12 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
         고르기 전에 [내 내용 복사]로 지금 화면의 글을 따로 보관할 수 있습니다.
       </p>
       {view.kind === 'loading' && <p className="muted">디스크 내용을 읽는 중…</p>}
-      {view.kind === 'error' && (
+      {rereading && (
+        <p className="warning">
+          디스크 내용을 다시 읽는 중입니다{view.kind === 'ready' ? ' (아래 비교는 이전 내용입니다)' : ''}.
+        </p>
+      )}
+      {view.kind === 'error' && !refreshing && (
         <p className="error" role="alert">
           <ErrorNote error={view.error} onRetry={() => void load()} retryLabel="다시 비교" />
         </p>
