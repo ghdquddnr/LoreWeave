@@ -175,18 +175,32 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   /** 방금 시작한 검색 직전의 상태. 그 검색 결과가 실제로 게시될 때만 searchSnapshot이 된다 (실패·취소된 검색이 이전 결과에 적용되지 않게) */
   const pendingSnapshot = useRef<{ file: string; editId: string | null } | null>(null);
 
+  /** 마지막 AI 상태 조회의 차례, 그리고 그 조회의 실패가 만든 상태줄 오류의 번호 (0: 없음) */
+  const aiSeq = useRef(0);
+  const aiErrorSeq = useRef(0);
   const refreshAi = useCallback(() => {
     // 프로젝트를 바꾼 뒤에 도착한 이전 프로젝트의 응답은 버린다. main도 이전 token의 요청은 거절한다:
     // 전환 중이면 끝나기를 기다려, 새 프로젝트가 열렸으면 그 거절을 오류로 보이지 않는다
     const gen = projectGenRef.current;
+    // 같은 프로젝트의 조회가 겹치면 마지막에 시작한 조회만 화면(배지·비용·오류)에 반영한다. 늦게 끝난 이전 조회는 버린다
+    const mine = ++aiSeq.current;
+    const latest = () => gen === projectGenRef.current && mine === aiSeq.current;
     api.ai.analysisStatus(projectTokenRef.current).then(
-      (s) => gen === projectGenRef.current && setAi(s),
+      (s) => {
+        if (!latest()) return;
+        setAi(s);
+        // 이전 조회가 만든 오류가 아직 그대로면 거둔다 (다른 조작의 오류는 번호가 달라 남는다)
+        if (aiErrorSeq.current !== 0 && aiErrorSeq.current === errorSeqRef.current) setError(null);
+        aiErrorSeq.current = 0;
+      },
       async (e: Error) => {
         if (switchDone.current) await switchDone.current;
-        if (gen === projectGenRef.current) fail(e);
+        if (!latest()) return;
+        fail(e);
+        aiErrorSeq.current = errorSeqRef.current;
       },
     );
-  }, [fail]);
+  }, [fail, setError]);
 
   const showProject = useCallback(
     (p: ProjectOpened) => {
