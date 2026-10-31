@@ -4,6 +4,7 @@
 // 합성 원고·격리 userData, 외부 호출 없음. 한도 초과 기록은 파일 끝에서 실패로 보고되므로, 의도한 기록은 takeCleanupFailures로 가져가 확인한다.
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -97,7 +98,7 @@ test('실패 경계 ②: 종료 명령은 실패했지만 pid가 사라졌으면
   const [m1] = takeCleanupFailures();
   assert.match(m1!, /종료 명령 실패/);
   assert.match(m1!, /종료 확인=예/);
-  assert.match(m1!, /창닫기 요청이 20ms 안에 끝나지 않았다/);
+  assert.match(m1!, /창닫기 요청 한도 초과/);
   const b = fakeApp({ kill: (emitExit) => emitExit(), pidAlive: true, evaluatePending: true });
   assert.ok((await timed(() => closeWindow(b.app, b.opts))) < 1000);
   const [m2] = takeCleanupFailures();
@@ -116,7 +117,7 @@ test('실패 경계 ③: 이미 닫힌 앱의 연결 닫기가 영구 대기여�
     const r = await terminateApp(f.app, f.opts);
     assert.equal(r.connectionClosed, false);
     assert.equal(r.exited, true, '프로세스가 없으면 종료할 것도 없다');
-    assert.match(r.notes.join(';'), /연결 닫기가 20ms 안에/);
+    assert.match(r.notes.join(';'), /연결 닫기 한도 초과/);
   });
   assert.ok(ms < 1000);
 });
@@ -132,6 +133,27 @@ test('finally 안의 closeWindow는 던지지 않아 원래 오류를 보존하�
     }
   }, /ORIGINAL_ASSERTION/);
   assert.equal(takeCleanupFailures().length, 1);
+});
+
+test('실패 경계 ④ (독립 subprocess, 외부 제한시간): 빠른 evaluate 거절·동기 throw·close 거절은 처리되지 않은 rejection 없이 원래 오류를 보존하고, 정리 실패는 따로 기록되며, 연결 거절을 성공으로 쓰지 않는다', { timeout: 60_000 }, () => {
+  const run = spawnSync(process.execPath, ['--import', 'tsx', join(import.meta.dirname, 'cleanup-rejections.fixture.ts')], { encoding: 'utf8', timeout: 30_000 });
+  assert.equal(run.error, undefined, `외부 제한시간 안에 끝난다: ${run.error}`);
+  assert.equal(run.status, 0, `처리되지 않은 rejection 없이 종료한다: ${run.stderr.slice(0, 600)}`);
+  assert.doesNotMatch(run.stderr, /Unhandled|triggerUncaught|node:internal/);
+  const r = JSON.parse(run.stdout.split(String.fromCharCode(10)).find((l) => l.startsWith('{'))!) as Record<string, { original: boolean; failures: string[] }> & { closedCloseReject: { connectionClosed: boolean; exited: boolean; notes: string[]; killAppThrew: string } };
+  for (const name of ['fastEvaluateReject', 'evaluateThrow', 'onceThrow', 'closeReject', 'closeThrow'] as const) {
+    assert.equal(r[name]!.original, true, `${name}: 원래 오류 보존`);
+    assert.equal(r[name]!.failures.length, 1, `${name}: 정리 실패는 따로 한 건 기록`);
+  }
+  assert.match(r.fastEvaluateReject!.failures[0]!, /창닫기 요청 거절\(REVIEW_EVALUATE_REJECT\)/);
+  assert.match(r.fastEvaluateReject!.failures[0]!, /연결 닫기=예/);
+  assert.match(r.onceThrow!.failures[0]!, /닫힘 알림을 걸지 못했다/);
+  assert.match(r.closeReject!.failures[0]!, /Playwright 연결 닫기 거절\(REVIEW_CLOSE_REJECT\)/);
+  assert.match(r.closeReject!.failures[0]!, /연결 닫기=아니오/, '연결 닫기 거절을 성공으로 쓰지 않는다');
+  assert.match(r.closeThrow!.failures[0]!, /연결 닫기=아니오/);
+  assert.equal(r.closedCloseReject.connectionClosed, false);
+  assert.match(r.closedCloseReject.notes.join(';'), /거절\(REVIEW_CLOSE_REJECT\)/);
+  assert.match(r.closedCloseReject.killAppThrew, /연결 닫기=아니오/, 'killApp도 연결 정리 실패를 조용히 성공으로 쓰지 않는다');
 });
 
 async function open(prefix: string) {

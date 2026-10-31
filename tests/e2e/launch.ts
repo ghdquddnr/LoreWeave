@@ -84,15 +84,31 @@ const defaultAlive = (pid: number) => {
   }
 };
 
-/** 한도 안에 끝나면 true, 아니면 false. 타이머는 항상 지운다. promise의 늦은 거절은 삼킨다 (정리 중 이미 관심 밖) */
-async function within(promise: Promise<unknown>, ms: number): Promise<boolean> {
+/** 비동기 정리 요청의 결과: 이행 / 거절(동기 throw 포함) / 한도 초과 */
+type Outcome = { state: 'fulfilled' } | { state: 'rejected'; error: string } | { state: 'timeout' };
+const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** 요청을 만들자마자 거절 처리기를 붙인다 (늦게 붙이면 빠른 거절이 처리되지 않은 rejection이 된다). 동기 throw도 거절로 본다. 절대 거절하지 않는다 */
+function track(request: () => unknown): Promise<Outcome> {
+  try {
+    return Promise.resolve(request()).then(
+      (): Outcome => ({ state: 'fulfilled' }),
+      (e): Outcome => ({ state: 'rejected', error: describe(e) }),
+    );
+  } catch (e) {
+    return Promise.resolve<Outcome>({ state: 'rejected', error: describe(e) });
+  }
+}
+/** tracked 요청을 한도까지만 기다린다 (타이머는 항상 지운다). 한도 초과는 timeout */
+async function within(tracked: Promise<Outcome>, ms: number): Promise<Outcome> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([promise.then(() => true, () => true), new Promise<boolean>((resolve) => (timer = setTimeout(() => resolve(false), ms)))]);
+    return await Promise.race([tracked, new Promise<Outcome>((resolve) => (timer = setTimeout(() => resolve({ state: 'timeout' }), ms)))]);
   } finally {
     clearTimeout(timer);
   }
 }
+const outcomeText = (o: Outcome) => (o.state === 'rejected' ? `거절(${o.error})` : o.state === 'timeout' ? '한도 초과' : '이행');
 
 /** 정리 결과. exited는 실제 종료(exit 이벤트 또는 pid 소멸)를 확인했을 때만 true */
 export interface TerminateResult {
@@ -118,7 +134,7 @@ export async function terminateApp(app: ElectronApplication, opts: Partial<Clean
     const pid = child.pid!;
     let onExit: (() => void) | undefined;
     const exited = new Promise<void>((resolve) => child.once('exit', (onExit = () => resolve())));
-    const waitExit = async () => (await within(exited, o.exitMs)) || !alive(pid);
+    const waitExit = async () => (await within(track(() => exited), o.exitMs)).state === 'fulfilled' || !alive(pid);
     try {
       kill(pid, o.killMs);
     } catch (e) {
@@ -148,9 +164,10 @@ export async function terminateApp(app: ElectronApplication, opts: Partial<Clean
     }
   }
   // 죽은 앱과의 Playwright 연결을 닫는다. 안 닫히면 그 사실을 남긴다
-  if (!(await within(app.close(), o.connMs))) {
+  const closing = await within(track(() => app.close()), o.connMs);
+  if (closing.state !== 'fulfilled') {
     result.connectionClosed = false;
-    result.notes.push(`Playwright 연결 닫기가 ${o.connMs}ms 안에 끝나지 않았다`);
+    result.notes.push(`Playwright 연결 닫기 ${outcomeText(closing)} (${o.connMs}ms 한도)`);
   }
   return result;
 }
@@ -174,30 +191,52 @@ after(() => {
 export async function closeWindow(app: ElectronApplication, limits: number | Partial<CleanupOptions> = {}): Promise<void> {
   const opts = typeof limits === 'number' ? { closeMs: limits } : limits;
   const o = { ...CLEANUP_LIMITS, ...opts };
-  const child = liveProcess(app);
-  if (!child) return;
-  const pid = child.pid;
-  let onClose: (() => void) | undefined;
-  const closed = new Promise<void>((resolve) => app.once('close', (onClose = () => resolve())));
-  const request = app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
-  const done = await within(closed, o.closeMs);
-  if (onClose) app.off('close', onClose);
-  if (done) {
-    await within(request, o.evalMs);
-    return;
+  const record = (lines: string[], pid: number | undefined) => {
+    const message = lines.join('; ');
+    diag(`cleanup-${Date.now()}-${pid}.log`, message);
+    console.error(message);
+    cleanupFailures.push(message);
+  };
+  let pid: number | undefined;
+  try {
+    const child = liveProcess(app);
+    if (!child) return;
+    pid = child.pid;
+    let onClose: (() => void) | undefined;
+    let removeClose: () => void = () => {};
+    // 닫힘 알림과 창닫기 요청 모두 만들자마자 거절 처리기가 붙는다 (요청의 빠른 거절·동기 throw가 처리되지 않은 rejection이 되지 않게)
+    const closed = track(
+      () =>
+        new Promise<void>((resolve) => {
+          app.once('close', (onClose = () => resolve()));
+          removeClose = () => app.off('close', onClose!);
+        }),
+    );
+    const request = track(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close()));
+    const done = await within(closed, o.closeMs);
+    try {
+      removeClose();
+    } catch {
+      // 이미 닫힌 앱에서 listener 해제가 던질 수 있다
+    }
+    if (done.state === 'fulfilled') {
+      await within(request, o.evalMs); // 닫힌 뒤의 요청 거절은 정상이다 (창이 먼저 닫혀 응답이 끊김)
+      return;
+    }
+    const lines = [done.state === 'rejected' ? `closeWindow: 닫힘 알림을 걸지 못했다 (${done.error}). 이 테스트의 앱 pid=${pid}만 끝낸다` : `closeWindow: ${o.closeMs}ms 안에 창이 닫히지 않았다 (저장 거절·충돌 등으로 창이 남은 것으로 보임). 이 테스트의 앱 pid=${pid}만 끝낸다`];
+    const result = await terminateApp(app, opts);
+    const req = await within(request, o.evalMs);
+    if (req.state !== 'fulfilled') lines.push(`창닫기 요청 ${outcomeText(req)} (정리 계속)`);
+    lines.push(...result.notes, `종료 확인=${result.exited ? '예' : '아니오'}, 연결 닫기=${result.connectionClosed ? '예' : '아니오'}`);
+    record(lines, pid);
+  } catch (e) {
+    // 정리 자체의 뜻밖의 오류도 호출한 finally의 원래 오류를 가리지 않는다: 별도 실패로 기록한다
+    record([`closeWindow: 정리 중 뜻밖의 오류 (${describe(e)})`], pid);
   }
-  const lines = [`closeWindow: ${o.closeMs}ms 안에 창이 닫히지 않았다 (저장 거절·충돌 등으로 창이 남은 것으로 보임). 이 테스트의 앱 pid=${pid}만 끝낸다`];
-  const result = await terminateApp(app, opts);
-  if (!(await within(request, o.evalMs))) lines.push(`창닫기 요청이 ${o.evalMs}ms 안에 끝나지 않았다 (무시하고 계속)`);
-  lines.push(...result.notes, `종료 확인=${result.exited ? '예' : '아니오'}, 연결 닫기=${result.connectionClosed ? '예' : '아니오'}`);
-  const message = lines.join('; ');
-  diag(`cleanup-${Date.now()}-${pid}.log`, message);
-  console.error(message);
-  cleanupFailures.push(message);
 }
 
 /** 앱을 강제로 죽인다 (저장 기회 없음). 한도 안에서 이 앱의 프로세스 트리만 끝내며, 종료를 확인하지 못하면 던진다 */
 export async function killApp(app: ElectronApplication, opts: Partial<CleanupOptions> = {}): Promise<void> {
   const result = await terminateApp(app, opts);
-  if (!result.exited) throw new Error(`killApp: pid=${result.pid} 종료를 확인하지 못했다: ${result.notes.join('; ')}`);
+  if (!result.exited || !result.connectionClosed) throw new Error(`killApp: pid=${result.pid} 종료 확인=${result.exited ? '예' : '아니오'}, 연결 닫기=${result.connectionClosed ? '예' : '아니오'}: ${result.notes.join('; ')}`);
 }
