@@ -555,7 +555,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     { id: 'analyze', label: '이 화 분석', hint: '실행 전에 범위와 예상 비용을 확인합니다', disabled: !file ? '열린 화 없음' : !ai || switching ? '준비 중' : undefined, run: () => aiRef.current?.analyzeCurrent() },
     { id: 'analyze-pending', label: `남은 화 분석 (${pendingAnalysis})`, hint: '분석하지 않았거나 분석 뒤 바뀐 화', disabled: !ai || switching ? '준비 중' : pendingAnalysis === 0 ? '남은 화 없음' : undefined, run: () => aiRef.current?.analyzePending() },
     { id: 'check', label: '이 화 검사', hint: '앞 화와 비교해 문제 가능성을 찾습니다', disabled: !file ? '열린 화 없음' : !ai || switching ? '준비 중' : undefined, run: () => aiRef.current?.checkCurrent() },
-    { id: 'reload-ai', label: 'AI 분석·검사 결과 다시 읽기', disabled: !ai ? '준비 중' : undefined, run: () => { refreshAi(); setAiVersion((v) => v + 1); } },
+    { id: 'reload-ai', label: 'AI 분석·검사 결과 다시 읽기', hint: ai ? undefined : '처음 읽기에 실패했다면 다시 읽습니다', disabled: !project || switching ? '준비 중' : undefined, run: () => { refreshAi(); setAiVersion((v) => v + 1); } },
     { id: 'close-tab', label: '현재 탭 닫기', disabled: file ? undefined : '열린 화 없음', run: () => file && void closeTab(file) },
     ...THEMES.map((t) => ({
       id: `theme-${t.id}`,
