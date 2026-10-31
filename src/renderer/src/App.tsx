@@ -194,6 +194,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       setJump(null);
       setSave({ status: { kind: 'saved' }, changesOnReopen: null });
       setNotice(null);
+      setSearching(false); // 검색 결과 표시는 이전 프로젝트의 것이다 (SearchPanel은 key로 새로 시작하므로 부모의 활성 상태도 같이 초기화)
       setAi(null);
       refreshAi();
     },
