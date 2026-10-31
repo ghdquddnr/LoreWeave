@@ -56,6 +56,8 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   const [missing, setMissing] = useState<string | null>(null);
   /** 무시 실패. 그 결과의 화에서만 보인다 */
   const [error, setError] = useState<{ file: string; message: string } | null>(null);
+  /** 마지막 무시 요청의 차례. 안내는 마지막 요청의 결과만 따른다 (늦게 끝난 이전 요청이 최신 상태를 바꾸지 않는다) */
+  const dismissSeq = useRef(0);
   const [reload, setReload] = useState(0);
   const [open, setOpen] = useState(true);
 
@@ -90,12 +92,15 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
     // 누른 순간에도 확인한다: 화를 바꾸거나 다시 읽기 시작한 뒤의 이전 결과로는 보내지 않는다
     if (!ready || loaded.seq !== seq.current) return;
     const target = loaded.file;
+    const mine = ++dismissSeq.current;
     void api.ai.dismiss(target, f.ord, projectToken).then(
       () => {
+        // 저장은 성공했으니 다시 읽고 배지를 갱신한다. 이전 실패 안내는 마지막 요청이 성공했을 때만 거둔다
+        if (mine === dismissSeq.current) setError(null);
         setReload((n) => n + 1);
         onDismissed();
       },
-      (e: Error) => setError({ file: target, message: e.message }),
+      (e: Error) => mine === dismissSeq.current && setError({ file: target, message: e.message }),
     );
   };
 
