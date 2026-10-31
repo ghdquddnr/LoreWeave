@@ -335,7 +335,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     run(async (gen) => {
       if (switchingRef.current || actingRef.current || (hit.file !== file && !(await leave())) || !isCurrent(gen)) return;
       activate(hit.file);
-      setJump((j) => ({ line: hit.line, from: match.from, to: match.to, seq: (j?.seq ?? 0) + 1 }));
+      setJump((j) => ({ line: hit.line, from: match.from, to: match.to, text: hit.text, seq: (j?.seq ?? 0) + 1 }));
     });
 
   /** 검사 근거로 이동: 그 화를 열고, 저장된 위치 대신 지금 본문에서 근거 문장을 다시 찾아 선택한다 (못 찾으면 알린다) */
@@ -478,6 +478,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     (quote: string) => setNotice(`근거 문장을 지금 원고에서 찾을 수 없습니다 (지워졌거나 바뀌었습니다): “${quote}”`),
     [],
   );
+
+  const onMatchMissing = useCallback(() => setNotice('검색한 뒤 본문이 바뀌어 그 일치를 찾을 수 없습니다. 다시 검색해 주세요.'), []);
 
   const jumpHere = (at: QuoteLocation | null) =>
     setJump((j) => ({ ...(at ? { line: at.line, from: at.start, to: at.end } : { clear: true as const }), seq: (j?.seq ?? 0) + 1 }));
@@ -667,6 +669,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 onReload={onReload}
                 jump={jump}
                 onQuoteMissing={onQuoteMissing}
+                onMatchMissing={onMatchMissing}
                 marks={reviewMarks.file === file ? reviewMarks.quotes : undefined}
                 onReady={() => setEditorTick((t) => t + 1)}
               />

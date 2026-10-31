@@ -28,7 +28,8 @@ export type SaveStatus =
  * (저장된 위치는 그 뒤 고친 원고와 맞지 않을 수 있다). seq가 바뀔 때마다 다시 이동한다
  */
 /** clear: 인용을 지금 본문에서 찾지 못했을 때, 이전 선택이 근거처럼 남지 않게 선택만 접는다 */
-export type Jump = ({ line: number; from: number; to: number } | { quote: string } | { clear: true }) & { seq: number };
+/** line 이동의 text: 검색 당시 그 줄의 글. 있으면 지금 본문에서 같은 줄을 확인한 뒤에만 옮긴다 (검색한 뒤 본문이 바뀌었을 수 있다) */
+export type Jump = ({ line: number; from: number; to: number; text?: string } | { quote: string } | { clear: true }) & { seq: number };
 
 export interface ChapterEditorHandle {
   /** 저장할 것이 있으면 저장한다. 끝난 뒤 저장 안 된 변경이 남아 있으면 false */
@@ -50,6 +51,8 @@ interface Props {
   /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다). outside: 다른 프로그램의 변경 때문에 자동으로 */
   onReload(outside?: boolean): void;
   jump?: Jump | null;
+  /** 검색 결과 이동(jump)의 줄이 지금 본문에서 사라졌거나 하나로 정할 수 없다. 아무것도 선택하지 않는다 */
+  onMatchMissing?(): void;
   /** jump의 quote를 지금 본문에서 찾지 못했다 (지워졌거나 바뀜). 아무것도 선택하지 않는다 */
   onQuoteMissing?(quote: string): void;
   /** true면 읽기 전용 (프로젝트를 바꾸는 동안 열린 에디터) */
@@ -131,7 +134,7 @@ function focusEditorUnlessTyping(target: Editor): void {
 }
 
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
-  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, locked = false, marks, onReady },
+  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, onMatchMissing, locked = false, marks, onReady },
   ref,
 ) {
   const editorRef = useRef<Editor | null>(null);
@@ -313,10 +316,24 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
       collapse();
       return;
     }
-    const at = 'quote' in jump ? locateQuote(visibleLines(editor.getJSON() as Doc), jump.quote) : { line: jump.line, start: jump.from, end: jump.to };
+    const current = visibleLines(editor.getJSON() as Doc);
+    let at: { line: number; start: number; end: number } | null;
+    if ('quote' in jump) at = locateQuote(current, jump.quote);
+    else if (jump.text === undefined) at = { line: jump.line, start: jump.from, end: jump.to };
+    else {
+      // 검색 결과: 검색 당시의 줄이 지금도 그 자리에 그대로 있으면 거기로, 아니면 같은 줄이 본문에 하나뿐일 때만 그 줄로 (앞에 문단이 더해지거나 빠진 경우).
+      // 사라졌거나 같은 줄이 여럿이라 정할 수 없으면 엉뚱한 글자를 일치처럼 선택하지 않는다
+      let line = current[jump.line] === jump.text ? jump.line : -1;
+      if (line < 0) {
+        const same = current.flatMap((t, i) => (t === jump.text ? [i] : []));
+        if (same.length === 1) line = same[0]!;
+      }
+      at = line < 0 ? null : { line, start: jump.from, end: jump.to };
+    }
     const range = at && lineRangeToPositions(editor, at.line, at.start, at.end);
     if (!range) {
       if ('quote' in jump) onQuoteMissing?.(jump.quote);
+      else if (jump.text !== undefined) onMatchMissing?.();
       collapse();
       return;
     }
