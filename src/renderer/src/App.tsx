@@ -194,6 +194,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       setJump(null);
       setSave({ status: { kind: 'saved' }, changesOnReopen: null });
       setNotice(null);
+      setUnlisted(null);
       setSearching(false); // 검색 결과 표시는 이전 프로젝트의 것이다 (SearchPanel은 key로 새로 시작하므로 부모의 활성 상태도 같이 초기화)
       setAi(null);
       refreshAi();
@@ -354,16 +355,45 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       return true;
     });
 
+  /**
+   * 화 만들기는 성공했지만 화 목록을 다시 읽지 못한 경우: 만들어진 파일 이름. 목록만 다시 읽어 복구한다 (생성은 다시 실행하지 않는다).
+   * 프로젝트가 바뀌면 지운다
+   */
+  const [unlisted, setUnlisted] = useState<string | null>(null);
+
+  /** 만들어진 화를 목록에 반영하고 연다. 목록을 읽지 못하면 "만들어졌다"고 알리고 [목록 다시 읽기]를 남긴다 (false: 에디터를 그대로 둔다) */
+  const showCreated = async (gen: number, token: number, file: string, recovering = false): Promise<boolean> => {
+    let list;
+    try {
+      list = await api.chapters.list(token);
+    } catch (e) {
+      if (!isCurrent(gen)) return false;
+      setUnlisted(file);
+      fail(e, `새 화(${file})는 만들어졌지만 화 목록을 다시 읽지 못했습니다. 만든 화는 지워지지 않았습니다. `);
+      return false;
+    }
+    if (!isCurrent(gen)) return false;
+    setProject((p) => p && { ...p, list });
+    setUnlisted(null);
+    if (recovering) setError(null); // 복구한 경우에만 이 일의 안내를 지운다 (다른 조작의 오류는 건드리지 않는다)
+    activate(file);
+    return true;
+  };
+
   const newChapter = () =>
     lockedAction(async (gen) => {
       if (!project || !(await leave()) || !isCurrent(gen)) return false;
       const created = await api.chapters.create(project.token);
       if (!(await settled(gen))) return true;
-      const list = await api.chapters.list(project.token);
-      if (!isCurrent(gen)) return false;
-      setProject((p) => p && { ...p, list });
-      activate(created.file);
-      return true;
+      return showCreated(gen, project.token, created.file);
+    });
+
+  /** 생성 성공 뒤 목록 조회 실패의 복구: 목록만 다시 읽고 만든 화를 연다 (현재 화의 입력은 먼저 저장한다) */
+  const rereadList = () =>
+    lockedAction(async (gen) => {
+      const target = unlisted;
+      if (!project || !target || !(await leave()) || !isCurrent(gen)) return false;
+      return showCreated(gen, project.token, target, true);
     });
 
   const chooseFolder = () =>
@@ -690,6 +720,14 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         {error && (
           <span className="error">
             <span aria-hidden="true">✕</span> {error}
+            {unlisted && (
+              <>
+                {' '}
+                <button type="button" className="link" disabled={busy} onClick={() => void rereadList()}>
+                  목록 다시 읽기
+                </button>
+              </>
+            )}
             {errorDetail && (
               <>
                 {' '}
