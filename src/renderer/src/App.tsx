@@ -133,7 +133,12 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const [error, setErrorText] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState('');
   const [errorOpen, setErrorOpen] = useState(false);
+  /** 상태줄 오류를 바꾼 횟수: 어떤 조작이 만든 오류인지 구별한다 (자기 오류만 해소하려고) */
+  const errorSeqRef = useRef(0);
+  const [errorSeq, setErrorSeq] = useState(0);
   const setError = useCallback((message: string | null, detail = '') => {
+    errorSeqRef.current += 1;
+    setErrorSeq(errorSeqRef.current);
     setErrorText(message);
     setErrorDetail(detail);
     setErrorOpen(false);
@@ -359,23 +364,24 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    * 화 만들기는 성공했지만 화 목록을 다시 읽지 못한 경우: 만들어진 파일 이름. 목록만 다시 읽어 복구한다 (생성은 다시 실행하지 않는다).
    * 프로젝트가 바뀌면 지운다
    */
-  const [unlisted, setUnlisted] = useState<string | null>(null);
+  const [unlisted, setUnlisted] = useState<{ file: string; seq: number } | null>(null);
 
   /** 만들어진 화를 목록에 반영하고 연다. 목록을 읽지 못하면 "만들어졌다"고 알리고 [목록 다시 읽기]를 남긴다 (false: 에디터를 그대로 둔다) */
-  const showCreated = async (gen: number, token: number, file: string, recovering = false): Promise<boolean> => {
+  const showCreated = async (gen: number, token: number, file: string, recovering = false, unlistedSeq = -1): Promise<boolean> => {
     let list;
     try {
       list = await api.chapters.list(token);
     } catch (e) {
       if (!isCurrent(gen)) return false;
-      setUnlisted(file);
       fail(e, `새 화(${file})는 만들어졌지만 화 목록을 다시 읽지 못했습니다. 만든 화는 지워지지 않았습니다. `);
+      setUnlisted({ file, seq: errorSeqRef.current }); // 이 안내를 만든 순간의 번호
       return false;
     }
     if (!isCurrent(gen)) return false;
     setProject((p) => p && { ...p, list });
+    // 복구했으면 이 일이 만든 안내만 지운다: 그 사이 다른 조작이 상태줄 오류를 바꿨다면(번호가 다르면) 그 오류와 기술 상세는 그대로 둔다
+    if (recovering && unlistedSeq === errorSeqRef.current) setError(null);
     setUnlisted(null);
-    if (recovering) setError(null); // 복구한 경우에만 이 일의 안내를 지운다 (다른 조작의 오류는 건드리지 않는다)
     activate(file);
     return true;
   };
@@ -393,7 +399,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     lockedAction(async (gen) => {
       const target = unlisted;
       if (!project || !target || !(await leave()) || !isCurrent(gen)) return false;
-      return showCreated(gen, project.token, target, true);
+      return showCreated(gen, project.token, target.file, true, target.seq);
     });
 
   const chooseFolder = () =>
@@ -720,7 +726,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         {error && (
           <span className="error">
             <span aria-hidden="true">✕</span> {error}
-            {unlisted && (
+            {unlisted && unlisted.seq === errorSeq && (
               <>
                 {' '}
                 <button type="button" className="link" disabled={busy} onClick={() => void rereadList()}>
@@ -736,6 +742,14 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 </button>
               </>
             )}
+          </span>
+        )}
+        {unlisted && unlisted.seq !== errorSeq && (
+          <span className="warning">
+            <span aria-hidden="true">⚠</span> 새 화({unlisted.file})가 목록에 아직 없습니다{' '}
+            <button type="button" className="link" disabled={busy} onClick={() => void rereadList()}>
+              목록 다시 읽기
+            </button>
           </span>
         )}
         {ai && ai.totalCostUsd > 0 && <span className="cost">이 프로젝트 AI 비용 ${ai.totalCostUsd.toFixed(4)}</span>}
