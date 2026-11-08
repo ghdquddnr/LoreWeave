@@ -30,6 +30,8 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   const [statusError, setStatusError] = useState<FriendlyError | null>(null);
   const [attempt, setAttempt] = useState(0);
   const dialog = useRef<HTMLElement>(null);
+  // compositionstart~end 구간 (isComposing·229가 빠진 이벤트 경계도 덮는다). end에서 반드시 풀려 이전 조합이 일반 Escape를 막지 않는다
+  const composing = useRef(false);
 
   // 대화상자를 닫거나 다시 시도하면 이전 요청의 늦은 응답은 버린다
   useEffect(() => {
@@ -79,8 +81,11 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   return (
     <div
       className="modal-backdrop"
+      onCompositionStart={() => (composing.current = true)}
+      onCompositionEnd={() => (composing.current = false)}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') return onClose();
+        // 조합 취소용 Escape는 입력기의 것이다: 닫지 않고 입력 초안도 지우지 않으며 기본 동작도 막지 않는다
+        if (e.key === 'Escape') return composing.current || e.nativeEvent.isComposing || e.keyCode === 229 ? undefined : onClose();
         if (e.key !== 'Tab' || !dialog.current) return;
         // 대화상자 안에서만 Tab이 돈다
         const items = tabStops(dialog.current);
