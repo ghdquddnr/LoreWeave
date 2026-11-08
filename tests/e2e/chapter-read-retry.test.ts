@@ -18,7 +18,7 @@ interface Hooks {
   reads: number;
   writes: number;
   /** fail: 거절 / ok: 정상 / hold-ok·hold-fail: 붙잡았다가 release 때 정상·거절 */
-  mode: 'fail' | 'ok' | 'hold-ok' | 'hold-fail';
+  mode: 'fail' | 'fail-path' | 'ok' | 'hold-ok' | 'hold-fail';
   release?: () => void;
 }
 const hook = (app: ElectronApplication) =>
@@ -33,6 +33,7 @@ const hook = (app: ElectronApplication) =>
       if (!String(args[1]).endsWith('002.md')) return read(...args);
       h.reads += 1;
       if (h.mode === 'fail') throw new Error('EACCES: permission denied (synthetic)');
+      if (h.mode === 'fail-path') throw new Error("EACCES: permission denied, open 'C:/Users/synthetic/chapters/002.md'");
       if (h.mode === 'hold-ok' || h.mode === 'hold-fail') {
         await new Promise<void>((resolve) => (h.release = resolve));
         if (h.mode === 'hold-fail') throw new Error('EACCES: permission denied (synthetic, late)');
@@ -142,6 +143,53 @@ test('재시도 중 연타는 읽기 한 번만 보내고, 재시도 대기 중 
     await settled(page);
     await settled(page);
     assert.equal(await page.getByText(/이 화를 열 수 없습니다/).count(), 0, '늦은 실패 오류가 A 화면에 보이지 않는다');
+    assert.equal((await hooks(app)).writes, 0, '저장 0');
+    assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), A);
+    assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), B);
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+// 읽기 실패 안내: 기본 안내는 IPC 문구·영문 시스템 오류·경로·코드 없이 "읽을 수 없다"고 말하고(쓰기·저장 실패라고 하지 않는다), 원문은 펼치는 기술 상세에만 둔다. 상세는 IPC를 만들지 않고, 오류가 바뀌면 접힌 채 시작한다.
+test('읽기 실패 안내: 읽기 권한 오류는 읽기 실패로 정확히 안내하고 원문은 접힌 기술 상세에만 있으며, 상세 조작은 IPC가 없고, 다시 실패해도 접힌 채 시작한다', { timeout: 90_000 }, async () => {
+  const { app, page, dir } = await start('crr-message');
+  try {
+    await setMode(app, 'fail-path');
+    await list(page).getByRole('button', { name: 'B_CH' }).click();
+    await message(page).getByText(/이 화를 열 수 없습니다/).waitFor();
+    const text = await message(page).innerText();
+    assert.match(text, /이 화를 열 수 없습니다: .*읽을 수 없습니다/, '읽기 실패라고 안내한다');
+    for (const raw of ['Error invoking', 'EACCES', 'permission denied', 'C:/Users', 'synthetic', '002.md']) assert.ok(!text.includes(raw), `기본 안내에 기술 문구(${raw})가 없다`);
+    for (const wrong of ['쓸 수 없습니다', '저장', '쓰기']) assert.ok(!text.includes(wrong), `읽기 실패를 쓰기·저장 실패(${wrong})로 설명하지 않는다`);
+    assert.equal(await page.locator('.tech-detail').count(), 0, '기술 상세는 기본으로 접혀 있다');
+
+    // 상세 열기/닫기: 원문 보존, 읽기·쓰기 IPC 0
+    const before = await hooks(app);
+    await message(page).getByRole('button', { name: '기술 상세' }).click();
+    const detail = await page.locator('.tech-detail').innerText();
+    for (const raw of ['Error invoking', 'EACCES', 'permission denied', 'C:/Users/synthetic/chapters/002.md']) assert.ok(detail.includes(raw), `기술 상세에 원문(${raw})이 보존된다`);
+    await message(page).getByRole('button', { name: '상세 닫기' }).click();
+    assert.equal(await page.locator('.tech-detail').count(), 0);
+    await message(page).getByRole('button', { name: '기술 상세' }).click(); // 열린 채로 다시 실패시켜 승계를 본다
+    const afterToggle = await hooks(app);
+    assert.equal(afterToggle.reads, before.reads, '상세 열기·닫기는 읽기 IPC를 만들지 않는다');
+    assert.equal(afterToggle.writes, 0, '쓰기 IPC 0');
+
+    // 다시 시도해 다시 실패: 새 오류는 접힌 채 시작한다 (열림이 승계되지 않는다). 시도 1회 = 읽기 1회
+    await retry(page).click();
+    await message(page).getByText(/이 화를 열 수 없습니다/).waitFor();
+    await retry(page).waitFor();
+    assert.equal((await hooks(app)).reads, afterToggle.reads + 1, '시도 1회 = 읽기 1회');
+    assert.equal(await page.locator('.tech-detail').count(), 0, '새 오류의 기술 상세는 접힌 채 시작한다');
+
+    // 다른 화로 옮기면 안내가 사라지고, 복구하면 정상 본문
+    await list(page).getByRole('button', { name: 'A_CH' }).click();
+    await page.locator('.ProseMirror').getByText('A 본문', { exact: true }).waitFor();
+    assert.equal(await page.getByText(/이 화를 열 수 없습니다/).count(), 0);
+    await setMode(app, 'ok');
+    await list(page).getByRole('button', { name: 'B_CH' }).click();
+    await page.locator('.ProseMirror').getByText('B 본문 줄', { exact: true }).waitFor();
     assert.equal((await hooks(app)).writes, 0, '저장 0');
     assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), A);
     assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), B);

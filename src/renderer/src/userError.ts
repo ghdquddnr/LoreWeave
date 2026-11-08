@@ -35,3 +35,16 @@ export function friendlyError(error: unknown, fallback = '예상하지 못한 �
   const summary = /[가-힣]/.test(lead) && lead.length >= 4 ? lead : known ? known[1] : fallback;
   return { summary, detail: raw };
 }
+
+/**
+ * 화를 읽지 못했을 때의 안내. friendlyError의 EPERM/EACCES 안내는 "파일에 쓸 수 없습니다"(쓰기 실패)라 읽기에 그대로 쓰면 틀리므로, 읽기 문구로만 바꾼다.
+ * 그 밖의 안내(사람이 쓴 한국어 설명, 파일·폴더 위치, 사용 중 등)와 기술 상세 원문은 friendlyError 그대로다.
+ */
+export function friendlyReadError(error: unknown): FriendlyError {
+  const f = friendlyError(error, '파일을 읽는 중 오류가 발생했습니다');
+  const [writePermission, writeMessage] = KNOWN[0]!;
+  if (f.summary === writeMessage && writePermission.test(f.detail)) {
+    return { ...f, summary: '파일을 읽을 수 없습니다. 읽기 권한이 없거나 다른 프로그램이 파일을 사용 중일 수 있습니다' };
+  }
+  return f;
+}
