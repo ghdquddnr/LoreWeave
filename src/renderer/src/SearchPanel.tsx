@@ -114,6 +114,20 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     onActiveChange(false);
   };
 
+  /**
+   * [검색 취소]: 지금 검색의 결과 게시를 무효화하는 UI 취소다. 화 목록으로 돌아가고 입력한 검색어는 남긴다 (clear()와 달리 검색어를 지우지 않는다).
+   * 이미 시작된 저장 flush·main의 검색은 중단되지 않는다: flush가 끝나도 이 요청의 검색은 보내지 않고(seq 불일치), 늦게 온 검색 성공·실패는 결과·오류·찾는 중을 되살리지 않는다.
+   */
+  const cancelSearch = () => {
+    seq.current++;
+    inflight.current = false;
+    setBusy(false);
+    setError(null);
+    setSearchFailed(false);
+    setResult(null);
+    onActiveChange(false);
+  };
+
   useImperativeHandle(ref, () => ({ focus: () => input.current?.select(), clear }));
 
   return (
@@ -149,7 +163,14 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
           }}
         />
       </form>
-      {busy && <p className="search-summary">찾는 중…</p>}
+      {busy && (
+        <p className="search-summary">
+          찾는 중…{' '}
+          <button type="button" className="link" onClick={cancelSearch}>
+            검색 취소
+          </button>
+        </p>
+      )}
       {error && (
         <p className="error search-summary">
           {error}
