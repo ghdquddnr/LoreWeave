@@ -53,6 +53,8 @@ interface Props {
   projectToken: number;
   onStatus(status: SaveStatus, changesOnReopen: number | null): void;
   onSaved(text: string): void;
+  /** 이 화를 디스크에서 읽는 데 성공했다 (처음 열기·[디스크 내용 불러오기]·외부 변경 재읽기·[다시 시도]). 읽은 파일 내용으로 표시 제목을 맞추는 데 쓴다. 실패·취소된 읽기는 부르지 않는다 */
+  onLoaded?(file: string, projectToken: number, text: string): void;
   /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다). outside: 다른 프로그램의 변경 때문에 자동으로 */
   onReload(outside?: boolean): void;
   jump?: Jump | null;
@@ -82,6 +84,8 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
   /** [다시 시도]로 같은 화를 다시 읽은 횟수 (사용자가 누를 때만 늘어난다. 자동 재시도는 없다) */
   const [attempt, setAttempt] = useState(0);
   const [retrying, setRetrying] = useState(false);
+  const onLoadedRef = useRef(props.onLoaded);
+  onLoadedRef.current = props.onLoaded;
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +93,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
       ({ text, hash }) => {
         if (cancelled) return;
         setLoaded({ ...openManuscript(text), hash });
+        onLoadedRef.current?.(props.file, props.projectToken, text);
         setLoadError(null);
         setRetrying(false);
       },
