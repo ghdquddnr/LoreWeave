@@ -328,6 +328,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     const onBlur = () => void editor.current?.flush();
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        // IME 소유 키(isComposing, 또는 keyCode 229)는 가로채지 않는다: 조합 중인 글자를 두고 명시적 저장(flush)을 하지 않고 preventDefault도 하지 않는다 (검색·팔레트 단축키와 같은 보호)
+        if (e.isComposing || e.keyCode === 229) return;
         e.preventDefault();
         void editor.current?.flush();
       }
