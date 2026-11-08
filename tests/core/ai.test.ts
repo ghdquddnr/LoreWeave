@@ -112,7 +112,7 @@ test('나눠 추출: 짧은 화는 한 조각, 긴 화는 maxChars를 넘은 뒤
   assert.deepEqual(splitForExtraction(lines, 100).flat(), lines);
 });
 
-test('나눠 추출: M0-A 화(합성 원고)는 모두 한 조각이라 지금과 같다', () => {
+test('나눠 추출: M0-A 화(합성 원고)는 모두 한 조각이다 (분할 결과만 본다. 저장 결과·탐지율의 동일성은 이 검사 범위가 아니다)', () => {
   const M0A = join(__dirname, '../../spikes/m0a-ai-feasibility/benchmark/chapters');
   for (const f of readdirSync(M0A)) {
     const lines = visibleLines(parseC3(splitEnvelope(readFileSync(join(M0A, f), 'utf8')).body));

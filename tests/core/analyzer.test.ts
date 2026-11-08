@@ -484,3 +484,50 @@ test('원고 확인 뒤 취소: 마지막 응답 뒤 어느 시점에 취소하�
   }
   assert.ok(notSaved > 0);
 });
+
+// 한 조각 응답도 실제 저장 경로(analyzeChapters → 파싱 → mergeExtractions → checkQuotes → AiStore)에서 합치기 규칙을 거친다 (M8: 조각이 하나여도 합치기는 적용된다).
+// 가짜 클라이언트·합성 짧은 원고·임시 AiStore만 쓴다. 실모델·실원고·탐지율 검증이 아니라 저장 정규화 계약의 고정이다. 기대값은 손으로 적었다 (mergeExtractions로 만들지 않는다).
+test('한 조각 저장 경로: 이름별 별칭 합침·자기 이름 제외, 완전히 같은 사실만 하나, 근거가 다른 사실은 각각 보존하고 줄 주소로 되찾으며, 요약은 앞뒤 공백을 정리한다', async () => {
+  const text = ['# 4화', '', '김민수는 서른 살이었다.', '', '그는 검을 들었다.', '', '이지현이 웃었다.', ''].join('\n');
+  await writeFile(join(root, 'chapters', '004.md'), text);
+  const before = await readFile(join(root, 'chapters', '004.md'));
+  const age = { entity: '김민수', predicate: '나이', value: '서른 살', quote: '김민수는 서른 살이었다.' };
+  const job = { entity: '김민수', predicate: '직업', value: '검사', quote: '그는 검을 들었다.' };
+  const client = fakeClient(() => ({
+    summary: '  앞뒤 공백 요약  ',
+    entities: [
+      { name: '김민수', aliases: ['민수', '김민수', '민수'] },
+      { name: '김민수', aliases: ['김 대표', '민수'] },
+      { name: '이지현', aliases: [] },
+    ],
+    facts: [age, { ...age }, job, { ...job, quote: '이지현이 웃었다.' }],
+  }));
+  const progress = await analyzeChapters(['004.md'], options(client));
+  assert.equal(progress.done, 1);
+  assert.equal(client.calls.length, 1, '클라이언트 호출 한 번');
+  const saved = store!.analysis('004.md')!;
+  assert.equal(saved.chunks, 1);
+  assert.equal(saved.summary, '앞뒤 공백 요약');
+  assert.deepEqual(saved.entities, [
+    { name: '김민수', aliases: ['민수', '김 대표'] },
+    { name: '이지현', aliases: [] },
+  ]);
+  assert.equal(saved.droppedQuotes, 0);
+  // 완전히 같은 사실 둘은 하나, 같은 entity/predicate/value라도 근거가 다르면 둘 다 남는다
+  assert.deepEqual(
+    saved.facts.map((f) => ({ entity: f.entity, predicate: f.predicate, value: f.value, quote: f.quote, line: f.line })),
+    [
+      { ...age, line: 2 },
+      { ...job, line: 4 },
+      { ...job, quote: '이지현이 웃었다.', line: 6 },
+    ],
+  );
+  const lines = text.split('\n');
+  for (const f of saved.facts) assert.equal(lines[f.line]!.slice(f.start, f.end), f.quote, '줄 주소로 원문 인용을 되찾는다');
+  // 무료 호출 장부: 이 화의 호출은 성공 한 건으로 한 번만 정산된다
+  const calls = loggedCalls('004.md');
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0]!.ok === 1 && calls[0]!.cost_usd > 0);
+  assert.equal(store!.totalCost().toFixed(5), '0.00062');
+  assert.deepEqual(await readFile(join(root, 'chapters', '004.md')), before, '원고 바이트 불변');
+});
