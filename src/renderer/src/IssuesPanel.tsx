@@ -180,7 +180,15 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
                 <ErrorNote error={friendlyError(error.message)} />
               </p>
             )}
-            {visible === 0 && <p>찾은 문제 가능성이 없습니다.</p>}
+            {check.findings.length === 0 && (
+              <p>
+                이번 검사에서 찾은 문제 가능성이 없습니다.{' '}
+                <span className="muted">놓친 문제가 있을 수 있어, 문제가 없다는 뜻은 아닙니다.</span>
+              </p>
+            )}
+            {check.findings.length > 0 && shown.length === 0 && (
+              <p>현재 표시할 결과가 없습니다. 숨긴 결과는 아래 버튼으로 볼 수 있습니다.</p>
+            )}
             <ul className="cards">
               {shown.map((f) => {
                 const place = placeOf(f);
