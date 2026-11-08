@@ -3,7 +3,7 @@
 // 실제 앱(Electron + Playwright). 분석·검사 결과는 합성으로 미리 저장하고, main의 조회 처리기 응답을 붙잡거나 실패시킨다. OpenAI는 부르지 않는다.
 
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
@@ -49,7 +49,7 @@ function dismissed(dir: string, file: string): boolean[] {
 async function instrument(app: ElectronApplication) {
   await app.evaluate(({ ipcMain }) => {
     const g = globalThis as unknown as {
-      gates: Record<string, { hold?: boolean; fail?: boolean }>;
+      gates: Record<string, { hold?: boolean; fail?: boolean; failWith?: string }>;
       held: Record<string, boolean>;
       release: Record<string, () => void>;
       done: Record<string, number>;
@@ -76,14 +76,14 @@ async function instrument(app: ElectronApplication) {
           await new Promise<void>((resolve) => (g.release[key] = resolve));
         }
         g.done[key] = (g.done[key] ?? 0) + 1;
-        if (gate?.fail) throw new Error('조회 실패 (테스트)');
+        if (gate?.fail) throw new Error(gate.failWith ?? '조회 실패 (테스트)');
         if ('e' in r) throw r.e;
         return r.v;
       });
     }
   });
 }
-const gate = (app: ElectronApplication, key: string, how: { hold?: boolean; fail?: boolean }) =>
+const gate = (app: ElectronApplication, key: string, how: { hold?: boolean; fail?: boolean; failWith?: string }) =>
   app.evaluate((_e, [k, h]) => void ((globalThis as unknown as { gates: Record<string, unknown> }).gates[k] = h), [key, how] as const);
 const release = (app: ElectronApplication, key: string) =>
   app.evaluate((_e, k) => (globalThis as unknown as { release: Record<string, () => void> }).release[k]?.(), key);
@@ -225,4 +225,67 @@ test('같은 화 다시 읽기: 무시 뒤 결과를 다시 읽는 동안 남은
   }
   assert.deepEqual(dismissed(dir, '001.md'), [true, false]);
   assert.deepEqual(dismissed(dir, '002.md'), [false]);
+});
+
+// 저장된 결과 조회 실패는 읽기 실패다: EPERM/EACCES를 "파일에 쓸 수 없습니다"(쓰기 실패)로 안내하지 않는다. 기본 안내에는 IPC 접두사·코드·경로가 없고 원문은 접힌 기술 상세에 보존된다.
+// 무료: 합성 결과·합성 원고만, 조회 처리기를 실패 대역으로 감싼다. OpenAI·유료 AI 실행 없음. 합성 Electron 검사이며 수동 GUI가 아니다.
+test('결과 조회 실패(EACCES): 두 패널 모두 읽기 실패로 안내하고 원문은 접힌 상세에만 있으며, 상세 조작은 조회·쓰기가 없고, 다시 읽기로 복구된다', { timeout: 90_000 }, async () => {
+  const dir = await project();
+  const files = ['001.md', '002.md'];
+  const originals = await Promise.all(files.map((f) => readFile(join(dir, 'chapters', f))));
+  const { app, page } = await launch(await tempDir('panel-read-error-userdata'));
+  try {
+    await open(app, page, dir);
+    // 쓰기 호출 수를 센다 (읽기 조회·상세 조작이 chapter:write를 만들지 않는다)
+    await app.evaluate(({ ipcMain }) => {
+      const g = globalThis as unknown as { writes: number };
+      g.writes = 0;
+      const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
+      const original = handlers.get('chapter:write')!;
+      handlers.set('chapter:write', async (...args: unknown[]) => {
+        g.writes++;
+        return original(...args);
+      });
+    });
+    const failWith = "EACCES: permission denied, open 'C:/Users/synthetic/ai/ai.db'";
+    await gate(app, 'ai:check-result:002.md', { fail: true, failWith });
+    await gate(app, 'ai:analysis:002.md', { fail: true, failWith });
+    await chapter(page, 'TWO').click();
+    await issues(page).getByText('검사 결과를 읽지 못했습니다', { exact: false }).waitFor();
+    await facts(page).getByText('분석 결과를 읽지 못했습니다', { exact: false }).waitFor();
+    for (const [name, panel, prefix] of [
+      ['문제 가능성', issues(page), '검사 결과를 읽지 못했습니다'],
+      ['AI가 찾은 사실', facts(page), '분석 결과를 읽지 못했습니다'],
+    ] as const) {
+      const text = await panel.locator('.error-note').first().innerText();
+      for (const wrong of ['쓸 수 없습니다', '저장', '쓰기']) assert.ok(!text.includes(wrong), `${name}: 읽기 실패를 쓰기·저장 실패(${wrong})로 설명하지 않는다 (안내: ${text})`);
+      assert.match(text, new RegExp(`${prefix}: .*읽을 수 없습니다`), `${name}: 읽기 실패로 안내한다`);
+      for (const raw of ['Error invoking', 'EACCES', 'permission denied', 'C:/Users', 'synthetic', 'ai.db']) assert.ok(!text.includes(raw), `${name}: 기본 안내에 기술 문구(${raw})가 없다`);
+      assert.equal(await panel.locator('.tech-detail').count(), 0, `${name}: 기술 상세는 기본 접힘이다`);
+    }
+
+    // 상세 열기/닫기: 원문 보존, 조회(done 개수)·쓰기 IPC 0
+    const doneBefore = [await done(app, 'ai:check-result:002.md'), await done(app, 'ai:analysis:002.md')];
+    for (const panel of [issues(page), facts(page)]) {
+      await panel.getByRole('button', { name: '기술 상세' }).click();
+      const detail = await panel.locator('.tech-detail').innerText();
+      for (const raw of ['Error invoking', 'EACCES', 'permission denied', 'C:/Users/synthetic/ai/ai.db']) assert.ok(detail.includes(raw), `기술 상세에 원문(${raw})이 보존된다`);
+      await panel.getByRole('button', { name: '상세 닫기' }).click();
+      assert.equal(await panel.locator('.tech-detail').count(), 0);
+    }
+    assert.deepEqual([await done(app, 'ai:check-result:002.md'), await done(app, 'ai:analysis:002.md')], doneBefore, '상세 조작은 조회 IPC를 만들지 않는다');
+    assert.equal(await app.evaluate(() => (globalThis as unknown as { writes: number }).writes), 0, '쓰기 IPC 0');
+
+    // 다시 읽기로 복구 (해당 결과 조회만 다시 실행한다)
+    await issues(page).getByRole('button', { name: '다시 읽기', exact: true }).click();
+    await facts(page).getByRole('button', { name: '다시 읽기', exact: true }).click();
+    await issues(page).getByText('TWO_CLAIM', { exact: true }).waitFor();
+    await facts(page).getByText('TWO_FACT', { exact: false }).waitFor();
+    assert.equal(await page.getByText('읽지 못했습니다', { exact: false }).count(), 0);
+    assert.equal(await app.evaluate(() => (globalThis as unknown as { writes: number }).writes), 0, '복구 뒤에도 쓰기 IPC 0');
+    const after = await Promise.all(files.map((f) => readFile(join(dir, 'chapters', f))));
+    assert.ok(after.every((b, i) => Buffer.compare(b, originals[i]!) === 0), '원고 원본 바이트 불변');
+  } finally {
+    await closeWindow(app);
+  }
 });
