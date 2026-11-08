@@ -37,6 +37,24 @@ const typeIn = async (page: Page, text: string, add: string) => {
   await page.keyboard.press('End');
   await page.keyboard.type(add);
 };
+/** 문단 끝(논리 끝)에 캐럿을 두고 입력한다. End는 시각 줄 끝이라 좁은 편집 영역에서 줄바꿈된 긴 문단의 단어 중간에 입력될 수 있다. 입력 뒤 그 문단의 글자를 확인한다 */
+const typeAtParagraphEnd = async (page: Page, text: string, add: string) => {
+  await editor(page).getByText(text, { exact: true }).waitFor();
+  await page.evaluate((t) => {
+    const pm = document.querySelector('.ProseMirror') as HTMLElement;
+    const p = [...pm.querySelectorAll('p')].find((x) => x.textContent === t);
+    if (!p) throw new Error('문단을 찾지 못했다');
+    pm.focus();
+    const range = document.createRange();
+    range.selectNodeContents(p);
+    range.collapse(false);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }, text);
+  await page.keyboard.type(add);
+  await editor(page).getByText(text + add, { exact: true }).waitFor();
+};
 const snapshot = (page: Page) =>
   page.evaluate(() => {
     const pm = document.querySelector('.ProseMirror') as unknown as { editor: { state: { selection: { from: number; to: number } }; can(): { undo(): boolean } }; __marker?: number };
@@ -80,6 +98,7 @@ test('차이 보기: 내 화면(−)과 디스크(+)를 줄 단위로 보여 주
     assert.match(clip, /KEEP_B/);
 
     // 내 것으로 덮어쓰기: 가장 최근 디스크 해시로 확인해 쓴다. 바이트는 BOM·CRLF·frontmatter를 지킨다
+    page.once('dialog', (d) => void d.accept()); // 덮어쓰기는 디스크의 외부 수정이 사라지는 동작이라 확인을 먼저 받는다 (의도한 변경: 수락)
     await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).click();
     await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
     assert.equal(await readFile(two, 'utf8'), `${envelope('two', 'TWO')}${lines('KEEP_A', '', 'CHANGE_ME MINE1 MINE2', '', 'KEEP_B')}`);
@@ -166,19 +185,25 @@ test('내 내용 복사는 누른 순간의 편집기 문서를 복사한다: �
     await page.getByRole('button', { name: '차이 보기' }).click();
     await compare(page).locator('.diff li').first().waitFor({ timeout: 10_000 });
     const clipboard = () => app.evaluate(({ clipboard }) => clipboard.readText());
+    // 좁은 창에서 긴 문단이 줄바꿈되는 경우도 같이 본다 (입력 위치는 문단 끝으로 고정한다)
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(760, 800));
     // 비교가 준비된 뒤 편집하고 debounce(400ms) 전에 바로 복사
-    await typeIn(page, 'KEEP_A MINE', ' LATEST_BACKUP_MARKER');
+    await typeAtParagraphEnd(page, 'KEEP_A MINE', ' LATEST_BACKUP_MARKER');
     await compare(page).getByRole('button', { name: '내 내용 복사' }).click();
     await compare(page).getByText('복사했습니다').waitFor();
     let clip = await clipboard();
     assert.match(clip, /LATEST_BACKUP_MARKER/, '복사 직전의 입력이 백업에 있다');
     assert.match(clip, /KEEP_A MINE LATEST_BACKUP_MARKER/);
-    // 연속 복사: 또 쓰고 바로 다시 복사
-    await typeIn(page, 'KEEP_A MINE LATEST_BACKUP_MARKER', ' SECOND_MARKER');
+    // 연속 복사: 또 쓰고 바로 다시 복사. 완료는 이번 복사로 클립보드가 바뀐 것을 관측해 기다린다 (고정 대기 없음)
+    const first = clip;
+    await typeAtParagraphEnd(page, 'KEEP_A MINE LATEST_BACKUP_MARKER', ' SECOND_MARKER');
+    const docAtClick = (await editor(page).locator('p').first().innerText()).trim();
     await compare(page).getByRole('button', { name: '내 내용 복사' }).click();
-    await page.waitForTimeout(150);
+    for (let n = 0; n < 120 && (await clipboard()) === first; n++) await page.waitForTimeout(25);
     clip = await clipboard();
+    assert.notEqual(clip, first, '두 번째 복사로 클립보드가 바뀌었다');
     assert.match(clip, /LATEST_BACKUP_MARKER SECOND_MARKER/);
+    assert.ok(clip.startsWith(docAtClick), '복사값의 첫 문단은 누른 순간 편집기 본문과 같다');
     assert.doesNotMatch(clip, /DISK_LINE/, '디스크 내용이 섞이지 않는다');
   } finally {
     page.on('dialog', (d) => void d.accept());

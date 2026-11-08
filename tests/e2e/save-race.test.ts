@@ -208,6 +208,7 @@ for (const action of ['내 것으로 덮어쓰기', '디스크 내용 불러오�
       await page.keyboard.press('Control+S');
       assert.equal(await readFile(path, 'utf8'), EXTERNAL);
       if (action === '내 것으로 덮어쓰기') {
+        page.once('dialog', (d) => void d.accept()); // 덮어쓰기는 디스크의 외부 수정이 사라지는 동작이라 확인을 먼저 받는다 (의도한 변경: 수락)
         await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).click();
         await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 5000 });
         assert.equal(await readFile(path, 'utf8'), '# A\n\noriginal typed more\n');

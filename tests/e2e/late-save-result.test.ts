@@ -140,6 +140,7 @@ test('늦게 도착한 저장 실패(EPERM)가 그보다 먼저 도착한 바깥
     assert.equal(await editor(page).getByText('Alpha text A', { exact: true }).count(), 1, '수락한 입력이 화면에 남아야 한다');
     // 사용자가 덮어쓰기를 고르면 바깥 변경 뒤 해시로 저장된다 (주입을 풀어 저장 가능하게)
     await app.evaluate(() => void ((globalThis as unknown as G).failRename = false));
+    page.once('dialog', (d) => void d.accept()); // 덮어쓰기는 디스크의 외부 수정이 사라지는 동작이라 확인을 먼저 받는다 (의도한 변경: 수락)
     await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).click();
     await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
     assert.equal(await readFile(path, 'utf8'), withText('Alpha text A'));
@@ -184,6 +185,7 @@ test('늦게 도착한 conflict 결과가 그보다 먼저 도착한 더 최신 
     await alert(page).getByText(CHANGED).waitFor({ timeout: 10_000 });
     assert.equal(await readFile(path, 'utf8'), X2, '최신 바깥 변경이 사용자의 오래된 선택에 덮였다');
     // 5) 이제 최신 안내에서 덮어쓰기를 고르면 그 뒤에 저장된다
+    page.once('dialog', (d) => void d.accept()); // 덮어쓰기는 디스크의 외부 수정이 사라지는 동작이라 확인을 먼저 받는다 (의도한 변경: 수락)
     await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).click();
     await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
     assert.equal(await readFile(path, 'utf8'), withText('Alpha text A'));
