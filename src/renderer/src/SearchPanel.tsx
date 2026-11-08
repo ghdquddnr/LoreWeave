@@ -98,7 +98,8 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
 
   /** [다시 검색]: 누른 순간 입력창의 검색어로 기존 search()(저장 전 flush → 검색)를 그대로 쓴다. 빈 검색어·조합 중·진행 중에는 시작하지 않는다 */
   const retrySearch = () => {
-    if (inflight.current || !query.trim() || composing.current || composingKey.current) return;
+    // 실제 조합 중(compositionstart~end)에만 막는다. composingKey는 IME 키가 만든 form submit을 거르는 이력이라 포인터로 누른 버튼에는 적용하지 않는다 (조합이 끝난 뒤 키 입력 없이 누른 버튼이 영구히 막히지 않게)
+    if (inflight.current || !query.trim() || composing.current) return;
     void search();
   };
 

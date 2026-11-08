@@ -207,3 +207,68 @@ test('검색 요청이 실패하면 [다시 검색]이 입력창의 현재 검�
     await closeWindow(app);
   }
 });
+
+// 조합 키(keyCode 229)의 이력은 form submit을 거르는 용도다: 조합이 끝난 뒤의 마우스 [다시 검색]까지 영구히 막으면 안 된다.
+// 실제 조합 중(compositionstart~end)의 버튼 클릭은 시작하지 않고, compositionend 뒤에는 추가 일반 키 입력 없이 버튼으로 현재 검색어를 정확히 한 번 검색한다.
+// CDP 합성 조합·합성 229 keydown이며 실제 OS IME 확인이 아니다.
+test('[다시 검색]: 조합 중 클릭은 flush·검색을 시작하지 않고, 조합이 끝난 뒤에는 추가 키 입력 없이 마우스 클릭으로 현재 검색어를 한 번 검색한다', { timeout: 90_000 }, async () => {
+  const dir = await tempDir('search-retry-ime');
+  await mkdir(join(dir, 'chapters'));
+  await writeFile(join(dir, 'chapters', '001.md'), ONE);
+  await writeFile(join(dir, 'chapters', '002.md'), TWO);
+  const { app, page } = await launch(await tempDir('search-retry-ime-ud'));
+  try {
+    await stubFolderDialog(app, dir);
+    await hook(app);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await chapterButton(page, 'ONE').click();
+    await page.locator('.ProseMirror').getByText('알파 하나').waitFor();
+    await page.evaluate(`(() => {
+      const real = window.setTimeout.bind(window);
+      window.setTimeout = (fn, delay, ...rest) => (delay === 1500 ? 0 : real(fn, delay, ...rest));
+    })()`);
+    const cdp = await page.context().newCDPSession(page);
+    await setHold(app, '감마', 'fail');
+    await submit(page, '감마');
+    await until(app, '첫 검색 도착', (b) => count(b.arrived, '감마') === 1);
+    await release(app, '감마');
+    await retryButton(page).waitFor();
+    await clearHold(app, '감마');
+
+    // 미저장 본문을 만들어 두고(저장 전 flush 진입은 chapter:write로 관측), 조합 시작
+    await page.locator('.ProseMirror').getByText('알파 하나').click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' X');
+    await box(page).fill('알');
+    await cdp.send('Input.imeSetComposition', { text: '파', selectionStart: 1, selectionEnd: 1 });
+    await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', windowsVirtualKeyCode: 229, key: 'Process', code: 'Enter' });
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', windowsVirtualKeyCode: 229, key: 'Process', code: 'Enter' });
+
+    // 조합 중 클릭(포커스를 옮기지 않는 DOM 클릭): 시작하지 않는다
+    const before = await barrier(app);
+    await page.evaluate(() => (document.querySelector('.search .error button') as HTMLButtonElement).click());
+    await settled(page);
+    const during = await barrier(app);
+    assert.equal(during.arrived.length, before.arrived.length, '조합 중 버튼 클릭이 검색 IPC를 시작하지 않았다');
+    assert.equal(during.writes, before.writes, '조합 중 버튼 클릭이 저장 전 flush에 들어가지 않았다');
+
+    // 조합 확정(compositionend) 뒤 추가 일반 키 입력 없이 마우스 클릭: 현재 검색어를 한 번 검색한다
+    await page.keyboard.insertText('파');
+    assert.equal(await box(page).inputValue(), '알파');
+    await retryButton(page).click();
+    await resultsList(page).waitFor();
+    const after = await barrier(app);
+    assert.deepEqual(after.arrived.slice(before.arrived.length), ['알파'], '조합이 끝난 뒤 마우스 클릭이 현재 검색어를 정확히 한 번 검색했다');
+    assert.equal(after.writes, before.writes + 1, '버튼 경로가 저장 전 flush로 미저장 본문을 저장했다');
+    assert.equal(await errorNote(page).count(), 0);
+
+    // 일반 Enter·Escape는 그대로다
+    await box(page).press('Escape');
+    assert.equal(await box(page).inputValue(), '');
+    await submit(page, '감마');
+    await resultsList(page).waitFor();
+  } finally {
+    await release(app, '감마').catch(() => undefined);
+    await closeWindow(app);
+  }
+});
