@@ -341,8 +341,10 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       }
       // 명령 팔레트: 한글 조합 중이거나 다른 대화상자(설정·AI 실행 확인·팔레트)가 떠 있으면 열지 않는다
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        // IME 소유 키(isComposing, 또는 keyCode 229)는 가로채지 않는다: 팔레트를 열지 않고 preventDefault도 하지 않아 조합이 그대로 이어진다 (검색 단축키와 같은 보호)
+        if (e.isComposing || e.keyCode === 229) return;
         e.preventDefault();
-        if (e.isComposing || e.repeat || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+        if (e.repeat || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
         openPalette();
       }
     };
