@@ -113,7 +113,10 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
       >
         <input
           ref={input}
-          type="search"
+          // type="search"가 아니라 text + role="searchbox": 검색 입력란의 기본 Escape는 입력 전체를 지워, 조합 중 Escape(조합 취소)에서도 확정한 검색어까지 사라진다. 접근 가능한 이름·역할은 그대로다
+          type="text"
+          role="searchbox"
+          enterKeyHint="search"
           aria-label="원고 검색"
           placeholder="원고 검색 (Ctrl+Shift+F)"
           value={query}
