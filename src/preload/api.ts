@@ -133,6 +133,8 @@ export interface LoreweaveApi {
     checkResult(file: string, token: number): Promise<StoredCheck | null>;
     /** 검사 결과 하나를 무시한다. 다시 검사해도 같은 화·종류·문장의 결과는 숨는다 */
     dismiss(file: string, ord: number, token: number): Promise<void>;
+    /** 무시한 결과를 다시 보이게 한다 (그 결과의 화·종류·문장 키 하나만 되돌린다) */
+    undismiss(file: string, ord: number, token: number): Promise<void>;
   };
   app: {
     /** 창을 닫기 직전에 불린다. 저장을 마친 뒤 replyClose로 답해야 창이 닫힌다 */
@@ -171,6 +173,7 @@ export const CHANNELS = {
   aiRunCheck: 'ai:run-check',
   aiCheckResult: 'ai:check-result',
   aiDismiss: 'ai:dismiss',
+  aiUndismiss: 'ai:undismiss',
   beforeClose: 'app:before-close',
   replyClose: 'app:reply-close',
 } as const;

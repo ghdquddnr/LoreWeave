@@ -276,7 +276,7 @@ test('무시: 저장되면 카드가 숨고 밑줄·거터 점이 사라지고 �
     await page.evaluate(() => void ((document.querySelector('.ProseMirror') as unknown as { __marker: number }).__marker = 3));
     const before = await snapshot(page);
     await issues(page).locator('.issue-card').getByRole('button', { name: '무시', exact: true }).click();
-    await issues(page).getByText('찾은 문제 가능성이 없습니다.').waitFor();
+    await issues(page).getByText('현재 표시할 결과가 없습니다.').waitFor();
     await page.waitForFunction(() => document.querySelectorAll('.ProseMirror .issue-mark').length === 0);
     assert.equal(await dots(page), 0);
     await nav(page).locator('.chapter').filter({ hasText: 'TWO' }).locator('.mark[aria-label="검사함: 문제 가능성 없음"]').waitFor({ timeout: 10_000 });
@@ -299,7 +299,7 @@ test('조합(합성 이벤트 경계): 조합 중에는 표시 장식을 바꾸�
     assert.equal(await page.evaluate(() => (document.querySelector('.ProseMirror') as unknown as { editor: { view: { composing: boolean } } }).editor.view.composing), true);
     // 조합 중에 표시 대상이 바뀐다 (무시): 장식은 아직 그대로여야 한다
     await issues(page).locator('.issue-card').getByRole('button', { name: '무시', exact: true }).click();
-    await issues(page).getByText('찾은 문제 가능성이 없습니다.').waitFor();
+    await issues(page).getByText('현재 표시할 결과가 없습니다.').waitFor();
     await page.waitForTimeout(1200);
     assert.deepEqual(await marked(page), ['TARGET_BODY'], '조합 중에는 장식을 바꾸지 않는다');
     // 조합이 끝나면 반영한다

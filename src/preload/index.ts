@@ -50,6 +50,7 @@ const api: LoreweaveApi = {
     runCheck: (file, token) => ipcRenderer.invoke(CHANNELS.aiRunCheck, file, token),
     checkResult: (file, token) => ipcRenderer.invoke(CHANNELS.aiCheckResult, file, token),
     dismiss: (file, ord, token) => ipcRenderer.invoke(CHANNELS.aiDismiss, file, ord, token),
+    undismiss: (file, ord, token) => ipcRenderer.invoke(CHANNELS.aiUndismiss, file, ord, token),
   },
   app: {
     onBeforeClose(listener) {

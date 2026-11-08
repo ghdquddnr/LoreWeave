@@ -55,17 +55,23 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   const [showLow, setShowLow] = useState(false);
   const [missing, setMissing] = useState<string | null>(null);
   /** 무시 실패. 실패한 요청이 누른 그 결과(화·프로젝트·검사 결과)가 아직 보이는 동안에만 보인다 */
-  const [error, setError] = useState<{ file: string; ctx: number; message: string } | null>(null);
+  const [error, setError] = useState<{ file: string; ctx: number; message: string; undo: boolean } | null>(null);
   /** 결과의 문맥 세대: 화·프로젝트·검사 결과(version)가 바뀔 때만 오른다. 무시 뒤의 다시 읽기로는 오르지 않는다 */
   const ctxRef = useRef(0);
   const [ctx, setCtx] = useState(0);
   /** 마지막 무시 요청의 차례. 안내는 마지막 요청의 결과만 따른다 (늦게 끝난 이전 요청이 최신 상태를 바꾸지 않는다) */
   const dismissSeq = useRef(0);
+  /** 가장 최근 무시·무시 취소 요청의 차례 (응답을 기다리는 동안 무시 취소는 다시 받지 않는다) */
+  const [pending, setPending] = useState<number | null>(null);
+  const pendingRef = useRef<number | null>(null);
   const [reload, setReload] = useState(0);
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
     setCtx(++ctxRef.current);
+    // 화·프로젝트·검사 결과가 바뀌면 이전 요청의 대기는 이 결과와 상관없다 (그 늦은 응답은 아래 차례 비교로 버린다)
+    pendingRef.current = null;
+    setPending(null);
   }, [file, projectToken, version]);
 
   useEffect(() => {
@@ -95,23 +101,40 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
     onJump(at);
   };
 
-  const dismiss = (f: StoredFinding) => {
+  /** 무시(undo=false) 또는 무시 취소(undo=true). 같은 검증·차례·문맥 규칙을 쓰고, 한 번에 하나만 보낸다 */
+  const changeDismissal = (f: StoredFinding, undo: boolean) => {
     // 누른 순간에도 확인한다: 화를 바꾸거나 다시 읽기 시작한 뒤의 이전 결과로는 보내지 않는다
-    if (!ready || loaded.seq !== seq.current) return;
+    // 무시 취소는 한 번에 하나만 보낸다 (기존 무시는 이전처럼 겹쳐 보낼 수 있고, 안내는 마지막 요청을 따른다)
+    if (!ready || loaded.seq !== seq.current || (undo && pendingRef.current !== null)) return;
     const target = loaded.file;
     const mine = ++dismissSeq.current;
     const at = ctxRef.current;
-    void api.ai.dismiss(target, f.ord, projectToken).then(
+    pendingRef.current = mine;
+    setPending(mine);
+    const done = () => {
+      if (pendingRef.current === mine) {
+        pendingRef.current = null;
+        setPending(null);
+      }
+    };
+    const request = undo ? api.ai.undismiss(target, f.ord, projectToken) : api.ai.dismiss(target, f.ord, projectToken);
+    void request.then(
       () => {
+        done();
         // 저장은 성공했으니 다시 읽고 배지를 갱신한다. 이전 실패 안내는 같은 결과에서 마지막 요청이 성공했을 때만 거둔다
         if (mine === dismissSeq.current) setError((cur) => (cur?.ctx === at ? null : cur));
         setReload((n) => n + 1);
         onDismissed();
       },
       // 마지막 요청이고, 누른 결과의 문맥(화·프로젝트·검사 결과)이 아직 같을 때만 안내한다 (화를 거치거나 새로 읽은 뒤의 늦은 실패는 버린다)
-      (e: Error) => mine === dismissSeq.current && at === ctxRef.current && setError({ file: target, ctx: at, message: e.message }),
+      (e: Error) => {
+        done();
+        if (mine === dismissSeq.current && at === ctxRef.current) setError({ file: target, ctx: at, message: e.message, undo });
+      },
     );
   };
+  const dismiss = (f: StoredFinding) => changeDismissal(f, false);
+  const undismiss = (f: StoredFinding) => changeDismissal(f, true);
 
   // 무시한 결과와 확신도가 낮은 결과는 숨긴다 (각각 [보기]로 볼 수 있다)
   const low = (f: StoredFinding) => f.confidence < MIN_CONFIDENCE;
@@ -178,7 +201,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
             )}
             {error?.file === file && error.ctx === ctx && (
               <p className="error" role="alert">
-                <ErrorNote error={friendlyError(error.message)} />
+                <ErrorNote error={friendlyError(error.message)} prefix={error.undo ? '무시를 취소하지 못했습니다' : undefined} hint={error.undo ? '무시한 상태 그대로입니다. 다시 눌러 볼 수 있습니다' : undefined} />
               </p>
             )}
             {check.findings.length === 0 && (
@@ -204,7 +227,12 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
                       {low(f) && !f.dismissed && <span className="chip">확신 낮음</span>}
                       {state === 'stale' && <span className="chip chip-stale">옛 결과</span>}
                       {f.dismissed ? (
-                        <span className="chip">무시함</span>
+                        <>
+                          <span className="chip">무시함</span>
+                          <button type="button" className="link" disabled={!ready || pending !== null} onClick={() => undismiss(f)}>
+                            무시 취소
+                          </button>
+                        </>
                       ) : (
                         <button type="button" className="link" disabled={!ready} onClick={() => dismiss(f)}>
                           무시

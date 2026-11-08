@@ -76,7 +76,7 @@ test('무시 실패 뒤 같은 결과의 재시도가 성공하면 이전 실패
 
     // 세 번째 시도는 성공한다: 재조회로 결과가 무시됨 상태가 되고, 옛 실패 안내는 남지 않는다
     await dismissButton(page).click();
-    await issues(page).getByText('찾은 문제 가능성이 없습니다.').waitFor();
+    await issues(page).getByText('현재 표시할 결과가 없습니다.').waitFor();
     await issues(page).getByRole('button', { name: /무시한 결과 1개 보기/ }).waitFor();
     assert.equal(await failNote(page).count(), 0, '성공한 뒤에는 이전 무시 실패를 현재 오류로 남기지 않는다');
   } finally {
@@ -152,7 +152,7 @@ test('다른 화를 거쳐 새로 읽은 뒤 이전 무시 요청이 늦게 실�
     assert.equal(await failNote(page).count(), 0, '이전 문맥의 늦은 무시 실패가 현재 결과에 나타나지 않는다');
     // 현재 결과의 무시는 정상이다
     await dismissButton(page).click();
-    await issues(page).getByText('찾은 문제 가능성이 없습니다.').waitFor();
+    await issues(page).getByText('현재 표시할 결과가 없습니다.').waitFor();
   } finally {
     await closeWindow(app);
   }

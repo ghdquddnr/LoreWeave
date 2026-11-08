@@ -39,3 +39,38 @@ test('issueCounts: 기준 이상·무시하지 않은 결과만, 검사한 화�
     db.close();
   }
 });
+
+test('무시 취소: 그 화·종류·문장 키 하나만 되돌리고, 반복해도 안전하며, 다시 검사·저장해도 무시로 돌아가지 않는다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'loreweave-undismiss-'));
+  const db = AiStore.open(dir);
+  try {
+    db.saveCheck({ ...base, file: '001.md', contentHash: 'h1', findings: [finding('age', 0.9, 'gone'), finding('number', 0.9, 'gone'), finding('age', 0.9, 'other')] });
+    db.saveCheck({ ...base, file: '003.md', contentHash: 'h3', findings: [finding('age', 0.9, 'gone')] });
+    for (const [file, category, key] of [['001.md', 'age', 'gone'], ['001.md', 'number', 'gone'], ['001.md', 'age', 'other'], ['003.md', 'age', 'gone']] as const) db.dismiss(file, category, key, base.createdAt);
+    assert.deepEqual(db.issueCounts(MIN_CONFIDENCE), { '001.md': 0, '003.md': 0 });
+    const dismissed = (file: string) => db.check(file)!.findings.map((f) => `${f.category}:${f.key}:${f.dismissed}`);
+
+    db.undismiss('001.md', 'age', 'gone');
+    assert.deepEqual(dismissed('001.md'), ['age:gone:false', 'number:gone:true', 'age:other:true'], '정확한 키 하나만 돌아온다 (다른 종류·다른 문장은 그대로)');
+    assert.deepEqual(dismissed('003.md'), ['age:gone:true'], '다른 화의 같은 키는 그대로');
+    assert.deepEqual(db.issueCounts(MIN_CONFIDENCE), { '001.md': 1, '003.md': 0 }, '배지 수가 복원된다');
+
+    db.undismiss('001.md', 'age', 'gone'); // 반복: 아무 일도 없다
+    db.undismiss('001.md', 'age', '없는 키');
+    db.undismiss('002.md', 'age', 'gone');
+    assert.deepEqual(dismissed('001.md'), ['age:gone:false', 'number:gone:true', 'age:other:true']);
+    assert.deepEqual(dismissed('003.md'), ['age:gone:true']);
+
+    // 같은 화를 다시 검사·저장해도 취소한 결과는 무시로 돌아가지 않고, 다른 무시는 유지된다
+    db.saveCheck({ ...base, file: '001.md', contentHash: 'h1b', findings: [finding('age', 0.9, 'gone'), finding('number', 0.9, 'gone')] });
+    assert.deepEqual(dismissed('001.md'), ['age:gone:false', 'number:gone:true']);
+    // 같은 화·종류·문장 키를 공유하는 결과는 함께 돌아온다 (무시의 저장 단위가 그 키다)
+    db.dismiss('001.md', 'age', 'gone', base.createdAt);
+    db.saveCheck({ ...base, file: '001.md', contentHash: 'h1c', findings: [finding('age', 0.9, 'gone'), finding('age', 0.8, 'gone')] });
+    assert.deepEqual(dismissed('001.md'), ['age:gone:true', 'age:gone:true']);
+    db.undismiss('001.md', 'age', 'gone');
+    assert.deepEqual(dismissed('001.md'), ['age:gone:false', 'age:gone:false']);
+  } finally {
+    db.close();
+  }
+});
