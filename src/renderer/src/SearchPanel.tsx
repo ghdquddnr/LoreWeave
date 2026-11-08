@@ -70,7 +70,12 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
           setResult(null);
           onActiveChange(false);
           setError(e instanceof Error && e.message === NOT_SAVED ? NOT_SAVED_NOTE : `저장 중 오류로 검색하지 않았습니다: ${friendlyError(e).summary}`);
-        } else setError(friendlyError(e).summary);
+        } else {
+          // 검색 요청이 실패했다: 이전 검색의 결과·개수·없음 안내를 이 검색의 결과처럼 남기지 않고 화 목록으로 돌아간다 (검색어는 남겨 Enter로 다시 검색할 수 있다. 실패를 0건 성공으로 보이지 않는다)
+          setResult(null);
+          onActiveChange(false);
+          setError(friendlyError(e).summary);
+        }
       }
     } finally {
       if (mine === seq.current) setBusy(false);
