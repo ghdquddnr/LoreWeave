@@ -164,10 +164,12 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const bodyCopySeq = useRef(0);
   // 다른 화·다시 불러오기·다른 프로젝트로 바뀌거나 저장에 성공하면 이전 복사 결과와 늦은 응답을 버린다 (5초마다의 자동 재시도 중에는 결과를 유지한다)
   const saved = save.status.kind === 'saved';
+  /** 파일이 다른 곳에서 지워졌거나 이름이 바뀐 충돌: 디스크에 비교할 내용이 없어 [차이 보기]가 없다. 본문 복사만 이 안내에서 제공한다 */
+  const deletedConflict = save.status.kind === 'conflict' && save.status.diskHash === null;
   useEffect(() => {
     bodyCopySeq.current++;
     setBodyCopy('idle');
-  }, [file, reloadKey, projectGen, saved]);
+  }, [file, reloadKey, projectGen, saved, deletedConflict]);
   /** 저장 실패 안내의 [다시 저장]: 기존 flush() 경로로 지금 본문을 다시 저장한다. 누르는 중에는 한 번만 실행된다 */
   const [retrying, setRetrying] = useState(false);
   const retryingRef = useRef(false);
@@ -585,6 +587,19 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const current = project.list.chapters.find((c) => c.file === file);
   const titleOf = (f: string) => project.list.chapters.find((c) => c.file === f)?.title ?? f;
   const busy = switching || acting;
+  const copyNote =
+    bodyCopy !== 'idle' ? (
+      <span className={`copy-note ${bodyCopy === 'fail' ? 'error' : 'muted'}`}>
+        {' '}
+        {bodyCopy === 'pending'
+          ? '복사하는 중…'
+          : bodyCopy === 'ok'
+            ? '본문 글자만 복사했습니다 (저장된 것은 아닙니다)'
+            : deletedConflict
+              ? '복사하지 못했습니다. 다시 눌러 주세요'
+              : '복사하지 못했습니다. 저장 실패는 그대로입니다. 다시 눌러 주세요'}
+      </span>
+    ) : null;
   const saveError = save.status.kind === 'error' ? friendlyError(save.status.message) : null;
   const pendingAnalysis = ai ? Object.values(ai.states).filter((s) => s !== 'fresh').length : 0;
   /**
@@ -812,16 +827,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
               <button type="button" className="link" onClick={() => void copyBody()}>
                 본문 복사
               </button>
-              {bodyCopy !== 'idle' && (
-                <span className={`copy-note ${bodyCopy === 'fail' ? 'error' : 'muted'}`}>
-                  {' '}
-                  {bodyCopy === 'pending'
-                    ? '복사하는 중…'
-                    : bodyCopy === 'ok'
-                      ? '본문 글자만 복사했습니다 (저장된 것은 아닙니다)'
-                      : '복사하지 못했습니다. 저장 실패는 그대로입니다. 다시 눌러 주세요'}
-                </span>
-              )}
+              {copyNote}
               {saveError?.detail && (
                 <>
                   {' '}
@@ -830,6 +836,15 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                   </button>
                 </>
               )}
+            </>
+          )}
+          {deletedConflict && (
+            <>
+              {' '}
+              <button type="button" className="link" onClick={() => void copyBody()}>
+                본문 복사
+              </button>
+              {copyNote}
             </>
           )}
         </span>
