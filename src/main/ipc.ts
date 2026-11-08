@@ -217,31 +217,85 @@ function requireProject(token: unknown): string {
  */
 const stillOpen = (token: number) => token === projectToken;
 
+/** 이 시간 안에 저장 완료 응답이 없으면 닫지 않고 native 안내로 묻는다 (이 시간 경과 자체는 저장 승인도 폐기 승인도 아니다) */
 const CLOSE_TIMEOUT_MS = 10_000;
 
+/** 닫기 시도 하나: 번호, 10초 타이머, 떠 있는 native 안내 */
+interface CloseAttempt {
+  id: number;
+  timer: NodeJS.Timeout | null;
+  asking: AbortController | null;
+}
+
 /**
- * 창을 닫기 전에 renderer에 저장할 기회를 준다. renderer가 답하지 않으면(멈춤 등) 10초 뒤 닫는다.
- * renderer가 false로 답하면(사용자가 닫기를 취소) 창을 그대로 둔다.
+ * 창을 닫기 전에 renderer에 저장할 기회를 준다. renderer가 저장을 마치고 true로 답해야 닫는다 (false는 사용자가 닫기를 취소한 것이다: 창을 그대로 둔다).
+ * 시간이 지나도 답이 없으면 (저장 지연·renderer 멈춤) 저장 완료도 사용자의 폐기 승인도 아니므로 닫지 않는다: renderer와 무관한 native 안내로 "계속 기다리기"/"닫기 취소"를 묻는다.
+ * 기다리면 같은 시도를 이어 가고(늦게 온 저장 완료 응답으로 닫힐 수 있다) 다시 시간이 지나면 다시 묻는다. 취소하면 그 시도는 끝난다.
+ * 닫기 시도마다 번호를 붙여, 취소한 시도의 늦은 응답이나 옛 안내가 이후 다른 시도를 승인하지 못하게 한다.
  */
 export function guardWindowClose(win: BrowserWindow): void {
   let allowed = false;
-  let timer: NodeJS.Timeout | null = null;
+  let attempts = 0;
+  let pending: CloseAttempt | null = null as CloseAttempt | null;
+  const end = () => {
+    if (!pending) return;
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.asking?.abort();
+    pending = null;
+  };
   const close = () => {
     allowed = true;
     if (!win.isDestroyed()) win.close();
   };
+  const ask = (attempt: CloseAttempt) => {
+    attempt.timer = null;
+    if (win.isDestroyed()) return end();
+    const asking = new AbortController();
+    attempt.asking = asking;
+    dialog
+      .showMessageBox(win, {
+        type: 'warning',
+        title: '저장을 확인하지 못했습니다',
+        message: '창을 닫기 전에 저장이 끝났는지 확인하지 못했습니다.',
+        detail: '저장이 끝나기 전에 닫으면 저장하지 못한 글이 사라질 수 있어 창을 닫지 않았습니다. 계속 기다리거나, 닫기를 취소하고 창에서 계속 쓸 수 있습니다.',
+        buttons: ['계속 기다리기', '닫기 취소'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+        signal: asking.signal,
+      })
+      .then(
+        ({ response }) => {
+          if (pending !== attempt || attempt.asking !== asking) return; // 이미 끝났거나 취소된 시도
+          attempt.asking = null;
+          if (response === 0) attempt.timer = setTimeout(() => ask(attempt), CLOSE_TIMEOUT_MS);
+          else end();
+        },
+        () => {
+          // 안내를 띄우지 못했거나 도중에 끊겼다: 닫지 않고 시도를 끝낸다 (저장 확인 없이 닫지 않는다)
+          if (pending === attempt && attempt.asking === asking) end();
+        },
+      );
+  };
   win.on('close', (event) => {
     if (allowed) return;
     event.preventDefault();
-    if (timer) return;
-    win.webContents.send(CHANNELS.beforeClose);
-    timer = setTimeout(close, CLOSE_TIMEOUT_MS);
+    if (pending) return; // 이미 닫기 시도 중이다 (중복 닫기 요청은 새 시도·새 안내를 만들지 않는다)
+    const attempt: CloseAttempt = { id: ++attempts, timer: null, asking: null };
+    pending = attempt;
+    attempt.timer = setTimeout(() => ask(attempt), CLOSE_TIMEOUT_MS);
+    win.webContents.send(CHANNELS.beforeClose, attempt.id);
   });
-  ipcMain.on(CHANNELS.replyClose, (event, proceed: boolean) => {
-    if (event.sender !== win.webContents || !timer) return;
-    clearTimeout(timer);
-    timer = null;
+  const onReply = (event: Electron.IpcMainEvent, proceed: boolean, attempt: number) => {
+    // 이 창의 현재 시도에 대한 답만 받는다 (다른 창, 취소했거나 끝난 시도의 늦은 답은 무시한다)
+    if (event.sender !== win.webContents || !pending || pending.id !== attempt) return;
+    end();
     if (proceed) close();
+  };
+  ipcMain.on(CHANNELS.replyClose, onReply);
+  win.once('closed', () => {
+    end();
+    ipcMain.removeListener(CHANNELS.replyClose, onReply);
   });
 }
 

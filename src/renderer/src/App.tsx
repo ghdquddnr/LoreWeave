@@ -324,7 +324,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     };
     window.addEventListener('blur', onBlur);
     window.addEventListener('keydown', onKey);
-    const off = api.app.onBeforeClose(() => void leave().then((ok) => api.app.replyClose(ok)));
+    const off = api.app.onBeforeClose((attempt) => void leave().then((ok) => api.app.replyClose(ok, attempt)));
     // 다른 프로그램이 화를 바꾸면 분석 상태(분석 뒤 바뀜)도 다시 읽는다
     const offOutside = api.chapters.onChangedOutside(() => refreshAi());
     return () => {
