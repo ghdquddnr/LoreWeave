@@ -3,7 +3,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { snippet } from '../../core/search.ts';
 import type { SearchHit, SearchResult } from '../../preload/api.ts';
-import { friendlyError } from './userError.ts';
+import { ErrorNote } from './ErrorNote.tsx';
+import { friendlyError, friendlyReadError } from './userError.ts';
 
 export interface SearchPanelHandle {
   focus(): void;
@@ -38,6 +39,9 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
   const [result, setResult] = useState<(SearchResult & { query: string }) | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 검색 요청 실패의 기술 상세 원문 (저장 단계 안내에는 없다). 기본 안내와 함께 지우고, 새 실패마다 접힌 채 시작한다 */
+  const [errorDetail, setErrorDetail] = useState('');
+  const errorId = useRef(0);
   /** 검색 요청(chapters:search) 단계가 실패했다 ([다시 검색]을 보인다). 저장 단계 실패와 구분한다: 저장 문제에는 검색 재시도 버튼을 붙이지 않는다 */
   const [searchFailed, setSearchFailed] = useState(false);
   /** 가장 최근 요청이 진행 중이다 ([다시 검색] 중복 클릭을 막는다. Enter의 새 검색은 이전처럼 최신 요청이 이긴다) */
@@ -60,6 +64,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     inflight.current = true;
     setBusy(true);
     setError(null);
+    setErrorDetail('');
     setSearchFailed(false);
     let searched = false;
     try {
@@ -84,7 +89,11 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
           // 검색 요청이 실패했다: 이전 검색의 결과·개수·없음 안내를 이 검색의 결과처럼 남기지 않고 화 목록으로 돌아간다 (검색어는 남겨 Enter로 다시 검색할 수 있다. 실패를 0건 성공으로 보이지 않는다)
           setResult(null);
           onActiveChange(false);
-          setError(friendlyError(e).summary);
+          // 검색은 읽기다: EPERM/EACCES를 쓰기·저장 실패로 설명하지 않는다. IPC 문구·영문 오류·경로·코드는 기본 안내에서 빼고 펼치는 기술 상세에 원문으로 둔다
+          const friendly = friendlyReadError(e, '검색 중 오류가 발생했습니다');
+          errorId.current++;
+          setError(friendly.summary);
+          setErrorDetail(friendly.detail);
           setSearchFailed(true);
         }
       }
@@ -110,6 +119,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     setQuery('');
     setResult(null);
     setError(null);
+    setErrorDetail('');
     setBusy(false);
     onActiveChange(false);
   };
@@ -123,6 +133,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     inflight.current = false;
     setBusy(false);
     setError(null);
+    setErrorDetail('');
     setSearchFailed(false);
     setResult(null);
     onActiveChange(false);
@@ -179,7 +190,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
       )}
       {error && (
         <p className="error search-summary">
-          {error}
+          {searchFailed ? <ErrorNote key={errorId.current} prefix="검색하지 못했습니다" error={{ summary: error, detail: errorDetail }} /> : error}
           {searchFailed && (
             <>
               {' '}
