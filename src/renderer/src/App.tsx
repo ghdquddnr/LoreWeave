@@ -455,7 +455,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       if (issued.list) setProject((p) => p && { ...p, list: issued.list });
       else {
         // 발급은 성공했고 목록 조회만 실패했다: 발급 실패와 구별해 알리고, 목록만 다시 읽을 수 있게 한다 (다시 발급하지 않는다)
-        fail(issued.listError, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        failRead(issued.listError, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
         setUnlisted({ file: null, seq: errorSeqRef.current });
       }
       // 열린 화가 대상이면 새 id가 든 디스크 내용으로 다시 연다 (옛 envelope가 새 id를 되돌리지 않게)
@@ -477,7 +477,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       list = await api.chapters.list(token);
     } catch (e) {
       if (!isCurrent(gen)) return false;
-      fail(e, `새 화(${file})는 만들어졌지만 화 목록을 다시 읽지 못했습니다. 만든 화는 지워지지 않았습니다. `);
+      failRead(e, `새 화(${file})는 만들어졌지만 화 목록을 다시 읽지 못했습니다. 만든 화는 지워지지 않았습니다. `);
       setUnlisted({ file, seq: errorSeqRef.current }); // 이 안내를 만든 순간의 번호
       return false;
     }
@@ -510,7 +510,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         list = await api.chapters.list(project.token);
       } catch (e) {
         if (!isCurrent(gen)) return false;
-        fail(e, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        failRead(e, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
         setUnlisted({ file: null, seq: errorSeqRef.current });
         return false;
       }
