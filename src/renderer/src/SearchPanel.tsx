@@ -30,6 +30,10 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
   ref,
 ) {
   const input = useRef<HTMLInputElement>(null);
+  /** 한글 등 조합 중이다 (compositionstart~end). 조합 중의 Enter(확정)·Escape(조합 취소)는 검색 실행·검색어 지우기가 아니다 */
+  const composing = useRef(false);
+  /** 마지막 keydown이 조합에 속했다 (isComposing, 또는 IME가 처리한 키 keyCode 229). 그 키가 일으킨 form submit을 걸러 낸다 */
+  const composingKey = useRef(false);
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<(SearchResult & { query: string }) | null>(null);
   const [busy, setBusy] = useState(false);
@@ -99,6 +103,11 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
         role="search"
         onSubmit={(e) => {
           e.preventDefault();
+          // 조합을 확정하는 Enter가 만든 submit은 검색이 아니다. 조합이 끝난 뒤의 일반 Enter는 이 플래그가 꺼져 있어 정상 검색한다
+          if (composing.current || composingKey.current) {
+            composingKey.current = false;
+            return;
+          }
           void search();
         }}
       >
@@ -109,7 +118,13 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
           placeholder="원고 검색 (Ctrl+Shift+F)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && clear()}
+          onCompositionStart={() => (composing.current = true)}
+          onCompositionEnd={() => (composing.current = false)}
+          onKeyDown={(e) => {
+            composingKey.current = e.nativeEvent.isComposing || e.keyCode === 229;
+            // 조합 중의 Escape는 IME의 조합 취소다: 검색어·결과·진행 요청을 지우지 않는다 (기본 동작도 막지 않는다)
+            if (e.key === 'Escape' && !composing.current && !composingKey.current) clear();
+          }}
         />
       </form>
       {busy && <p className="search-summary">찾는 중…</p>}
