@@ -98,7 +98,7 @@ test('이 화 검사: 먼저 분석할 화와 비용을 확인받고, 문제 가
     // 3화로 돌아가 무시
     await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: /^3화/ }).click();
     await issues.getByRole('button', { name: '무시' }).first().click();
-    await issues.getByText('찾은 문제 가능성이 없습니다.').waitFor();
+    await issues.getByText('현재 표시할 결과가 없습니다.').waitFor();
     await issues.getByRole('button', { name: '무시한 결과 1개 보기' }).click();
     await issues.getByText('무시함').waitFor();
   } finally {
