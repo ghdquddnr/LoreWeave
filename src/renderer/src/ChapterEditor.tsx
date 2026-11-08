@@ -399,7 +399,15 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
               ? '이 화 파일이 다른 곳에서 지워졌거나 이름이 바뀌었습니다.'
               : '이 화가 다른 프로그램에서 바뀌었습니다. 자동 저장을 멈췄습니다.'}
           </span>
-          <button onClick={() => void saveRef.current(conflict.diskHash)}>
+          <button
+            onClick={() => {
+              // 지금 알려진 디스크 해시(확인 대상)를 먼저 잡는다. 덮어쓰기는 디스크의 외부 수정이 사라지는 동작이라 먼저 확인하고(삭제 충돌의 다시 만들기는 지울 외부 내용이 없어 그대로),
+              // 동의하면 그 해시로 기존 저장 경로를 한 번 실행한다: 그 뒤 디스크가 또 바뀌었다면 해시 검사가 막아 새 바이트를 덮지 않고 충돌로 남는다
+              const target = conflict.diskHash;
+              if (target !== null && !window.confirm('디스크의 외부 수정이 사라지고 지금 화면의 내용으로 저장됩니다. 계속할까요?')) return;
+              void saveRef.current(target);
+            }}
+          >
             {conflict.diskHash === null ? '내 것으로 다시 만들기' : '내 것으로 덮어쓰기'}
           </button>
           {conflict.diskHash !== null && (

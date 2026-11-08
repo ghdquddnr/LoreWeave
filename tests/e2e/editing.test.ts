@@ -103,6 +103,7 @@ test('저장 안 된 변경이 있을 때 다른 프로그램이 화를 바꾸�
   await page.getByRole('alert').getByText(/다른 프로그램에서 바뀌었습니다/).waitFor({ timeout: 5000 });
   await page.waitForTimeout(2000);
   assert.equal(await readFile(chapterFile('004.md'), 'utf8'), '다른 편집기에서 고침\n');
+  page.once('dialog', (d) => void d.accept()); // 덮어쓰기는 디스크의 외부 수정이 사라지는 동작이라 확인을 먼저 받는다 (의도한 변경: 수락)
   await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).click();
   await saved(page);
   assert.match(await readFile(chapterFile('004.md'), 'utf8'), /둘째 줄\. 추가!\r\n$/);

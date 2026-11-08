@@ -80,6 +80,7 @@ test('차이 보기: 내 화면(−)과 디스크(+)를 줄 단위로 보여 주
     assert.match(clip, /KEEP_B/);
 
     // 내 것으로 덮어쓰기: 가장 최근 디스크 해시로 확인해 쓴다. 바이트는 BOM·CRLF·frontmatter를 지킨다
+    page.once('dialog', (d) => void d.accept()); // 덮어쓰기는 디스크의 외부 수정이 사라지는 동작이라 확인을 먼저 받는다 (의도한 변경: 수락)
     await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).click();
     await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
     assert.equal(await readFile(two, 'utf8'), `${envelope('two', 'TWO')}${lines('KEEP_A', '', 'CHANGE_ME MINE1 MINE2', '', 'KEEP_B')}`);

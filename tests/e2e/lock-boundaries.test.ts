@@ -344,6 +344,7 @@ for (const name of ['create', 'reissue'] as const) {
       assert.equal(await read(A, file), outside);
       assert.equal(await page.getByRole('button', { name: '+ 새 화', exact: true }).isDisabled(), false);
       // 충돌을 명시적으로 풀어 저장한다
+      page.once('dialog', (d) => void d.accept()); // 덮어쓰기는 디스크의 외부 수정이 사라지는 동작이라 확인을 먼저 받는다 (의도한 변경: 수락)
       await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).click();
       await saved(page);
       assert.match(await read(A, file), new RegExp(`${body} unsaved\\n$`));
