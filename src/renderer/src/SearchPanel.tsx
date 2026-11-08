@@ -166,9 +166,9 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
       {active && result && !busy && (
         <>
           <p className="search-summary">
-            {result.total === 0
-              ? `"${result.query}" 없음`
-              : `${result.total}줄에서 찾음${result.total > result.hits.length ? ` (처음 ${result.hits.length}줄)` : ''}`}{' '}
+            {/* 요약의 검색어는 실제 게시된 결과의 검색어(result.query)다. 입력창의 현재 글자(query)가 아니다: 입력만 바꿔도 표시된 결과의 검색어는 새 검색이 성공할 때까지 그대로다 */}
+            <span className="search-query">"{result.query}"</span>{' '}
+            {result.total === 0 ? '없음' : `${result.total}줄에서 찾음${result.total > result.hits.length ? ` (처음 ${result.hits.length}줄)` : ''}`}{' '}
             <button type="button" className="link" onClick={clear}>
               목록으로
             </button>

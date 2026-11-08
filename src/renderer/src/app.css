@@ -318,6 +318,12 @@ button {
   margin: 6px 0;
   font-size: 12px;
   color: var(--lw-muted);
+  overflow-wrap: anywhere; /* 긴 검색어가 좁은 사이드바에서 가로로 넘치거나 [목록으로]를 밀어내지 않게 한다 */
+}
+
+.search-query {
+  color: var(--lw-text);
+  font-weight: 600;
 }
 
 .search-results {
