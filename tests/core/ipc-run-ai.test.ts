@@ -25,7 +25,7 @@ function loadIpc() {
   const work: { kind: string; signal: AbortSignal; finish: () => void }[] = [];
   let clients = 0;
   /** 지금까지 연 AI 저장소 (가짜). 닫힌 저장소를 읽으면 실제 node:sqlite처럼 던진다 */
-  const stores: { path: string; closed: boolean; dismissed: string[] }[] = [];
+  const stores: { path: string; closed: boolean; dismissed: string[]; undismissed: string[] }[] = [];
   /** ai.db가 있는 것으로 볼지 (분석 상태·결과 조회·무시가 저장소를 연다) */
   let aiDb = false;
   /** 다음 프로젝트 열기에서 고를 폴더 */
@@ -62,7 +62,7 @@ function loadIpc() {
     './ai-db.ts': {
       AiStore: {
         open: (path: string) => {
-          const s = { path, closed: false, dismissed: [] as string[] };
+          const s = { path, closed: false, dismissed: [] as string[], undismissed: [] as string[] };
           stores.push(s);
           const open = () => {
             if (s.closed) throw new Error('database is not open');
@@ -72,6 +72,7 @@ function loadIpc() {
             check: (file: string) => (open(), { file, path, findings: [{ ord: 0, category: 'age', key: `${path}-key` }] }),
             analysis: (file: string) => (open(), { file, path }),
             dismiss: (file: string, _c: string, key: string) => (open(), s.dismissed.push(`${file}:${key}`)),
+            undismiss: (file: string, _c: string, key: string) => (open(), s.undismissed.push(`${file}:${key}`)),
             totalCost: () => (open(), 0),
             issueCounts: () => (open(), {}),
             recoveredFrom: null,
@@ -131,6 +132,7 @@ function loadIpc() {
     analysis: (t: number) => Promise.resolve().then(() => handlers.get('aiAnalysis')!({}, '001.md', t)),
     checkResult: (t: number) => Promise.resolve().then(() => handlers.get('aiCheckResult')!({}, '001.md', t)),
     dismiss: (t: number) => Promise.resolve().then(() => handlers.get('aiDismiss')!({}, '001.md', 0, t)),
+    undismiss: (t: number, ord = 0) => Promise.resolve().then(() => handlers.get('aiUndismiss')!({}, '001.md', ord, t)),
   };
 }
 
@@ -332,3 +334,16 @@ for (const [name, closedError] of [
     assert.deepEqual((r as { v: { states: unknown } }).v.states, { 'fake-B.md': 'fresh' });
   });
 }
+
+test('무시 취소: 이전 화면의 token과 없는 결과 번호는 거절하고 저장소를 바꾸지 않으며, 지금 token의 결과는 그 결과의 키 하나만 되돌린다', { timeout: 10_000 }, async () => {
+  const ipc = loadIpc();
+  ipc.withAiDb();
+  const old = await ipc.open('fake-project');
+  const now = await ipc.open('fake-B');
+  assert.deepEqual(await settle(ipc.undismiss(old)), { ok: false, e: STALE });
+  assert.equal(ipc.stores.length, 0, '거절은 저장소를 열기 전이다');
+  assert.deepEqual(await settle(ipc.undismiss(now, 7)), { ok: false, e: '무시를 취소할 검사 결과가 없습니다' });
+  assert.deepEqual(ipc.stores.map((s) => s.undismissed), [[]], '없는 번호는 아무것도 되돌리지 않는다');
+  assert.deepEqual(await settle(ipc.undismiss(now)), { ok: true, v: undefined });
+  assert.deepEqual(ipc.stores.map((s) => [s.path, s.undismissed, s.dismissed]), [['fake-B', ['001.md:fake-B-key'], []]]);
+});

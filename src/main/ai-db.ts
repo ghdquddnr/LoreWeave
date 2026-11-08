@@ -419,6 +419,11 @@ export class AiStore {
     this.db.prepare('INSERT OR IGNORE INTO dismissals (file, category, target_key, created_at) VALUES (?, ?, ?, ?)').run(file, category, targetKey, at);
   }
 
+  /** 무시 취소: 이 화·종류·문장 키의 무시 기록 하나만 지운다. 같은 키를 가진 결과는 함께 돌아온다 (무시의 저장 단위가 그 키다). 없는 키는 아무것도 하지 않는다 */
+  undismiss(file: string, category: Category, targetKey: string): void {
+    this.db.prepare('DELETE FROM dismissals WHERE file = ? AND category = ? AND target_key = ?').run(file, category, targetKey);
+  }
+
   /** 이 프로젝트에서 지금까지 쓴 비용 (USD) */
   totalCost(): number {
     const { total } = this.db.prepare('SELECT coalesce(sum(cost_usd), 0) AS total FROM calls').get() as { total: number };

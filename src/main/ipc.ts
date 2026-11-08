@@ -424,6 +424,13 @@ export function registerIpc(): void {
     if (!store || !finding) throw new Error('무시할 검사 결과가 없습니다');
     store.dismiss(file, finding.category, finding.key, new Date().toISOString());
   });
+  /** 무시 취소: dismiss와 같은 검증(token, 그 화의 검사 결과 번호)을 거치고, 그 결과의 키 하나만 되돌린다. renderer가 DB 키를 직접 넘기지 않는다 */
+  ipcMain.handle(CHANNELS.aiUndismiss, (_e, file: string, ord: number, token: number) => {
+    const store = openAiStore(requireProject(token), false);
+    const finding = store?.check(file)?.findings.find((f) => f.ord === ord);
+    if (!store || !finding) throw new Error('무시를 취소할 검사 결과가 없습니다');
+    store.undismiss(file, finding.category, finding.key);
+  });
   ipcMain.handle(CHANNELS.chaptersSearch, async (_e, query: string) => {
     requireRoot();
     await indexReady;
