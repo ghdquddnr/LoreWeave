@@ -1,5 +1,5 @@
 // 환경설정: 입력(API 키 입력란)의 조합 취소용 Escape는 대화상자를 닫지 않고 입력 초안을 지우지 않으며 IME 기본 동작을 막지 않는다. compositionend 뒤 일반 Escape는 닫고 연 버튼으로 포커스가 돌아온다.
-// 합성 원고(BOM + CRLF + frontmatter)·격리 userData. 조합 구간은 합성 composition/KeyboardEvent(isComposing:true, keyCode 229) 이벤트 경계이고 CDP 조합 + Playwright 실제 키도 함께 본다.
+// 합성 원고(BOM + CRLF + frontmatter)·격리 userData. 합성 이벤트 경계 세 사례(isComposing 단독·keyCode 229 단독·compositionstart~end 구간의 일반 Escape)는 각각 독립이며 모두 defaultPrevented=false를 단언한다. CDP 조합 + Playwright 실제 키는 닫힘·초안 보존만 단언한다.
 // 입력 초안은 가짜 값이며 저장하지 않는다(setKey·연결 확인을 실행하지 않는다). 합성 Electron이며 실제 OS IME·수동 GUI 확인이 아니다.
 // ai:set-key·ai:delete-key·chapters:search·chapter:write 진입 계수로 키 저장·삭제·검색·원고 쓰기 0을 본다(초기 상태 조회는 계수 대상이 아니다). 유료·외부 호출 없음.
 
@@ -52,20 +52,21 @@ test('설정의 조합 취소 Escape는 대화상자를 닫지 않고 초안을 
     await key.fill(DRAFT);
     await key.focus();
 
-    // (b) 합성 이벤트 경계: isComposing:true 단독
+    // (b) 합성 이벤트 경계. 각 사례는 서로 다른 보호만 독립으로 본다 (compositionstart 없이 isComposing/229만, 구간 안의 일반 Escape만)
+    const escape = async (init: string) => {
+      await run(page, `const k = new KeyboardEvent('keydown', { key: 'Escape', ${init}, bubbles: true, cancelable: true }); el.dispatchEvent(k); window.__prevented = k.defaultPrevented;`);
+      assert.equal(await dialogs(page), 1, `${init}: 대화상자가 닫히지 않았다`);
+      assert.equal(await key.inputValue(), DRAFT, `${init}: 입력 초안이 그대로다`);
+      return (await page.evaluate('window.__prevented')) as boolean;
+    };
+    // 1) isComposing:true 단독 (compositionstart 없음): native isComposing 보호만
+    assert.equal(await escape('isComposing: true'), false, 'isComposing:true 단독: IME 기본 동작을 막지 않는다 (defaultPrevented=false)');
+    // 2) keyCode 229 단독 (compositionstart 없음)
+    assert.equal(await escape('keyCode: 229'), false, 'keyCode 229 단독: IME 기본 동작을 막지 않는다 (defaultPrevented=false)');
+    // 3) compositionstart~end 구간 안의 일반 Escape (isComposing·229 없음): 구간 표시만. 닫힘 보호이며 기본 동작을 막지 않는지도 같이 본다
     await run(page, `el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));`);
-    await run(page, `const k = new KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true, cancelable: true }); el.dispatchEvent(k); window.__p1 = k.defaultPrevented;`);
-    assert.equal(await dialogs(page), 1, 'isComposing:true Escape가 대화상자를 닫지 않았다');
-    assert.equal(await page.evaluate('window.__p1'), false, 'IME 기본 동작(조합 취소)을 막지 않는다');
-    // compositionstart~end 구간의 isComposing 없는 Escape
-    await run(page, `el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));`);
-    assert.equal(await dialogs(page), 1, '조합 구간의 Escape가 대화상자를 닫지 않았다');
-    assert.equal(await key.inputValue(), DRAFT, '입력 초안이 그대로다');
+    assert.equal(await escape("code: 'Escape'"), false, '조합 구간의 Escape: IME 기본 동작을 막지 않는다 (defaultPrevented=false)');
     await run(page, `el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));`);
-    // keyCode 229 단독 (조합 구간 밖)
-    await run(page, `const k = new KeyboardEvent('keydown', { key: 'Escape', keyCode: 229, bubbles: true, cancelable: true }); el.dispatchEvent(k);`);
-    assert.equal(await dialogs(page), 1, 'keyCode 229 Escape가 대화상자를 닫지 않았다');
-    assert.equal(await key.inputValue(), DRAFT);
 
     // (a) CDP 조합 + 실제 Playwright Escape
     const cdp = await page.context().newCDPSession(page);

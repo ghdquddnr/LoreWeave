@@ -82,7 +82,8 @@ test('팔레트의 조합 취소 Escape는 팔레트를 닫지 않고, 조합이
     await page.evaluate(`document.querySelector('input[aria-label="명령 검색"]').dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '' }))`);
     await page.keyboard.press('Escape');
     await page.getByRole('dialog', { name: '명령 팔레트' }).waitFor({ state: 'detached' });
-    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.ProseMirror')), true, '닫으면 원고로 포커스가 돌아온다');
+    // App.closePalette는 닫는 렌더가 끝난 뒤(setTimeout 0) 포커스를 돌려준다: 닫힘 직후 한 번 읽지 않고 상태가 되기를 한정된 시간 기다린다
+    await page.waitForFunction(() => !!document.activeElement?.closest('.ProseMirror'), undefined, { timeout: 5000 });
 
     // 조합 뒤 일반 Enter는 실행한다 (기존 동작): 다시 열어 '환경' 입력 후 Enter → 환경설정
     await page.keyboard.press('Control+k');
