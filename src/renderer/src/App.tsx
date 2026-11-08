@@ -159,6 +159,28 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   useEffect(() => {
     setSave({ status: { kind: 'saved' }, changesOnReopen: null });
   }, [file, reloadKey, projectGen]);
+  /** 저장 실패 안내의 [본문 복사] 결과: 가장 최근에 누른 복사의 대기·성공·실패만 보인다. 저장 상태와는 별개다 */
+  const [bodyCopy, setBodyCopy] = useState<'idle' | 'pending' | 'ok' | 'fail'>('idle');
+  const bodyCopySeq = useRef(0);
+  // 다른 화·다시 불러오기·다른 프로젝트로 바뀌거나 저장에 성공하면 이전 복사 결과와 늦은 응답을 버린다 (5초마다의 자동 재시도 중에는 결과를 유지한다)
+  const saved = save.status.kind === 'saved';
+  useEffect(() => {
+    bodyCopySeq.current++;
+    setBodyCopy('idle');
+  }, [file, reloadKey, projectGen, saved]);
+  const copyBody = async () => {
+    // 누른 순간의 편집기 본문을 읽는다 (저장 시도 때의 본문이나 debounce된 값이 아니다)
+    const lines = editor.current?.lines();
+    if (!lines) return;
+    const mine = ++bodyCopySeq.current;
+    setBodyCopy('pending');
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      if (mine === bodyCopySeq.current) setBodyCopy('ok');
+    } catch {
+      if (mine === bodyCopySeq.current) setBodyCopy('fail');
+    }
+  };
   const [searching, setSearching] = useState(false);
   const [jump, setJump] = useState<Jump | null>(null);
   /** 본문에 밑줄로 표시할 문장들 (IssuesPanel이 보고하는 최신 검사 결과, 표시 전용). 화를 바꾸면 패널이 비운다 */
@@ -758,6 +780,20 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             <>
               {' '}
               <span>입력은 이 화면에 남아 있고 디스크에는 아직 저장되지 않았습니다. Ctrl+S로 다시 저장할 수 있습니다.</span>
+              {' '}
+              <button type="button" className="link" onClick={() => void copyBody()}>
+                본문 복사
+              </button>
+              {bodyCopy !== 'idle' && (
+                <span className={`copy-note ${bodyCopy === 'fail' ? 'error' : 'muted'}`}>
+                  {' '}
+                  {bodyCopy === 'pending'
+                    ? '복사하는 중…'
+                    : bodyCopy === 'ok'
+                      ? '본문 글자만 복사했습니다 (저장된 것은 아닙니다)'
+                      : '복사하지 못했습니다. 저장 실패는 그대로입니다. 다시 눌러 주세요'}
+                </span>
+              )}
               {saveError?.detail && (
                 <>
                   {' '}
