@@ -137,9 +137,9 @@ export interface LoreweaveApi {
     undismiss(file: string, ord: number, token: number): Promise<void>;
   };
   app: {
-    /** 창을 닫기 직전에 불린다. 저장을 마친 뒤 replyClose로 답해야 창이 닫힌다 */
-    onBeforeClose(listener: () => void): () => void;
-    replyClose(proceed: boolean): void;
+    /** 창을 닫기 직전에 불린다. 저장을 마친 뒤 같은 attempt(닫기 시도 번호)로 replyClose를 불러야 창이 닫힌다 */
+    onBeforeClose(listener: (attempt: number) => void): () => void;
+    replyClose(proceed: boolean, attempt: number): void;
   };
 }
 
