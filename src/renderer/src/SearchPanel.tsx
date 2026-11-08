@@ -126,6 +126,12 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     setSearchFailed(false);
     setResult(null);
     onActiveChange(false);
+    // 취소를 누른 그 순간에만 검색 입력창으로 돌아온다 (취소 버튼은 곧 사라져 포커스가 body로 떨어지지 않게). 캐럿은 입력 끝: 입력한 검색어를 바로 고칠 수 있다. 늦게 오는 응답은 포커스를 건드리지 않는다
+    const el = input.current;
+    if (el) {
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
   };
 
   useImperativeHandle(ref, () => ({ focus: () => input.current?.select(), clear }));

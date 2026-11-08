@@ -62,6 +62,7 @@ const clearHold = (app: ElectronApplication, q: string) => app.evaluate((_e, q) 
 const release = (app: ElectronApplication, q: string) => app.evaluate((_e, q) => (globalThis as unknown as { barrier: Barrier }).barrier.holds[q]?.release?.(), q);
 const armWrite = (app: ElectronApplication) => app.evaluate(() => void ((globalThis as unknown as { barrier: Barrier }).barrier.holdWrite = true));
 const releaseWrite = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { barrier: Barrier }).barrier.releaseWrite?.());
+const count = (list: string[], q: string) => list.filter((x) => x === q).length;
 const barrier = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { barrier: Barrier }).barrier);
 async function until(app: ElectronApplication, what: string, ok: (b: Barrier) => boolean) {
   const deadline = Date.now() + 15_000;
@@ -154,11 +155,11 @@ test('검색 대기 중 [검색 취소]는 입력을 남기고 화 목록으로 
     await page.keyboard.insertText('마');
     await box(page).fill('감마');
     await box(page).press('Enter'); // 일반 Enter 재검색: 입력 검색어로 새 검색
-    await until(app, '새 검색 응답', (b) => b.answered.includes('감마'));
+    await until(app, '새 검색 응답', (b) => count(b.answered, '감마') === 2); // (a')의 응답과 구분되는 이번 응답
     await resultsList(page).waitFor();
     assert.ok((await resultsList(page).innerText()).includes('감마 둘'));
     await release(app, '알파'); // 취소한 옛 검색이 늦게 도착
-    await until(app, '옛 응답', (b) => b.answered.includes('알파'));
+    await until(app, '옛 응답', (b) => count(b.answered, '알파') === 2); // (a)의 응답과 구분되는 이번 응답
     await settled(page);
     assert.ok((await page.locator('.search-summary').first().innerText()).includes('"감마"'), '옛 응답이 최신 검색의 결과·요약을 덮지 않았다');
     assert.ok(!(await resultsList(page).innerText()).includes('알파 하나'));
@@ -201,6 +202,105 @@ test('검색 대기 중 [검색 취소]는 입력을 남기고 화 목록으로 
     await release(app, '알파').catch(() => undefined);
     await release(app, '감마').catch(() => undefined);
     await releaseWrite(app).catch(() => undefined);
+    await closeWindow(app);
+  }
+});
+
+// 키보드로 취소한 뒤 포커스가 검색 입력창으로 돌아와 바로 고쳐 재검색할 수 있어야 한다 (취소 버튼은 곧 사라진다). 늦은 응답은 포커스를 가져오지 않는다.
+// 실제 Tab/Enter/Space 키 입력(Playwright keyboard)과 실제 SearchPanel UI. 합성 Electron이며 실제 OS IME·수동 GUI가 아니다.
+test('[검색 취소]를 Tab→Enter/Space로 누르면 포커스가 검색 입력창으로 돌아와 입력을 고쳐 재검색할 수 있고, 늦은 응답은 포커스를 가져오지 않는다', { timeout: 120_000 }, async () => {
+  const dir = await tempDir('search-cancel-focus');
+  await mkdir(join(dir, 'chapters'));
+  await writeFile(join(dir, 'chapters', '001.md'), ONE);
+  await writeFile(join(dir, 'chapters', '002.md'), TWO);
+  const originals = await Promise.all(['001.md', '002.md'].map((f) => readFile(join(dir, 'chapters', f))));
+  const { app, page } = await launch(await tempDir('search-cancel-focus-ud'));
+  try {
+    await stubFolderDialog(app, dir);
+    await hook(app);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await page.locator('.ProseMirror').waitFor();
+    await chapterButton(page, 'ONE').waitFor();
+    const active = () =>
+      page.evaluate(() => {
+        const el = document.activeElement as HTMLInputElement | null;
+        return { label: el?.getAttribute('aria-label') ?? el?.textContent ?? el?.tagName ?? '', inEditor: !!el?.closest?.('.ProseMirror'), start: el?.selectionStart ?? -1, end: el?.selectionEnd ?? -1, len: el?.value?.length ?? -1 };
+      });
+
+    // 1) Enter: 입력 → Tab으로 취소 버튼 → Enter
+    await setHold(app, '알파', 'ok');
+    await submit(page, '알파');
+    await until(app, '검색 도착', (b) => count(b.arrived, '알파') === 1);
+    await page.keyboard.press('Tab');
+    assert.equal((await active()).label, '검색 취소', 'Tab으로 취소 버튼에 포커스가 간다');
+    await page.keyboard.press('Enter');
+    await assertBackToList(page, 'Enter 취소 뒤');
+    const afterEnter = await active();
+    assert.equal(afterEnter.label, '원고 검색', '취소 뒤 포커스가 검색 입력창으로 돌아온다');
+    assert.equal(await box(page).inputValue(), '알파', '입력한 검색어 보존');
+    assert.deepEqual([afterEnter.start, afterEnter.end], [afterEnter.len, afterEnter.len], '캐럿은 입력 끝이다');
+    assert.equal((await barrier(app)).arrived.length, 1, '취소만으로 자동 검색·새 검색을 시작하지 않는다');
+    // 바로 고쳐 재검색: 실제 키 입력
+    await page.keyboard.type(' 하');
+    assert.equal(await box(page).inputValue(), '알파 하');
+    await page.keyboard.press('Enter');
+    await until(app, '재검색 응답', (b) => count(b.answered, '알파 하') === 1);
+    await resultsList(page).waitFor();
+    await release(app, '알파');
+    await until(app, '옛 응답', (b) => count(b.answered, '알파') === 1);
+    await settled(page);
+    assert.ok((await page.locator('.search-summary').first().innerText()).includes('"알파 하"'), '늦은 옛 응답이 새 결과를 덮지 않았다');
+    await box(page).press('Escape');
+
+    // 2) Space
+    await clearHold(app, '알파');
+    await setHold(app, '감마', 'ok');
+    await submit(page, '감마');
+    await until(app, '감마 도착', (b) => count(b.arrived, '감마') === 1);
+    await page.keyboard.press('Tab');
+    assert.equal((await active()).label, '검색 취소');
+    await page.keyboard.press('Space');
+    await assertBackToList(page, 'Space 취소 뒤');
+    assert.equal((await active()).label, '원고 검색', 'Space 취소 뒤에도 포커스가 검색 입력창이다');
+    assert.equal(await box(page).inputValue(), '감마');
+
+    // 3) 포인터 취소도 검색 입력창으로 돌아온다
+    await clearHold(app, '감마');
+    await setHold(app, '베타', 'ok');
+    await submit(page, '베타');
+    await until(app, '베타 도착', (b) => count(b.arrived, '베타') === 1);
+    await cancelButton(page).click();
+    await assertBackToList(page, '포인터 취소 뒤');
+    assert.equal((await active()).label, '원고 검색', '포인터 취소 뒤에도 검색 입력창으로 돌아온다');
+
+    // 4) 취소 뒤 편집기로 옮겼다면 늦은 응답이 포커스를 검색창으로 가져가지 않는다
+    await release(app, '감마').catch(() => undefined);
+    await submit(page, '베타'); // 새 검색 (베타 hold는 첫 요청만)
+    await until(app, '두 번째 베타', (b) => count(b.arrived, '베타') === 2);
+    await release(app, '베타'); // 마지막 hold 해제: 이후 응답
+    await until(app, '베타 응답', (b) => count(b.answered, '베타') >= 1);
+    await resultsList(page).waitFor();
+    await box(page).press('Escape');
+    await clearHold(app, '베타');
+    await setHold(app, '알파', 'ok');
+    await submit(page, '알파');
+    await until(app, '알파 재도착', (b) => count(b.arrived, '알파') === 2);
+    await cancelButton(page).click();
+    await page.locator('.ProseMirror').getByText('알파 하나').click(); // 사용자가 편집기로 옮겼다
+    assert.equal((await active()).inEditor, true);
+    await release(app, '알파');
+    await until(app, '늦은 알파 응답', (b) => count(b.answered, '알파') === 2);
+    await settled(page);
+    assert.equal((await active()).inEditor, true, '늦은 응답이 포커스를 검색 입력창으로 가져가지 않았다');
+
+    // 읽기만 하는 시나리오: 저장 요청 0, 원고 바이트 불변
+    assert.equal((await barrier(app)).writes, 0, '읽기 전용 시나리오에서 chapter:write는 0이었다');
+    const after = await Promise.all(['001.md', '002.md'].map((f) => readFile(join(dir, 'chapters', f))));
+    assert.ok(after.every((b, i) => Buffer.compare(b, originals[i]!) === 0), '원고 원본 바이트 불변');
+  } finally {
+    await release(app, '알파').catch(() => undefined);
+    await release(app, '감마').catch(() => undefined);
+    await release(app, '베타').catch(() => undefined);
     await closeWindow(app);
   }
 });
