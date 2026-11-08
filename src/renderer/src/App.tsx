@@ -334,6 +334,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         // 한글 등 조합 중(isComposing, 또는 IME가 처리한 키 keyCode 229)에는 검색창으로 포커스를 옮기지 않는다: 조합 중인 글자를 확정·취소하지 못한 채 포커스가 떠나지 않게 (Ctrl+K와 같은 보호)
         if (e.isComposing || e.keyCode === 229) return;
+        // 모달(환경설정·명령 팔레트·AI 실행 확인)이 열려 있으면 뒤쪽 검색창으로 포커스를 옮기지 않는다 (Ctrl+K와 같은 aria-modal 검사)
+        if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
         e.preventDefault();
         search.current?.focus();
       }
