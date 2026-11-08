@@ -168,6 +168,29 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     bodyCopySeq.current++;
     setBodyCopy('idle');
   }, [file, reloadKey, projectGen, saved]);
+  /** 저장 실패 안내의 [다시 저장]: 기존 flush() 경로로 지금 본문을 다시 저장한다. 누르는 중에는 한 번만 실행된다 */
+  const [retrying, setRetrying] = useState(false);
+  const retryingRef = useRef(false);
+  const retrySeq = useRef(0);
+  useEffect(() => {
+    retrySeq.current++;
+    retryingRef.current = false;
+    setRetrying(false);
+  }, [file, reloadKey, projectGen]);
+  const retrySave = async () => {
+    if (retryingRef.current || switchingRef.current || actingRef.current) return;
+    const mine = ++retrySeq.current;
+    retryingRef.current = true;
+    setRetrying(true);
+    try {
+      await editor.current?.flush();
+    } finally {
+      if (mine === retrySeq.current) {
+        retryingRef.current = false;
+        setRetrying(false);
+      }
+    }
+  };
   const copyBody = async () => {
     // 누른 순간의 편집기 본문을 읽는다 (저장 시도 때의 본문이나 debounce된 값이 아니다)
     const lines = editor.current?.lines();
@@ -776,10 +799,15 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             {STATUS_TEXT[save.status.kind]}
             {save.status.kind === 'error' && `: ${saveError?.summary}.`}
           </span>
-          {save.status.kind === 'error' && (
+          {(save.status.kind === 'error' || retrying) && (
             <>
               {' '}
               <span>입력은 이 화면에 남아 있고 디스크에는 아직 저장되지 않았습니다. Ctrl+S로 다시 저장할 수 있습니다.</span>
+              {' '}
+              {/* aria-disabled: 저장하는 중에도 포커스를 유지하고(키보드 사용자), 중복 실행은 retrySave가 막는다 */}
+              <button type="button" className="link" aria-disabled={busy || retrying} onClick={() => void retrySave()}>
+                {retrying ? '저장하는 중…' : '다시 저장'}
+              </button>
               {' '}
               <button type="button" className="link" onClick={() => void copyBody()}>
                 본문 복사
