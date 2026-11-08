@@ -212,6 +212,7 @@ for (const action of ['내 것으로 덮어쓰기', '디스크 내용 불러오�
         await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 5000 });
         assert.equal(await readFile(path, 'utf8'), '# A\n\noriginal typed more\n');
       } else {
+        page.once('dialog', (d) => void d.accept()); // 수동 불러오기는 미저장 수정 폐기 확인을 먼저 받는다 (의도한 변경: 수락)
         await page.getByRole('button', { name: /디스크 내용 불러오기/ }).click();
         await editor(page).getByText('external must survive').waitFor({ timeout: 5000 });
         assert.equal(await readFile(path, 'utf8'), EXTERNAL);
