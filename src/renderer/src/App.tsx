@@ -10,6 +10,11 @@ import { ActivityBar, ChapterTabs } from './Shell.tsx';
 import { ChapterEditor, type ChapterEditorHandle, type Jump, type SaveStatus } from './ChapterEditor.tsx';
 import { CommandPalette, type PaletteCommand } from './CommandPalette.tsx';
 import { ErrorNote } from './ErrorNote.tsx';
+
+// 번들된 브랜드 그림 (오프라인: 빌드가 파일로 내보내 CSP 'self'로 읽는다)
+const LOGO_ON_DARK = new URL('./assets/brand/logo-primary.svg', import.meta.url).href;
+const LOGO_ON_LIGHT = new URL('./assets/brand/logo-light.svg', import.meta.url).href;
+const LOGO_MARK = new URL('./assets/brand/logo-mark.svg', import.meta.url).href;
 import { FactsPanel } from './FactsPanel.tsx';
 import { IssuesPanel } from './IssuesPanel.tsx';
 import { SearchPanel, type SearchPanelHandle } from './SearchPanel.tsx';
@@ -578,18 +583,26 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   if (!project) {
     return (
       <main className="welcome">
-        <h1>LoreWeave</h1>
-        <p>원고 폴더를 여세요. 폴더 안 `chapters/`의 `001.md`, `002.md` … 를 화로 읽습니다.</p>
-        <p className="muted">원고 파일은 이 컴퓨터의 폴더에 저장됩니다. AI 분석은 작가가 동의하고 버튼을 누를 때에만 본문을 OpenAI로 보냅니다.</p>
-        <div className="row">
-          <button onClick={chooseFolder}>원고 폴더 열기</button>
-          <button onClick={() => setSettingsOpen(true)}>환경설정</button>
-        </div>
-        {error && (
-          <p className="error">
-            <ErrorNote error={{ summary: error, detail: errorDetail }} />
-          </p>
-        )}
+        {/* 장식 그림: 안내·버튼·오류는 오른쪽 패널에 그대로 있다 */}
+        <div className="welcome-art" aria-hidden="true" />
+        <section className="welcome-panel" aria-labelledby="welcome-title">
+          {/* 어두운 테마는 금색 로고, 밝은 테마는 남색 로고 (CSS가 data-scheme으로 하나만 보인다. 숨은 쪽은 접근성 트리에서도 빠진다) */}
+          <h1 id="welcome-title" className="welcome-logo">
+            <img className="logo-on-dark" src={LOGO_ON_DARK} alt="LoreWeave" />
+            <img className="logo-on-light" src={LOGO_ON_LIGHT} alt="LoreWeave" />
+          </h1>
+          <p>원고 폴더를 여세요. 폴더 안 `chapters/`의 `001.md`, `002.md` … 를 화로 읽습니다.</p>
+          <p className="muted">원고 파일은 이 컴퓨터의 폴더에 저장됩니다. AI 분석은 작가가 동의하고 버튼을 누를 때에만 본문을 OpenAI로 보냅니다.</p>
+          <div className="row">
+            <button onClick={chooseFolder}>원고 폴더 열기</button>
+            <button onClick={() => setSettingsOpen(true)}>환경설정</button>
+          </div>
+          {error && (
+            <p className="error">
+              <ErrorNote error={{ summary: error, detail: errorDetail }} />
+            </p>
+          )}
+        </section>
         {settingsOpen && <SettingsDialog appearance={appearance} totalCostUsd={null} hasProject={false} onClose={() => setSettingsOpen(false)} onChange={() => undefined} />}
       </main>
     );
@@ -659,7 +672,10 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   return (
     <div className="shell">
       <header className="titlebar">
-        <span className="brand">LoreWeave</span>
+        <span className="brand">
+          <img className="brand-mark" src={LOGO_MARK} alt="" width={18} height={18} />
+          LoreWeave
+        </span>
         <button type="button" className="search-trigger" title="명령 팔레트 (Ctrl+K)" onClick={openPalette}>
           <span aria-hidden="true">⌕</span> 명령 팔레트 <kbd>Ctrl+K</kbd>
         </button>

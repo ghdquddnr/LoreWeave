@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img">
+<title>LoreWeave mark for light themes</title>
+<defs>
+  <linearGradient id="gold" x1="0" y1="0" x2="0.81" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0" stop-color="#FFE8A8"/><stop offset="0.33" stop-color="#BD823E"/>
+    <stop offset="0.56" stop-color="#FFF0B9"/><stop offset="0.78" stop-color="#D8A557"/>
+    <stop offset="1" stop-color="#915527"/>
+  </linearGradient>
+  <linearGradient id="paper" x2="0.24" y2="1">
+    <stop stop-color="#B18E60"/><stop offset="0.31" stop-color="#FFF0CC"/>
+    <stop offset="0.73" stop-color="#E4CCA1"/><stop offset="1" stop-color="#9D713E"/>
+  </linearGradient>
+  <linearGradient id="letter" x2="0" y2="1">
+    <stop stop-color="#FFF6DF"/><stop offset="1" stop-color="#E2CAA6"/>
+  </linearGradient>
+  <radialGradient id="tile" cx="0.24" cy="0.09" r="1.02">
+    <stop stop-color="#344865"/><stop offset="0.5" stop-color="#162439"/>
+    <stop offset="1" stop-color="#090F1A"/>
+  </radialGradient>
+  <radialGradient id="cover" cx="0.48" cy="0.38" r="0.7">
+    <stop stop-color="#263347"/><stop offset="1" stop-color="#0C1321"/>
+  </radialGradient>
+</defs>
+<rect x="12" y="12" width="488" height="488" rx="109" fill="#E9E1D3"/><g transform="translate(55 55) scale(.805)">
+    <defs>
+      <mask id="mono-cutouts" x="0" y="0" width="500" height="500" maskUnits="userSpaceOnUse" style="mask-type:luminance">
+        <rect width="500" height="500" fill="white"/>
+        <path d="M250 284V348M99 311Q197 309 250 345Q300 309 401 311M83 326Q184 318 250 355Q319 318 417 326M144 252Q203 264 231 290M137 270Q195 279 230 303M356 252Q297 264 269 290M363 270Q305 279 270 303"
+              fill="none" stroke="black" stroke-width="3.4" stroke-linecap="round"/>
+        <path d="M73 333C-12 277 30 185 122 188C208 192 266 284 317 246C371 203 421 172 455 214C483 249 467 287 440 308M66 366C117 402 178 365 221 323C270 275 314 219 374 197" fill="none" stroke="black" stroke-width="12" stroke-linecap="round"/>
+      </mask>
+    </defs>
+    <g fill="#202A3A" mask="url(#mono-cutouts)">
+      <circle cx="250" cy="248" r="186" stroke="#202A3A" stroke-width="4" fill="none"/>
+      <path d="M250,33 Q254.0,58.0 262,62 Q254.0,66.0 250,91 Q246.0,66.0 238,62 Q246.0,58.0 250,33Z" fill="#202A3A"/><path d="M250,405 Q254.0,430.0 262,434 Q254.0,438.0 250,463 Q246.0,438.0 238,434 Q246.0,430.0 250,405Z" fill="#202A3A"/>
+      <polygon points="250.00,112.00 254.32,148.58 268.61,140.39 260.42,154.68 297.00,159.00 260.42,163.32 268.61,177.61 254.32,169.42 250.00,206.00 245.68,169.42 231.39,177.61 239.58,163.32 203.00,159.00 239.58,154.68 231.39,140.39 245.68,148.58" fill="#202A3A"/>
+      <path d="M67 335C97 306 112 274 126 248L137 246L145 231C184 240 224 257 250 285C275 257 317 240 355 231L363 246L374 248C389 274 403 306 433 335C355 326 290 337 267 358Q250 370 233 358C208 337 143 326 67 335Z"/>
+    </g>
+    <path d="M73 333C-12 277 30 185 122 188C208 192 266 284 317 246C371 203 421 172 455 214C483 249 467 287 440 308M66 366C117 402 178 365 221 323C270 275 314 219 374 197" fill="none" stroke="#202A3A" stroke-width="5.7" stroke-linecap="round"/>
+    </g>
+</svg>
