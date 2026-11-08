@@ -402,7 +402,16 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
           <button onClick={() => void saveRef.current(conflict.diskHash)}>
             {conflict.diskHash === null ? '내 것으로 다시 만들기' : '내 것으로 덮어쓰기'}
           </button>
-          {conflict.diskHash !== null && <button onClick={() => onReload()}>디스크 내용 불러오기 (내 수정은 버림)</button>}
+          {conflict.diskHash !== null && (
+            <button
+              onClick={() => {
+                // 미저장 수정이 사라지는 동작이라 먼저 확인한다 (화 이동과 같은 window.confirm). 취소하면 편집기·undo·충돌 안내·디스크는 그대로다
+                if (window.confirm('저장되지 않은 내 수정이 사라지고 디스크 내용을 불러옵니다. 계속할까요?')) onReload();
+              }}
+            >
+              디스크 내용 불러오기 (내 수정은 버림)
+            </button>
+          )}
           {conflict.diskHash !== null && (
             <button type="button" aria-expanded={comparing} onClick={() => setComparing((v) => !v)}>
               {comparing ? '차이 닫기' : '차이 보기'}
