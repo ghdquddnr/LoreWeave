@@ -28,6 +28,8 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  // compositionstart~end 구간 (isComposing·229가 빠진 이벤트 경계도 덮는다). end에서 반드시 풀려 이전 조합이 일반 Escape를 막지 않는다
+  const composing = useRef(false);
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     return commands.filter((c) => !q || `${c.label} ${c.hint ?? ''}`.toLowerCase().includes(q));
@@ -50,7 +52,8 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
       onKeyDown={(e) => {
         // 팔레트 안의 키는 바깥(전역 단축키, 에디터)으로 번지지 않는다
         e.stopPropagation();
-        if (e.key === 'Escape') {
+        // 한글 조합 취소용 Escape는 입력기의 것이다: 팔레트를 닫지 않고 기본 동작도 막지 않는다
+        if (e.key === 'Escape' && !(composing.current || e.nativeEvent.isComposing || e.keyCode === 229)) {
           e.preventDefault();
           onCancel();
         }
@@ -75,8 +78,10 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
           autoComplete="off"
           spellCheck={false}
           onChange={(e) => setQuery(e.target.value)}
+          onCompositionStart={() => (composing.current = true)}
+          onCompositionEnd={() => (composing.current = false)}
           onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+            if (composing.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
             if (e.key === 'ArrowDown') {
               e.preventDefault();
               move(1);
