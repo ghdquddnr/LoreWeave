@@ -20,7 +20,7 @@ import { IssuesPanel } from './IssuesPanel.tsx';
 import { SearchPanel, type SearchPanelHandle } from './SearchPanel.tsx';
 import { SettingsDialog } from './SettingsDialog.tsx';
 import type { SystemDarkStore } from './systemDark.ts';
-import { friendlyError } from './userError.ts';
+import { friendlyError, friendlyReadError } from './userError.ts';
 import { THEMES } from '../../core/appearance.ts';
 import { useAppearance } from './useAppearance.ts';
 
@@ -155,6 +155,14 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     },
     [setError],
   );
+  /** 읽기 실패 안내 (AI 분석·비용 상태 조회): EPERM/EACCES를 쓰기 실패("파일에 쓸 수 없습니다")로 안내하지 않는다. 공용 fail은 저장·생성·쓰기 오류용이라 그대로 둔다 */
+  const failRead = useCallback(
+    (e: unknown, prefix = '') => {
+      const f = friendlyReadError(e);
+      setError(prefix + f.summary, f.detail);
+    },
+    [setError],
+  );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [saveDetailOpen, setSaveDetailOpen] = useState(false);
   const paletteOpener = useRef<HTMLElement | null>(null);
@@ -248,11 +256,11 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       async (e: Error) => {
         if (switchDone.current) await switchDone.current;
         if (!latest()) return;
-        fail(e);
+        failRead(e, 'AI 분석 상태를 읽지 못했습니다: ');
         aiErrorSeq.current = errorSeqRef.current;
       },
     );
-  }, [fail, setError]);
+  }, [failRead, setError]);
 
   const showProject = useCallback(
     (p: ProjectOpened) => {

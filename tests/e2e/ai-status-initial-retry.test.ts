@@ -17,7 +17,7 @@ async function project(): Promise<string> {
   return dir;
 }
 /** ai:analysis-status: 앞의 failures번은 거절하고, 그 뒤 첫 성공 응답은 release 전까지 붙잡은 뒤 합성 비용을 더해 돌려준다 */
-async function script(app: ElectronApplication, failures: number) {
+async function script(app: ElectronApplication, failures: number, failMessage = FAIL) {
   await app.evaluate(
     ({ ipcMain }, { failures, message }) => {
       const g = globalThis as unknown as { n: number; held: boolean; release?: () => void };
@@ -33,7 +33,7 @@ async function script(app: ElectronApplication, failures: number) {
         return { ...base, totalCostUsd: 3.3333 };
       });
     },
-    { failures, message: FAIL },
+    { failures, message: failMessage },
   );
 }
 const calls = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { n: number }).n);
@@ -122,4 +122,56 @@ test('확인된 비용 0은 $0.0000으로, 프로젝트를 열지 않은 설정�
   } finally {
     await closeWindow(app);
   }
+});
+
+// AI 상태 조회 실패는 읽기 실패다: EPERM/EACCES를 "파일에 쓸 수 없습니다"(쓰기 실패)로 안내하지 않는다. 기본 안내에는 IPC 접두사·코드·경로가 없고 원문은 접힌 기술 상세에 보존된다.
+// 무료 대역(ai:analysis-status 거절, 합성 비용)만 쓴다. OpenAI·Costs·유료 호출 없음. 합성 Electron 검사이며 수동 GUI가 아니다.
+test('AI 상태 조회 실패(EACCES): 읽기 실패로 안내하고 원문은 접힌 상세에만 있으며, 상세 조작은 조회·쓰기가 없고, 다시 읽기로 복구된다', { timeout: 90_000 }, async () => {
+  const dir = await project();
+  const { app, page } = await launch(await tempDir('ai-status-read-error-ud'));
+  try {
+    await script(app, 1, "EACCES: permission denied, open 'C:/Users/synthetic/ai/ai.db'");
+    await app.evaluate(({ ipcMain }) => {
+      const g = globalThis as unknown as { writes: number };
+      g.writes = 0;
+      const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
+      const original = handlers.get('chapter:write')!;
+      handlers.set('chapter:write', async (...args: unknown[]) => {
+        g.writes++;
+        return original(...args);
+      });
+    });
+    await stubFolderDialog(app, dir);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await page.locator('.ProseMirror').getByText('ONE_BODY', { exact: true }).waitFor();
+    const note = page.locator('footer.statusbar .error');
+    await note.waitFor();
+    const text = (await note.innerText()).replace(/\s+/g, ' ');
+    for (const wrong of ['쓸 수 없습니다', '저장', '쓰기']) assert.ok(!text.includes(wrong), `읽기 실패를 쓰기·저장 실패(${wrong})로 설명하지 않는다 (안내: ${text})`);
+    assert.match(text, /AI 분석 상태를 읽지 못했습니다: .*읽을 수 없습니다/, '읽기 실패로 안내한다');
+    for (const raw of ['Error invoking', 'EACCES', 'permission denied', 'C:/Users', 'synthetic', 'ai.db']) assert.ok(!text.includes(raw), `기본 안내에 기술 문구(${raw})가 없다`);
+    assert.equal(await page.getByRole('note', { name: '기술 상세' }).count(), 0, '기술 상세는 기본 접힘이다');
+    assert.equal(await page.locator('.ProseMirror').getAttribute('contenteditable'), 'true', '원고는 편집할 수 있다');
+
+    // 상세 열기/닫기: 원문 보존, 상태 조회 호출 수·쓰기 IPC 0 (조회 처리기에 들어온 횟수 n으로 본다)
+    const callsBefore = await calls(app);
+    await note.getByRole('button', { name: '기술 상세' }).click();
+    const detail = await page.getByRole('note', { name: '기술 상세' }).innerText();
+    for (const raw of ['Error invoking', 'EACCES', 'permission denied', 'C:/Users/synthetic/ai/ai.db']) assert.ok(detail.includes(raw), `기술 상세에 원문(${raw})이 보존된다`);
+    await note.getByRole('button', { name: '상세 닫기' }).click();
+    assert.equal(await page.getByRole('note', { name: '기술 상세' }).count(), 0);
+    assert.equal(await calls(app), callsBefore, '상세 열기·닫기는 상태 조회를 만들지 않는다');
+    assert.equal(await app.evaluate(() => (globalThis as unknown as { writes: number }).writes), 0, '쓰기 IPC 0');
+
+    // 다시 읽기로 복구 (명령 팔레트): 이 조회의 오류만 거두어진다
+    await reread(page);
+    await until(() => held(app), '성공 응답을 붙잡았다');
+    await release(app);
+    await page.getByText('이 프로젝트 AI 비용 $3.3333').waitFor();
+    assert.equal(await page.getByText('AI 분석 상태를 읽지 못했습니다').count(), 0, '다시 읽기가 성공하면 오류가 거두어진다');
+    assert.equal(await app.evaluate(() => (globalThis as unknown as { writes: number }).writes), 0, '쓰기 IPC 0');
+  } finally {
+    await closeWindow(app);
+  }
+  assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), ['# ONE', '', 'ONE_BODY', ''].join(String.fromCharCode(10)), '원고 바이트 불변');
 });
