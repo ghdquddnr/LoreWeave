@@ -1,6 +1,6 @@
 // 문제 가능성 패널의 [무시 취소]: 무시한 결과를 보기로 연 뒤 명시 클릭(키보드 Enter 포함)으로 되돌린다.
 // 합성 원고(M0A 복사본)·격리 userData·가짜 OpenAI 서버(무료; 결과는 높은 확신 1개 + 낮은 확신 1개). ai:undismiss는 호출 수를 세는 무료 대역으로 감싼다:
-// 첫 호출은 장벽(hold)에 붙잡았다가 release하면 거절하고, 그 뒤는 실제 처리기로 넘긴다.
+// 처음 세 호출은 장벽(hold)에 붙잡았다가 release하면 거절하고, 그 뒤는 실제 처리기로 넘긴다.
 // 관측 범위: 버튼 조작 뒤 가짜 서버의 요청 수가 그대로이고 원고 Buffer가 그대로인 것까지. 합성 Electron 검사이며 수동 GUI·실제 IME·실모델·탐지율 검증이 아니다.
 
 import assert from 'node:assert/strict';
@@ -79,7 +79,7 @@ test('무시 취소: 무시함 표시와 함께 취소 버튼이 있고, 실패�
       const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
       const original = handlers.get('ai:undismiss')!;
       handlers.set('ai:undismiss', async (...args: unknown[]) => {
-        if (g.calls++ === 0) {
+        if (g.calls++ < 3) {
           g.held = true;
           await new Promise<void>((resolve) => (g.release = resolve));
           g.held = false;
@@ -99,32 +99,60 @@ test('무시 취소: 무시함 표시와 함께 취소 버튼이 있고, 실패�
     assert.equal(await cards.count(), 1);
 
     // 2) 취소 요청을 장벽에 붙잡는다: 대기 중에는 중복 조작이 막히고 무시 상태가 그대로다
-    await undoButton.click();
+    const highUndo = issues.locator('.issue-card:not(.low)').getByRole('button', { name: '무시 취소', exact: true });
+    await highUndo.click();
     for (let n = 0; n < 600 && !(await held(app)); n++) await page.waitForTimeout(25);
     assert.equal(await held(app), true, '취소 요청이 장벽에 붙잡히지 않았다');
     assert.equal(await undismissCalls(app), 1);
-    assert.equal(await undoButton.isDisabled(), true, '대기 중에는 버튼이 눌리지 않는다');
-    await undoButton.click({ force: true }).catch(() => undefined);
-    await page.keyboard.press('Enter');
-    assert.equal(await undismissCalls(app), 1, '대기 중 중복 클릭·Enter가 새 요청을 만들지 않았다 (관측 범위 안)');
-    await release(app); // 실패
-    await failNote.waitFor();
-    await issues.getByText('무시를 취소하지 못했습니다', { exact: false }).waitFor();
-    assert.equal(await issues.getByText('무시함', { exact: true }).count(), 1, '실패하면 무시 상태 그대로');
-    assert.equal(await undoButton.isEnabled(), true, '다시 시도할 수 있다');
+    assert.equal(await highUndo.isDisabled(), true, '대기 중에는 버튼이 눌리지 않는다');
+
+    // 교차 조작: 취소가 대기 중일 때 다른 카드(낮은 확신)를 무시하고 그 재조회까지 끝나도 취소 대기는 풀리지 않는다
+    await issues.getByRole('button', { name: '확신이 낮아 숨긴 결과 1개 보기' }).click();
+    const lowCard = issues.locator('.issue-card.low');
+    await lowCard.getByRole('button', { name: '무시', exact: true }).click();
+    await lowCard.getByText('무시함', { exact: true }).waitFor(); // 무시 요청의 성공과 재조회가 끝났다
+    assert.equal(await held(app), true, '첫 취소 요청은 아직 붙잡혀 있다');
+    assert.equal(await highUndo.isDisabled(), true, '다른 무시가 끝나도 대기 중인 취소 버튼은 다시 켜지지 않는다');
+    await highUndo.click({ force: true }).catch(() => undefined);
+    await highUndo.click({ force: true }).catch(() => undefined);
+    assert.equal(await undismissCalls(app), 1, '교차 조작 뒤에도 중복 클릭이 새 취소 요청을 만들지 않았다 (관측 범위 안)');
+
+    await release(app); // 첫 취소 실패. 마지막 요청은 낮은 확신 카드의 무시라서, 기존 계약대로 이 실패 안내는 마지막 요청을 따르지 않는다 (안내 여부는 판정하지 않는다)
+    await highUndo.and(page.locator(':enabled')).waitFor(); // 대기가 풀려 다시 시도할 수 있다
+    assert.equal(await issues.locator('.issue-card:not(.low)').getByText('무시함', { exact: true }).count(), 1, '실패하면 무시 상태 그대로');
     await badge('검사함: 문제 가능성 없음').waitFor();
 
+    // 늦은 실패 격리: 취소 요청을 붙잡은 채 화를 오가면(문맥이 바뀜) 그 요청의 늦은 실패가 현재 결과에 나타나지 않는다
+    await highUndo.click();
+    for (let n = 0; n < 600 && !(await held(app)); n++) await page.waitForTimeout(25);
+    assert.equal(await undismissCalls(app), 2);
+    await roundTrip();
+    await release(app); // 늦은 실패
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+    assert.equal(await failNote.count(), 0, '화를 오간 뒤의 늦은 취소 실패 안내가 현재 결과에 나타나지 않는다 (관측 범위 안)');
+    assert.equal(await undismissCalls(app), 2);
+
+    // 취소 실패 안내: 마지막 요청이 취소일 때는 실패했다고 알리고 무시 상태를 유지하며 다시 시도할 수 있다
+    await issues.getByRole('button', { name: '무시한 결과 2개 보기' }).click(); // 높은 확신 + 낮은 확신, 둘 다 무시한 상태 (낮은 확신 카드는 필터가 아직 가린다)
+    await highUndo.click();
+    for (let n = 0; n < 600 && !(await held(app)); n++) await page.waitForTimeout(25);
+    assert.equal(await undismissCalls(app), 3);
+    await release(app);
+    await failNote.waitFor();
+    await issues.getByText('무시를 취소하지 못했습니다', { exact: false }).waitFor();
+    assert.equal(await highUndo.isEnabled(), true, '다시 시도할 수 있다');
+    assert.equal(await issues.locator('.issue-card:not(.low)').getByText('무시함', { exact: true }).count(), 1, '실패하면 무시 상태 그대로');
+
     // 3) 키보드(포커스 + Enter)로 재시도: 성공하면 일반 카드·배지·heading 수로 돌아오고 실패 안내가 사라진다
-    await undoButton.focus();
+    await highUndo.focus();
     await page.keyboard.press('Enter');
     await issues.getByRole('heading', { name: '문제 가능성 (1)' }).waitFor();
     await badge('문제 가능성 1개').waitFor();
-    assert.equal(await undismissCalls(app), 2);
-    assert.equal(await issues.getByText('무시함', { exact: true }).count(), 0);
+    assert.equal(await undismissCalls(app), 4);
+    assert.equal(await issues.getByText('무시함', { exact: true }).count(), 0, '낮은 확신 카드는 필터가 계속 가린다');
     assert.equal(await undoButton.count(), 0);
     assert.equal(await failNote.count(), 0, '성공하면 이전 실패 안내가 남지 않는다');
-    assert.equal(await issues.getByRole('button', { name: /^무시한 결과/ }).count(), 0, '무시한 결과가 없다');
-    assert.equal(await issues.getByRole('button', { name: '무시', exact: true }).count(), 1, '일반 카드로 돌아왔다');
+    assert.equal(await issues.getByRole('button', { name: '무시', exact: true }).count(), 1, '높은 확신 카드가 일반 카드로 돌아왔다');
 
     // 4) 화 왕복 뒤에도 유지된다
     await roundTrip();
@@ -132,14 +160,11 @@ test('무시 취소: 무시함 표시와 함께 취소 버튼이 있고, 실패�
     assert.equal(await issues.getByText('무시함', { exact: true }).count(), 0);
     await badge('문제 가능성 1개').waitFor();
 
-    // 5) 낮은 확신 결과: 보이게 해 무시 → 화 왕복(필터 초기화) → 무시 보기 → 낮은 확신 보기로 카드 → 취소해도 낮은 확신 필터는 그대로
-    await issues.getByRole('button', { name: '확신이 낮아 숨긴 결과 1개 보기' }).click();
-    await issues.locator('.issue-card.low').getByRole('button', { name: '무시', exact: true }).click();
+    // 5) 낮은 확신 결과는 위에서 이미 무시했다: 화 왕복(필터 초기화) 뒤 무시 보기 → 낮은 확신 보기로 카드 → 취소해도 낮은 확신 필터는 그대로
     await issues.getByRole('button', { name: '무시한 결과 1개 보기' }).waitFor();
     await roundTrip();
     await issues.getByRole('button', { name: '무시한 결과 1개 보기' }).click();
     await issues.getByRole('button', { name: '확신이 낮아 숨긴 결과 1개 보기' }).click(); // 무시 토글을 켜야 나타난다
-    const lowCard = issues.locator('.issue-card.low');
     await lowCard.getByText('무시함', { exact: true }).waitFor();
     await lowCard.getByRole('button', { name: '무시 취소', exact: true }).click();
     await lowCard.getByRole('button', { name: '무시', exact: true }).waitFor();

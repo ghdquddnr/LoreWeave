@@ -61,17 +61,17 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   const [ctx, setCtx] = useState(0);
   /** 마지막 무시 요청의 차례. 안내는 마지막 요청의 결과만 따른다 (늦게 끝난 이전 요청이 최신 상태를 바꾸지 않는다) */
   const dismissSeq = useRef(0);
-  /** 가장 최근 무시·무시 취소 요청의 차례 (응답을 기다리는 동안 무시 취소는 다시 받지 않는다) */
-  const [pending, setPending] = useState<number | null>(null);
-  const pendingRef = useRef<number | null>(null);
+  /** 무시 취소 요청의 대기 (무시 취소만 소유한다: 응답을 기다리는 동안 무시 취소는 다시 받지 않는다. 다른 무시·그 재조회가 이 대기를 풀지 않는다) */
+  const [undoPending, setUndoPending] = useState<number | null>(null);
+  const undoRef = useRef<number | null>(null);
   const [reload, setReload] = useState(0);
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
     setCtx(++ctxRef.current);
-    // 화·프로젝트·검사 결과가 바뀌면 이전 요청의 대기는 이 결과와 상관없다 (그 늦은 응답은 아래 차례 비교로 버린다)
-    pendingRef.current = null;
-    setPending(null);
+    // 화·프로젝트·검사 결과가 바뀌면 이전 취소 요청의 대기는 이 결과와 상관없다 (그 늦은 응답은 아래 차례·문맥 비교로 버린다)
+    undoRef.current = null;
+    setUndoPending(null);
   }, [file, projectToken, version]);
 
   useEffect(() => {
@@ -104,17 +104,19 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   /** 무시(undo=false) 또는 무시 취소(undo=true). 같은 검증·차례·문맥 규칙을 쓰고, 한 번에 하나만 보낸다 */
   const changeDismissal = (f: StoredFinding, undo: boolean) => {
     // 누른 순간에도 확인한다: 화를 바꾸거나 다시 읽기 시작한 뒤의 이전 결과로는 보내지 않는다
-    // 무시 취소는 한 번에 하나만 보낸다 (기존 무시는 이전처럼 겹쳐 보낼 수 있고, 안내는 마지막 요청을 따른다)
-    if (!ready || loaded.seq !== seq.current || (undo && pendingRef.current !== null)) return;
+    // 무시 취소는 대기 중이면 다시 받지 않는다. 무시는 이전처럼 겹쳐 보낼 수 있고, 안내는 마지막 요청(무시·취소 공통)을 따른다
+    if (!ready || loaded.seq !== seq.current || (undo && undoRef.current !== null)) return;
     const target = loaded.file;
     const mine = ++dismissSeq.current;
     const at = ctxRef.current;
-    pendingRef.current = mine;
-    setPending(mine);
+    if (undo) {
+      undoRef.current = mine;
+      setUndoPending(mine);
+    }
     const done = () => {
-      if (pendingRef.current === mine) {
-        pendingRef.current = null;
-        setPending(null);
+      if (undo && undoRef.current === mine) {
+        undoRef.current = null;
+        setUndoPending(null);
       }
     };
     const request = undo ? api.ai.undismiss(target, f.ord, projectToken) : api.ai.dismiss(target, f.ord, projectToken);
@@ -229,7 +231,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
                       {f.dismissed ? (
                         <>
                           <span className="chip">무시함</span>
-                          <button type="button" className="link" disabled={!ready || pending !== null} onClick={() => undismiss(f)}>
+                          <button type="button" className="link" disabled={!ready || undoPending !== null} onClick={() => undismiss(f)}>
                             무시 취소
                           </button>
                         </>
