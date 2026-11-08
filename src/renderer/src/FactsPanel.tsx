@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { locateQuote, type QuoteLocation } from '../../core/ai/locate.ts';
 import type { AnalysisState, StoredAnalysis } from '../../preload/api.ts';
 import { ErrorNote } from './ErrorNote.tsx';
-import { friendlyError } from './userError.ts';
+import { friendlyReadError } from './userError.ts';
 
 const api = window.loreweave;
 
@@ -76,7 +76,7 @@ export function FactsPanel({ file, projectToken, locked, state, version, current
       <div className="sec-body" hidden={!open}>
         {failed && (
           <p className="error" role="alert">
-            <ErrorNote prefix="분석 결과를 읽지 못했습니다" error={friendlyError(failed)} onRetry={() => setReload((n) => n + 1)} retryLabel="다시 읽기" />
+            <ErrorNote prefix="분석 결과를 읽지 못했습니다" error={friendlyReadError(failed)} onRetry={() => setReload((n) => n + 1)} retryLabel="다시 읽기" />
           </p>
         )}
         {analysis === undefined && !failed && <p className="muted">불러오는 중…</p>}
