@@ -67,7 +67,11 @@ function setup() {
   const reply = (proceed: boolean, attempt: number, from: unknown = webContents) => {
     for (const fn of listeners.get('replyClose') ?? []) fn({ sender: from }, proceed, attempt);
   };
-  return { win, sent, dialogs, reply, destroyed: () => destroyed, replyListeners: () => (listeners.get('replyClose') ?? []).length };
+  /** renderer가 저장하지 못한 변경이 남았다고 알린다 (폐기 확인은 main이 띄운다) */
+  const unsaved = (attempt: number, from: unknown = webContents) => {
+    for (const fn of listeners.get('closeUnsaved') ?? []) (fn as unknown as (e: { sender: unknown }, attempt: number) => void)({ sender: from }, attempt);
+  };
+  return { win, sent, dialogs, reply, unsaved, destroyed: () => destroyed, replyListeners: () => (listeners.get('replyClose') ?? []).length };
 }
 const flush = () => new Promise<void>((r) => setImmediate(r));
 
@@ -175,4 +179,92 @@ test('다른 창의 응답은 무시하고, renderer가 취소(false)하면 열�
   assert.equal(u.destroyed(), false);
   u.win.close();
   assert.deepEqual(u.sent, [1, 2], '안내가 실패해도 다시 닫기를 시도할 수 있다');
+});
+
+test('저장하지 못한 변경: main이 폐기 확인창을 하나 띄우고, 확인 중에는 시간이 지나도 대기 안내를 겹치지 않으며, 명시 승인(저장하지 않고 닫기)으로만 닫힌다', async () => {
+  const t = setup();
+  t.win.close();
+  t.unsaved(1);
+  await flush();
+  assert.equal(t.dialogs.length, 1);
+  assert.deepEqual(t.dialogs[0]!.buttons, ['저장하지 않고 닫기', '닫지 않기']);
+  assert.equal(t.destroyed(), false, '확인 전에는 닫지 않는다');
+  for (let i = 0; i < 12; i++) {
+    mock.timers.tick(10_000);
+    await flush();
+  }
+  assert.equal(t.dialogs.length, 1, '확인 중에는 시간이 아무리 지나도 두 번째 안내를 겹쳐 띄우지 않는다');
+  assert.equal(t.destroyed(), false, 'timeout만으로 닫지 않는다');
+  t.win.close();
+  assert.deepEqual(t.sent, [1], '확인 중의 중복 닫기는 새 시도를 만들지 않는다');
+  t.dialogs[0]!.resolve(0); // 사용자의 명시적 폐기 승인
+  await flush();
+  assert.equal(t.destroyed(), true);
+  assert.equal(t.replyListeners(), 0, '닫히면 리스너를 정리한다');
+});
+
+test('폐기 거절(닫지 않기)이면 창을 두고 시도가 끝난다. 다시 닫으면 새 시도·새 확인이며, 옛 확인의 늦은 승인은 새 시도를 닫지 못한다', async () => {
+  const t = setup();
+  t.win.close();
+  t.unsaved(1);
+  await flush();
+  t.dialogs[0]!.resolve(1); // 닫지 않기
+  await flush();
+  assert.equal(t.destroyed(), false);
+  mock.timers.tick(60_000);
+  await flush();
+  assert.equal(t.dialogs.length, 1, '끝난 시도는 더 묻지 않는다');
+  t.win.close();
+  assert.deepEqual(t.sent, [1, 2], '다시 닫을 수 있다');
+  t.unsaved(2);
+  await flush();
+  assert.equal(t.dialogs.length, 2);
+  t.dialogs[0]!.resolve(0); // 옛 확인창의 늦은 승인
+  await flush();
+  assert.equal(t.destroyed(), false, '끝난 시도의 승인은 새 시도를 승인하지 못한다');
+  t.dialogs[1]!.resolve(0);
+  await flush();
+  assert.equal(t.destroyed(), true);
+});
+
+test('저장 대기 안내가 먼저 떠 있다가 저장 실패가 알려지면 대기 안내를 거두고 폐기 확인으로 직렬화한다 (시도는 이어 간다)', async () => {
+  const t = setup();
+  t.win.close();
+  mock.timers.tick(10_000);
+  await flush();
+  assert.deepEqual(t.dialogs[0]!.buttons, ['계속 기다리기', '닫기 취소']);
+  t.unsaved(1);
+  await flush();
+  assert.equal(t.dialogs[0]!.aborted, true, '대기 안내를 거둔다');
+  assert.equal(t.dialogs.length, 2);
+  assert.deepEqual(t.dialogs[1]!.buttons, ['저장하지 않고 닫기', '닫지 않기']);
+  assert.equal(t.destroyed(), false, '거둔다고 시도가 끝나거나 닫히지 않는다');
+  mock.timers.tick(60_000);
+  await flush();
+  assert.equal(t.dialogs.length, 2, '확인 중에는 대기 안내가 다시 뜨지 않는다');
+  t.dialogs[1]!.resolve(1);
+  await flush();
+  assert.equal(t.destroyed(), false);
+});
+
+test('renderer가 알림 뒤 응답하지 않아도 확인창은 main이 소유한다: 확인창을 못 띄우면 시도가 끝나 다시 닫을 수 있고, 다른 창·옛 시도의 알림은 무시한다', async () => {
+  const t = setup();
+  t.win.close();
+  t.unsaved(1, { id: 'other-window' });
+  t.unsaved(9);
+  await flush();
+  assert.equal(t.dialogs.length, 0, '다른 창·없는 시도의 알림은 확인창을 띄우지 못한다');
+  t.unsaved(1);
+  await flush();
+  t.dialogs[0]!.reject(new Error('dialog failed')); // 확인창을 띄우지 못했다
+  await flush();
+  assert.equal(t.destroyed(), false, '확인창 실패는 닫는 근거가 아니다');
+  t.win.close();
+  assert.deepEqual(t.sent, [1, 2], '시도가 끝나 다시 닫을 수 있다 (영구 무시되지 않는다)');
+  // 확인창이 떠 있는 동안 renderer가 닫기를 취소(false)하면 확인창을 거둔다
+  t.unsaved(2);
+  await flush();
+  t.reply(false, 2);
+  assert.equal(t.dialogs[1]!.aborted, true);
+  assert.equal(t.destroyed(), false);
 });

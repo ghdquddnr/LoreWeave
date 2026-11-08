@@ -225,6 +225,8 @@ interface CloseAttempt {
   id: number;
   timer: NodeJS.Timeout | null;
   asking: AbortController | null;
+  /** 저장하지 못한 변경의 폐기 확인(main의 native 확인창)을 사용자에게 묻는 중이다 (그동안은 저장 응답 대기 안내를 띄우지 않는다) */
+  discarding: boolean;
 }
 
 /**
@@ -250,6 +252,7 @@ export function guardWindowClose(win: BrowserWindow): void {
   const ask = (attempt: CloseAttempt) => {
     attempt.timer = null;
     if (win.isDestroyed()) return end();
+    if (attempt.discarding) return; // 폐기 확인이 떠 있다 (main이 소유한 확인창이라 응답 여부와 종료를 main이 안다): 안내를 겹쳐 띄우지 않는다
     const asking = new AbortController();
     attempt.asking = asking;
     dialog
@@ -281,7 +284,7 @@ export function guardWindowClose(win: BrowserWindow): void {
     if (allowed) return;
     event.preventDefault();
     if (pending) return; // 이미 닫기 시도 중이다 (중복 닫기 요청은 새 시도·새 안내를 만들지 않는다)
-    const attempt: CloseAttempt = { id: ++attempts, timer: null, asking: null };
+    const attempt: CloseAttempt = { id: ++attempts, timer: null, asking: null, discarding: false };
     pending = attempt;
     attempt.timer = setTimeout(() => ask(attempt), CLOSE_TIMEOUT_MS);
     win.webContents.send(CHANNELS.beforeClose, attempt.id);
@@ -293,9 +296,51 @@ export function guardWindowClose(win: BrowserWindow): void {
     if (proceed) close();
   };
   ipcMain.on(CHANNELS.replyClose, onReply);
+  // renderer가 저장하지 못한 변경이 남았다고 알렸다: 폐기 확인은 main의 native 확인창이 맡는다 (renderer의 알림만 믿고 기다리지 않는다).
+  // 떠 있던 저장 대기 안내는 거두고(시도는 이어 간다) 이 시도에 대해서만 유효한 확인창을 하나 띄운다. 폐기 승인은 그 확인창이 아직 이 시도의 것일 때만 닫는다
+  const askDiscard = (attempt: CloseAttempt) => {
+    if (attempt.timer) clearTimeout(attempt.timer);
+    attempt.timer = null;
+    const previous = attempt.asking;
+    attempt.asking = null; // 거두는 안내의 거절이 시도를 끝내지 않게 먼저 뗀다
+    previous?.abort();
+    if (win.isDestroyed()) return end();
+    attempt.discarding = true;
+    const asking = new AbortController();
+    attempt.asking = asking;
+    dialog
+      .showMessageBox(win, {
+        type: 'warning',
+        title: '저장하지 못한 변경이 있습니다',
+        message: '저장되지 않은 변경이 있습니다. 그래도 계속할까요? (변경은 사라집니다)',
+        detail: '저장하지 않고 닫으면 저장하지 못한 글이 사라집니다.',
+        buttons: ['저장하지 않고 닫기', '닫지 않기'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+        signal: asking.signal,
+      })
+      .then(
+        ({ response }) => {
+          if (pending !== attempt || attempt.asking !== asking) return; // 이미 끝났거나 취소된 시도의 늦은 답
+          end();
+          if (response === 0) close(); // 사용자의 명시적 폐기 승인
+        },
+        () => {
+          // 확인창을 띄우지 못했거나 도중에 끊겼다: 닫지 않고 시도를 끝낸다 (다시 닫기를 시도할 수 있다)
+          if (pending === attempt && attempt.asking === asking) end();
+        },
+      );
+  };
+  const onUnsaved = (event: Electron.IpcMainEvent, attempt: number) => {
+    if (event.sender !== win.webContents || !pending || pending.id !== attempt || pending.discarding) return;
+    askDiscard(pending);
+  };
+  ipcMain.on(CHANNELS.closeUnsaved, onUnsaved);
   win.once('closed', () => {
     end();
     ipcMain.removeListener(CHANNELS.replyClose, onReply);
+    ipcMain.removeListener(CHANNELS.closeUnsaved, onUnsaved);
   });
 }
 
