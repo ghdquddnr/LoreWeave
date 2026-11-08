@@ -117,7 +117,8 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   const low = (f: StoredFinding) => f.confidence < MIN_CONFIDENCE;
   const shown = check?.findings.filter((f) => (showDismissed || !f.dismissed) && (showLow || !low(f))) ?? [];
   const dismissed = check?.findings.filter((f) => f.dismissed).length ?? 0;
-  const lowCount = check?.findings.filter((f) => !f.dismissed && low(f)).length ?? 0;
+  // 확신이 낮아 숨긴 결과: 무시 필터를 통과한 것만 센다. 무시한 낮은 확신 결과는 [무시한 결과 보기]를 켠 뒤에 이 버튼으로 이어진다 (무시를 숨긴 동안 그 결과는 무시 쪽 수에만 들어가, 두 버튼의 수가 같은 결과를 함께 세지 않는다)
+  const lowCount = check?.findings.filter((f) => low(f) && (showDismissed || !f.dismissed)).length ?? 0;
   const visible = check?.findings.filter((f) => !f.dismissed && !low(f)).length ?? 0;
 
   const placeOf = (f: StoredFinding): Place => {
@@ -245,7 +246,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
                 );
               })}
             </ul>
-            {lowCount > 0 && (
+            {(lowCount > 0 || showLow) && (
               <button type="button" className="link" onClick={() => setShowLow((v) => !v)}>
                 {showLow ? '확신이 낮은 결과 숨기기' : `확신이 낮아 숨긴 결과 ${lowCount}개 보기`}
               </button>

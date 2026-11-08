@@ -47,10 +47,16 @@ test('빈 상태: 실제 0건과 숨긴 결과만 있는 경우를 구분하고,
     await page.evaluate(() => window.loreweave.ai.setKey('sk-issues-empty'));
     const issues = page.getByRole('region', { name: '문제 가능성' });
     const chapter = (n: number) => page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: new RegExp(`^${n}화`) });
+    // 검사 요청(검사 프롬프트 '# 참고 자료')의 수가 하나 늘고, 실행이 끝나 [이 화 검사]가 다시 눌릴 때까지 기다린다 (이전 검사의 '검사 완료' 문구가 남아 있어 문구만으로는 끝을 알 수 없다)
+    const checkRequests = () => fake.requests.filter((r) => JSON.stringify(r.body).includes('# 참고 자료')).length;
     const runCheck = async () => {
+      const before = checkRequests();
       await page.getByRole('button', { name: '이 화 검사' }).click();
       await page.getByRole('dialog', { name: 'AI 실행 확인' }).getByRole('button', { name: /^(동의하고 실행|실행)$/ }).click(); // 동의는 처음 한 번만 묻는다
-      await page.getByText(/검사 완료/).waitFor({ timeout: 60_000 });
+      for (let n = 0; n < 600 && checkRequests() === before; n++) await page.waitForTimeout(25);
+      assert.equal(checkRequests(), before + 1, '검사 요청이 한 번 갔다');
+      await page.getByRole('button', { name: '이 화 검사' }).and(page.locator(':enabled')).waitFor({ timeout: 60_000 });
+      await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
     };
     const emptyNone = issues.getByText('이번 검사에서 찾은 문제 가능성이 없습니다.');
     const emptyFiltered = issues.getByText('현재 표시할 결과가 없습니다.');
@@ -84,7 +90,7 @@ test('빈 상태: 실제 0건과 숨긴 결과만 있는 경우를 구분하고,
     await emptyFiltered.waitFor();
     assert.equal(await cards.count(), 0);
 
-    // 3) 높은 확신 결과를 무시 (+ 낮은 확신 결과가 겹침) → 필터 안내 → 무시한 결과 보기
+    // 3) 높은 확신 결과를 무시 (같은 검사에 낮은 확신 결과가 따로 하나 더 있는 다른 두 카드 조합) → 필터 안내 → 무시한 결과 보기
     mode = 'mixed';
     await runCheck();
     await issues.getByRole('heading', { name: '문제 가능성 (1)' }).waitFor();
@@ -112,8 +118,50 @@ test('빈 상태: 실제 0건과 숨긴 결과만 있는 경우를 구분하고,
     await issues.getByRole('button', { name: '확신이 낮은 결과 숨기기' }).click();
     await emptyFiltered.waitFor();
 
+    // 4) 같은 결과가 낮은 확신이면서 무시된 경우 (한 finding에 두 필터가 겹침): 낮은 확신 카드를 보이게 한 뒤 무시하고, 화를 오가며 필터를 초기화해도 버튼으로 다시 닿는다
+    const backToThree = async () => {
+      await chapter(2).click();
+      await issues.getByText('이번 검사에서 찾은 문제 가능성이 없습니다.').waitFor();
+      await chapter(3).click();
+      await issues.getByRole('heading', { name: /^문제 가능성/ }).waitFor();
+    };
+    await issues.getByRole('button', { name: '확신이 낮아 숨긴 결과 1개 보기' }).click();
+    await issues.locator('.issue-card.low').getByRole('button', { name: '무시' }).click();
+    await emptyFiltered.waitFor(); // 무시한 낮은 확신 카드는 보이지 않는다
+    assert.equal(await cards.count(), 0);
+    await backToThree(); // 두 토글이 초기화된다
+    await emptyFiltered.waitFor();
+    assert.equal(await cards.count(), 0);
+    assert.equal(await issues.getByRole('button', { name: /^확신이 낮아 숨긴 결과/ }).count(), 0, '무시를 숨긴 동안 낮은 확신 버튼은 같은 결과를 세지 않는다');
+    await issues.getByRole('button', { name: '무시한 결과 2개 보기' }).click();
+    assert.equal(await cards.count(), 1, '무시한 높은 확신 카드만 보이고, 낮은 확신 카드는 아직 숨겨져 있다');
+    await issues.getByRole('button', { name: '확신이 낮아 숨긴 결과 1개 보기' }).click(); // 이제 낮은 확신 토글이 나타난다
+    await issues.locator('.issue-card.low').waitFor();
+    assert.equal(await cards.count(), 2, '무시한 낮은 확신 카드에도 두 토글로 닿는다');
+    assert.equal(await emptyFiltered.count(), 0, '카드가 보이면 빈 상태 문구가 사라진다');
+    await issues.getByRole('button', { name: '확신이 낮은 결과 숨기기' }).click();
+    await issues.getByRole('button', { name: '무시한 결과 숨기기' }).click();
+    await emptyFiltered.waitFor();
+
+    // 5) 낮은 확신 결과 하나뿐이고 그것이 무시된 경우 (4)에서 무시한 같은 결과가 새 검사에도 무시로 이어진다): 버튼 없는 막다른 길이 되지 않는다
+    assert.equal(fake.requests.length, requestsBefore, '3)~4)의 무시와 토글은 새 요청을 만들지 않았다 (관측 범위 안)');
+    mode = 'low';
+    await runCheck();
+    const requestsAfterCheck = fake.requests.length; // 새 검사 자체의 요청은 여기까지
+    await emptyFiltered.waitFor();
+    // 같은 낮은 확신 결과는 앞에서 이미 무시했고 그 무시는 새 검사에도 이어진다: 이 화의 유일한 결과가 무시된 낮은 확신 결과다
+    assert.equal(await issues.getByRole('button', { name: /^확신이 낮아 숨긴 결과/ }).count(), 0);
+    assert.equal(await cards.count(), 0);
+    await issues.getByRole('button', { name: '무시한 결과 1개 보기' }).click(); // 유일한 길: 무시 토글
+    assert.equal(await cards.count(), 0, '낮은 확신 필터가 아직 가리고 있다');
+    await emptyFiltered.waitFor();
+    await issues.getByRole('button', { name: '확신이 낮아 숨긴 결과 1개 보기' }).click(); // 그 뒤 낮은 확신 토글이 나타난다
+    await issues.getByText('무시함').waitFor();
+    assert.equal(await cards.count(), 1);
+    assert.equal(await emptyFiltered.count() + (await emptyNone.count()), 0);
+
     // 표시·토글·무시만으로는 새 분석·검사 요청이 없고, 원고는 그대로다
-    assert.equal(fake.requests.length, requestsBefore, '무시와 토글은 새 요청을 만들지 않았다 (관측 범위 안)');
+    assert.equal(fake.requests.length, requestsAfterCheck, '5)의 토글도 새 요청을 만들지 않았다 (관측 범위 안)');
     const after = await Promise.all(files.map((f) => readFile(join(project, 'chapters', f))));
     assert.ok(after.every((b, i) => Buffer.compare(b, originals[i]!) === 0), '원고 원본 바이트 불변');
   } finally {
