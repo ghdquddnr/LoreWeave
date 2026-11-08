@@ -19,6 +19,8 @@ interface Counters {
   failed: number;
   /** 다음 chapter:write 한 번을 붙잡았다가 gate가 풀리면 실패시킨다 */
   holdNext: boolean;
+  /** 다음 chapter:write 한 번을 원래 핸들러 진입 전에 붙잡았다가 gate가 풀리면 원래대로 쓴다 (성공) */
+  holdPass: boolean;
   gate: (() => void) | null;
   releaseGate: (() => void) | null;
 }
@@ -41,7 +43,7 @@ async function open(name: string) {
   const { app, page } = await launch(await tempDir(`${name}-ud`));
   await app.evaluate(({ ipcMain }) => {
     const g = globalThis as unknown as { c: Counters };
-    g.c = { entered: 0, done: 0, failed: 0, holdNext: false, gate: null, releaseGate: null };
+    g.c = { entered: 0, done: 0, failed: 0, holdNext: false, holdPass: false, gate: null, releaseGate: null };
     const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
     const original = handlers.get('chapter:write')!;
     handlers.set('chapter:write', async (...args: unknown[]) => {
@@ -51,6 +53,10 @@ async function open(name: string) {
         await new Promise<void>((resolve) => (g.c.releaseGate = resolve)); // 풀릴 때까지 붙잡고, 원래 쓰기는 하지 않은 채 실패시킨다
         g.c.failed++;
         throw new Error('EPERM: synthetic write failure');
+      }
+      if (g.c.holdPass) {
+        g.c.holdPass = false;
+        await new Promise<void>((resolve) => (g.c.releaseGate = resolve));
       }
       const result = await original(...args);
       g.c.done++;
@@ -149,6 +155,51 @@ test('저장 실패 뒤 5000ms 재시도 타이머가 조합 중에 발화해도
     await until('확정 뒤 자동 저장 완료', async () => (await count(app)).done === base.done + 1);
     assert.equal((await count(app)).entered, base.entered + 2, '확정 뒤 새 쓰기는 정확히 한 건');
     assert.ok((await readFile(path, 'utf8')) === ONE.replace('Alpha text', 'Alpha text X감'), '확정 뒤 저장: BOM·CRLF·frontmatter와 기존 글자 보존');
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('조합 전에 발화한 자동저장이 기존 쓰기를 기다리는 사이 조합이 시작돼도, 기존 쓰기 완료 뒤 새 미확정 스냅샷을 쓰지 않고 확정 뒤 추가 입력 없이 최신 본문을 저장한다', { timeout: 120_000 }, async () => {
+  const { app, page, path, cdp } = await open('autosave-ime-queued');
+  try {
+    const base = await count(app);
+
+    // 첫 쓰기: 입력 → 1500ms 자동저장이 chapter:write에 진입하면 원래 핸들러 진입 전에 붙잡아 둔다 (조합 시작 전)
+    await page.locator('.ProseMirror').getByText('Alpha text').click();
+    await page.keyboard.press('End');
+    await app.evaluate(() => { (globalThis as unknown as { c: Counters }).c.holdPass = true; });
+    await page.keyboard.type(' X');
+    await until('첫 쓰기 진입', async () => (await count(app)).entered === base.entered + 1);
+    const first = await timers(page);
+    assert.equal(first.starts, 0, '첫 쓰기는 조합 시작 전에 진입했다');
+
+    // 두 번째 자동저장 타이머: 추가 입력 뒤 1500ms 타이머가 실제로 발화한다 (조합 전, 첫 쓰기를 기다리는 중)
+    await page.keyboard.type(' Y');
+    await until('두 번째 자동저장 타이머 발화', async () => (await timers(page)).f1500 > first.f1500);
+    const second = await timers(page);
+    assert.equal(second.starts, 0, '두 번째 타이머도 조합 시작 전에 발화했다');
+    assert.equal((await count(app)).entered, base.entered + 1, '두 번째 저장은 첫 쓰기를 기다리는 중이라 아직 진입하지 않았다');
+
+    // 그 뒤에 조합을 시작하고 첫 쓰기를 푼다
+    await cdp.send('Input.imeSetComposition', { text: '감', selectionStart: 1, selectionEnd: 1 });
+    const comp = await timers(page);
+    assert.ok(comp.starts >= 1 && comp.ends === 0, `조합이 유지 중이다: ${JSON.stringify(comp)}`);
+    await app.evaluate(() => (globalThis as unknown as { c: Counters }).c.releaseGate!());
+    await until('조합 전에 시작한 첫 쓰기 완료', async () => (await count(app)).done >= base.done + 1);
+    // 첫 쓰기 완료 뒤 남은 변경의 자동저장 타이머가 조합 중에 또 발화해도 새 쓰기는 없다
+    const afterFirst = await timers(page);
+    await until('조합 중 다음 타이머 발화 또는 새 쓰기 진입', async () => (await timers(page)).f1500 > afterFirst.f1500 || (await count(app)).entered > base.entered + 1);
+    const fire = await timers(page);
+    assert.equal(fire.ends, 0, '조합이 끝나지 않았다');
+    assert.equal((await count(app)).entered, base.entered + 1, '조합 중 새 쓰기가 시작되지 않았다 (진입은 조합 전의 첫 쓰기뿐)');
+    assert.ok((await readFile(path, 'utf8')) === ONE.replace('Alpha text', 'Alpha text X'), '디스크에는 완료된 첫 스냅샷만 있다 (조합 글자 없음)');
+
+    // 확정: 추가 입력 없이 최신 본문이 저장된다
+    await page.keyboard.insertText('감');
+    await until('확정 뒤 자동 저장 완료', async () => (await count(app)).done === base.done + 2);
+    assert.equal((await count(app)).entered, base.entered + 2, '확정 뒤 새 쓰기는 정확히 한 건');
+    assert.ok((await readFile(path, 'utf8')) === ONE.replace('Alpha text', 'Alpha text X Y감'), '확정 뒤 최신 본문 저장: BOM·CRLF·frontmatter 보존');
   } finally {
     await closeWindow(app);
   }

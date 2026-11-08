@@ -175,23 +175,29 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     [onStatus],
   );
 
+  const isComposing = useCallback(() => {
+    const ed = editorRef.current;
+    return !!ed && !ed.isDestroyed && ed.view.composing;
+  }, []);
+
   const schedule = useCallback((delay: number) => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       // 자동저장·재시도 타이머는 조합(한글 등) 중에 미확정 글자를 디스크에 쓰지 않는다. 폴링하지 않고 그냥 두면 compositionend가 다시 건다.
       // (명시적 flush(이동·창 닫기·blur·Ctrl+S)는 이 경로가 아니라 saveRef를 직접 부르므로 그대로다)
-      const ed = editorRef.current;
-      if (ed && !ed.isDestroyed && ed.view.composing) return;
-      void saveRef.current();
+      if (isComposing()) return;
+      void saveRef.current(undefined, true);
     }, delay);
-  }, []);
+  }, [isComposing]);
 
-  /** expected: 덮어쓰기를 고른 경우 디스크의 해시 */
+  /** expected: 덮어쓰기를 고른 경우 디스크의 해시. auto: 자동저장·재시도 타이머가 부른 저장 (명시적 flush는 아니다) */
   const save = useCallback(
-    async (expected?: string | null): Promise<boolean> => {
+    async (expected?: string | null, auto = false): Promise<boolean> => {
       if (saving.current) {
         await saving.current;
-        return saveRef.current(expected);
+        // 자동저장은 기존 쓰기를 기다리는 사이 조합이 시작됐다면 새 미확정 스냅샷을 쓰지 않는다 (compositionend가 다시 건다). 명시적 flush는 기존대로 대기 뒤 최신 본문을 저장한다
+        if (auto && isComposing()) return false;
+        return saveRef.current(expected, auto);
       }
       const editor = editorRef.current;
       if (!editor || (version.current === savedVersion.current && expected === undefined)) return true;
@@ -241,7 +247,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
         saving.current = null;
       }
     },
-    [file, projectToken, loaded.envelope, onSaved, report, schedule],
+    [file, projectToken, loaded.envelope, onSaved, report, schedule, isComposing],
   );
   const saveRef = useRef(save);
   saveRef.current = save;
