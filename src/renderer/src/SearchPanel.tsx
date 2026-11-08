@@ -38,6 +38,10 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
   const [result, setResult] = useState<(SearchResult & { query: string }) | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 검색 요청(chapters:search) 단계가 실패했다 ([다시 검색]을 보인다). 저장 단계 실패와 구분한다: 저장 문제에는 검색 재시도 버튼을 붙이지 않는다 */
+  const [searchFailed, setSearchFailed] = useState(false);
+  /** 가장 최근 요청이 진행 중이다 ([다시 검색] 중복 클릭을 막는다. Enter의 새 검색은 이전처럼 최신 요청이 이긴다) */
+  const inflight = useRef(false);
 
 
   // 요청 번호: 가장 최근에 시작했고 지우기·새 요청·언마운트로 무효화되지 않은 요청만 결과·오류·찾는 중을 반영한다
@@ -53,8 +57,10 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     const q = query;
     if (!q.trim()) return clear();
     const mine = ++seq.current;
+    inflight.current = true;
     setBusy(true);
     setError(null);
+    setSearchFailed(false);
     let searched = false;
     try {
       const saved = await beforeSearch();
@@ -79,15 +85,27 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
           setResult(null);
           onActiveChange(false);
           setError(friendlyError(e).summary);
+          setSearchFailed(true);
         }
       }
     } finally {
-      if (mine === seq.current) setBusy(false);
+      if (mine === seq.current) {
+        inflight.current = false;
+        setBusy(false);
+      }
     }
+  };
+
+  /** [다시 검색]: 누른 순간 입력창의 검색어로 기존 search()(저장 전 flush → 검색)를 그대로 쓴다. 빈 검색어·조합 중·진행 중에는 시작하지 않는다 */
+  const retrySearch = () => {
+    if (inflight.current || !query.trim() || composing.current || composingKey.current) return;
+    void search();
   };
 
   const clear = () => {
     seq.current++; // 진행 중인 요청도 무효화한다
+    inflight.current = false;
+    setSearchFailed(false);
     setQuery('');
     setResult(null);
     setError(null);
@@ -131,7 +149,19 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
         />
       </form>
       {busy && <p className="search-summary">찾는 중…</p>}
-      {error && <p className="error search-summary">{error}</p>}
+      {error && (
+        <p className="error search-summary">
+          {error}
+          {searchFailed && (
+            <>
+              {' '}
+              <button type="button" className="link" disabled={!query.trim()} onClick={retrySearch}>
+                다시 검색
+              </button>
+            </>
+          )}
+        </p>
+      )}
       {active && result && !busy && (
         <>
           <p className="search-summary">
