@@ -45,7 +45,7 @@ test('preload API가 노출되고, 프로젝트를 열기 전에는 파일 요�
   assert.deepEqual(shape, {
     project: ['choose', 'reopenLast'],
     chapters: ['create', 'list', 'onChangedOutside', 'read', 'reissueId', 'search', 'write'],
-    app: ['onBeforeClose', 'replyClose'],
+    app: ['confirmingClose', 'onBeforeClose', 'replyClose'],
     // 키를 읽어 오는 함수는 없다
     ai: [
       'analysis',

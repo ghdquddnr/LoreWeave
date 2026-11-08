@@ -309,6 +309,14 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     return clean || window.confirm('저장되지 않은 변경이 있습니다. 그래도 계속할까요? (변경은 사라집니다)');
   }, []);
 
+  /** 창 닫기: leave와 같지만, 폐기 확인을 묻기 직전에 main에 알려 같은 닫기 시도의 저장 대기 안내와 겹치지 않게 한다 */
+  const leaveForClose = useCallback(async (attempt: number): Promise<boolean> => {
+    const clean = (await editor.current?.flush()) ?? true;
+    if (clean) return true;
+    api.app.confirmingClose(attempt);
+    return window.confirm('저장되지 않은 변경이 있습니다. 그래도 계속할까요? (변경은 사라집니다)');
+  }, []);
+
   useEffect(() => {
     const onBlur = () => void editor.current?.flush();
     const onKey = (e: KeyboardEvent) => {
@@ -329,7 +337,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     };
     window.addEventListener('blur', onBlur);
     window.addEventListener('keydown', onKey);
-    const off = api.app.onBeforeClose((attempt) => void leave().then((ok) => api.app.replyClose(ok, attempt)));
+    const off = api.app.onBeforeClose((attempt) => void leaveForClose(attempt).then((ok) => api.app.replyClose(ok, attempt)));
     // 다른 프로그램이 화를 바꾸면 분석 상태(분석 뒤 바뀜)도 다시 읽는다
     const offOutside = api.chapters.onChangedOutside(() => refreshAi());
     return () => {
@@ -338,7 +346,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       off();
       offOutside();
     };
-  }, [leave, refreshAi]);
+  }, [leave, leaveForClose, refreshAi]);
 
   /**
    * 원고 조작을 실행한다. 조작은 시작할 때의 프로젝트 세대(gen)를 받고, 각 await 뒤에 isCurrent(gen)로 확인한 뒤에만 화면을 바꾼다.

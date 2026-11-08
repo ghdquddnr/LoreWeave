@@ -140,6 +140,8 @@ export interface LoreweaveApi {
     /** 창을 닫기 직전에 불린다. 저장을 마친 뒤 같은 attempt(닫기 시도 번호)로 replyClose를 불러야 창이 닫힌다 */
     onBeforeClose(listener: (attempt: number) => void): () => void;
     replyClose(proceed: boolean, attempt: number): void;
+    /** 저장하지 못한 변경의 폐기 확인을 사용자에게 묻기 직전에 불러, 같은 닫기 시도의 저장 대기 안내와 겹치지 않게 한다 */
+    confirmingClose(attempt: number): void;
   };
 }
 
@@ -176,6 +178,7 @@ export const CHANNELS = {
   aiUndismiss: 'ai:undismiss',
   beforeClose: 'app:before-close',
   replyClose: 'app:reply-close',
+  closeConfirming: 'app:close-confirming',
 } as const;
 
 declare global {
