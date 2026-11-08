@@ -73,6 +73,19 @@ async function start(prefix: string) {
   await hook(app);
   return { app, page, dir };
 }
+/** 목록 조회 실패 안내: 읽기 실패로 말하고(쓰기·저장 실패가 아니다) 기본 안내에 코드·IPC·경로가 없으며, 기술 상세는 접혀 있다가 펼치면 원문이 보존된다. 상세 조작은 처리기 진입이 없다 */
+async function assertReadFailureNote(page: Page, text: string, enters: () => Promise<number>, preserved: string[]) {
+  for (const wrong of ['쓸 수 없습니다', '저장', '쓰기']) assert.ok(!text.includes(wrong), `읽기 실패를 쓰기·저장 실패(${wrong})로 설명하지 않는다 (안내: ${text})`);
+  assert.match(text, /읽을 수 없습니다/, '읽기 실패로 안내한다');
+  for (const raw of ['Error invoking', 'EACCES', 'permission denied', 'synthetic']) assert.ok(!text.includes(raw), `기본 안내에 기술 문구(${raw})가 없다`);
+  assert.equal(await page.getByRole('note', { name: '기술 상세' }).count(), 0, '기술 상세는 기본 접힘이다');
+  const before = await enters();
+  await page.locator('footer .error').getByRole('button', { name: '기술 상세' }).click();
+  const detail = await page.getByRole('note', { name: '기술 상세' }).innerText();
+  for (const raw of preserved) assert.ok(detail.includes(raw), `기술 상세에 원문(${raw})이 보존된다`);
+  await page.locator('footer .error').getByRole('button', { name: '상세 닫기' }).click();
+  assert.equal(await enters(), before, '상세 열기·닫기는 처리기 진입을 만들지 않는다 (진입 계수)');
+}
 const newChapter = (page: Page) => page.getByRole('button', { name: '+ 새 화', exact: true });
 
 test('생성 성공 뒤 목록 조회 실패: "만들어졌다"고 알리고, 편집 잠금을 풀며, 생성 재실행 없이 [목록 다시 읽기]로 새 화를 보여 준다 (반복 실패는 안내 유지)', { timeout: 90_000 }, async () => {
@@ -85,6 +98,7 @@ test('생성 성공 뒤 목록 조회 실패: "만들어졌다"고 알리고, �
     assert.match(text, /만들어졌|만들었/, `생성은 성공했다고 알린다: ${text}`);
     assert.match(text, /002\.md/, '만들어진 파일을 알린다');
     assert.doesNotMatch(text, /새 화를 만들지 못했/);
+    await assertReadFailureNote(page, text, async () => (await hooks(app)).lists + (await hooks(app)).creates, ['Error invoking', 'EACCES', 'permission denied']);
     assert.deepEqual(await files(dir), ['001.md', '002.md'], '성공한 파일은 그대로 있다 (지우거나 롤백하지 않는다)');
     assert.equal((await hooks(app)).creates, 1);
     // 편집 잠금은 풀렸다: 기존 화에 입력된다

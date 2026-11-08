@@ -66,6 +66,19 @@ const hooks = (app: ElectronApplication) => app.evaluate(() => (globalThis as un
 const editor = (page: Page) => page.locator('.ProseMirror');
 const list = (page: Page) => page.getByRole('navigation', { name: '화 목록' });
 const footerError = (page: Page) => page.locator('footer .error');
+/** 목록 조회 실패 안내: 읽기 실패로 말하고(쓰기·저장 실패가 아니다) 기본 안내에 코드·IPC·경로가 없으며, 기술 상세는 접혀 있다가 펼치면 원문이 보존된다. 상세 조작은 처리기 진입이 없다 */
+async function assertReadFailureNote(page: Page, text: string, enters: () => Promise<number>, preserved: string[]) {
+  for (const wrong of ['쓸 수 없습니다', '저장', '쓰기']) assert.ok(!text.includes(wrong), `읽기 실패를 쓰기·저장 실패(${wrong})로 설명하지 않는다 (안내: ${text})`);
+  assert.match(text, /읽을 수 없습니다/, '읽기 실패로 안내한다');
+  for (const raw of ['Error invoking', 'EACCES', 'permission denied', 'synthetic']) assert.ok(!text.includes(raw), `기본 안내에 기술 문구(${raw})가 없다`);
+  assert.equal(await page.getByRole('note', { name: '기술 상세' }).count(), 0, '기술 상세는 기본 접힘이다');
+  const before = await enters();
+  await page.locator('footer .error').getByRole('button', { name: '기술 상세' }).click();
+  const detail = await page.getByRole('note', { name: '기술 상세' }).innerText();
+  for (const raw of preserved) assert.ok(detail.includes(raw), `기술 상세에 원문(${raw})이 보존된다`);
+  await page.locator('footer .error').getByRole('button', { name: '상세 닫기' }).click();
+  assert.equal(await enters(), before, '상세 열기·닫기는 처리기 진입을 만들지 않는다 (진입 계수)');
+}
 const dupWarning = (page: Page) => page.getByRole('alert').getByText(/같은 id를 쓰는 화가 있습니다/);
 const reread = (page: Page) => page.locator('footer').getByRole('button', { name: '목록 다시 읽기' });
 const idOf = (text: string) => /id: (.+)\r?\n/.exec(text)?.[1];
@@ -108,6 +121,7 @@ test('발급 성공 뒤 목록 조회가 실패하면: 발급은 성공했다고
     const shown = await footerError(page).innerText();
     assert.match(shown, /새 id.*(발급했|발급됐|바꿨|바뀌었)/, `발급은 성공했다고 알린다: ${shown}`);
     assert.match(shown, /목록/, '목록을 읽지 못했다고 알린다');
+    await assertReadFailureNote(page, shown, async () => (await hooks(app)).calls, ['EACCES', 'permission denied', "scandir 'chapters'"]);
     // 편집 잠금은 풀렸다
     await editor(page).click();
     await page.keyboard.press('Control+End');
