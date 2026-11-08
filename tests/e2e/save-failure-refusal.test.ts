@@ -88,6 +88,22 @@ const currentChapter = (page: Page) => page.locator('.chapter.current').innerTex
 async function start(userData: string, dir: string) {
   const { app, page } = await launch(userData);
   await installBarrier(app, join(dir, 'chapters', '001.md'));
+  // 창 닫기의 폐기 확인은 main의 native 확인창이다: 문구를 기록하고 [닫지 않기](거절)로 답하는 대역 (renderer의 화 이동 확인은 아래 page dialog가 맡는다). 문자열로 넘긴다: 이름 도우미(__name)가 main에는 없다
+  await app.evaluate(
+    ({ dialog }, code) => new Function('dialog', code)(dialog),
+    `
+    const g = globalThis;
+    g.discards = [];
+    const prev = dialog.showMessageBox.bind(dialog);
+    dialog.showMessageBox = (win, opts) => {
+      if (opts && opts.buttons && opts.buttons.includes('저장하지 않고 닫기')) {
+        g.discards.push(opts.message);
+        return Promise.resolve({ response: 1, checkboxChecked: false });
+      }
+      return prev(win, opts);
+    };
+  `,
+  );
   await stubFolderDialog(app, dir);
   await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
   await chapter(page, 'One').click();
@@ -134,11 +150,12 @@ for (const how of ['move', 'close'] as const) {
       assert.ok((await counters(app)).renames >= 1, '이름 바꾸기 실패가 주입되지 않았다');
       assert.equal(await read(dir), ONE, '실패한 저장은 디스크를 바꾸지 않는다');
       // 3) 오류가 계속되는 동안 이동/닫기를 시도하고, 확인 창에서 거절한다
-      const asked = dialogs.length;
+      const discards = () => app.evaluate(() => (globalThis as unknown as { discards: string[] }).discards);
+      const asked = how === 'move' ? dialogs.length : (await discards()).length;
       if (how === 'move') await chapter(page, 'Two').click();
       else await app.evaluate(({ BrowserWindow }) => void BrowserWindow.getAllWindows()[0]?.close());
-      await waitUntil(page, '변경 버림 확인 창이 뜨지 않았다', async () => dialogs.length > asked);
-      assert.equal(dialogs[asked], CONFIRM);
+      await waitUntil(page, '변경 버림 확인 창이 뜨지 않았다', async () => (how === 'move' ? dialogs.length : (await discards()).length) > asked);
+      assert.equal(how === 'move' ? dialogs[asked] : (await discards())[asked], CONFIRM);
       // 거절의 처리가 끝날 때까지 renderer를 한 번 다녀온다
       await page.evaluate(() => window.loreweave.chapters.list(1));
       assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1, '거절했는데 창이 닫혔다');

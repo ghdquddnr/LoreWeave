@@ -59,7 +59,7 @@ const api: LoreweaveApi = {
       return () => ipcRenderer.off(CHANNELS.beforeClose, handler);
     },
     replyClose: (proceed, attempt) => ipcRenderer.send(CHANNELS.replyClose, proceed, attempt),
-    confirmingClose: (attempt) => ipcRenderer.send(CHANNELS.closeConfirming, attempt),
+    unsavedClose: (attempt) => ipcRenderer.send(CHANNELS.closeUnsaved, attempt),
   },
 };
 

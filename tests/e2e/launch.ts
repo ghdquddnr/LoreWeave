@@ -212,6 +212,22 @@ export async function closeWindow(app: ElectronApplication, limits: number | Par
           removeClose = () => app.off('close', onClose!);
         }),
     );
+    // 정리용: 닫을 때 저장하지 못한 변경이 있어 main이 폐기 확인(native)을 띄우면 [저장하지 않고 닫기]로 답한다 (판정에 쓰는 테스트는 자기 대역을 먼저 걸어 두고, 폐기 확인이 아닌 안내는 그 대역으로 넘긴다)
+    await app
+      .evaluate(
+        ({ dialog }, code) => new Function('dialog', code)(dialog),
+        `
+        if (!dialog.__lwCleanupDiscard) {
+          dialog.__lwCleanupDiscard = true;
+          const prev = dialog.showMessageBox.bind(dialog);
+          dialog.showMessageBox = (win, opts) => {
+            if (opts && opts.buttons && opts.buttons.includes('저장하지 않고 닫기')) return Promise.resolve({ response: 0, checkboxChecked: false });
+            return prev(win, opts);
+          };
+        }
+      `,
+      )
+      .catch(() => undefined);
     const request = track(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close()));
     const done = await within(closed, o.closeMs);
     try {

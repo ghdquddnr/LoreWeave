@@ -47,8 +47,7 @@ function setup() {
   const handlers: Record<string, CloseHandler[]> = {};
   const sent: number[] = [];
   let destroyed = false;
-  const goneHandlers: (() => void)[] = [];
-  const webContents = { id: 'own', send: (_channel: string, attempt: number) => void sent.push(attempt), on: (_event: string, fn: () => void) => void goneHandlers.push(fn) };
+  const webContents = { id: 'own', send: (_channel: string, attempt: number) => void sent.push(attempt) };
   const win = {
     webContents,
     isDestroyed: () => destroyed,
@@ -68,11 +67,11 @@ function setup() {
   const reply = (proceed: boolean, attempt: number, from: unknown = webContents) => {
     for (const fn of listeners.get('replyClose') ?? []) fn({ sender: from }, proceed, attempt);
   };
-  const confirming = (attempt: number, from: unknown = webContents) => {
-    for (const fn of listeners.get('closeConfirming') ?? []) (fn as unknown as (e: { sender: unknown }, attempt: number) => void)({ sender: from }, attempt);
+  /** renderer가 저장하지 못한 변경이 남았다고 알린다 (폐기 확인은 main이 띄운다) */
+  const unsaved = (attempt: number, from: unknown = webContents) => {
+    for (const fn of listeners.get('closeUnsaved') ?? []) (fn as unknown as (e: { sender: unknown }, attempt: number) => void)({ sender: from }, attempt);
   };
-  const rendererGone = () => goneHandlers.forEach((fn) => fn());
-  return { win, sent, dialogs, reply, confirming, rendererGone, destroyed: () => destroyed, replyListeners: () => (listeners.get('replyClose') ?? []).length };
+  return { win, sent, dialogs, reply, unsaved, destroyed: () => destroyed, replyListeners: () => (listeners.get('replyClose') ?? []).length };
 }
 const flush = () => new Promise<void>((r) => setImmediate(r));
 
@@ -182,69 +181,90 @@ test('다른 창의 응답은 무시하고, renderer가 취소(false)하면 열�
   assert.deepEqual(u.sent, [1, 2], '안내가 실패해도 다시 닫기를 시도할 수 있다');
 });
 
-test('폐기 확인 중: 떠 있던 저장 대기 안내는 거두되 시도는 이어 가고, 확인 중에는 대기 안내를 겹쳐 띄우지 않으며, 답으로만 끝난다', async () => {
+test('저장하지 못한 변경: main이 폐기 확인창을 하나 띄우고, 확인 중에는 시간이 지나도 대기 안내를 겹치지 않으며, 명시 승인(저장하지 않고 닫기)으로만 닫힌다', async () => {
   const t = setup();
   t.win.close();
-  mock.timers.tick(10_000);
+  t.unsaved(1);
   await flush();
   assert.equal(t.dialogs.length, 1);
-  t.confirming(1); // renderer가 폐기 확인을 묻기 시작했다
+  assert.deepEqual(t.dialogs[0]!.buttons, ['저장하지 않고 닫기', '닫지 않기']);
+  assert.equal(t.destroyed(), false, '확인 전에는 닫지 않는다');
+  for (let i = 0; i < 12; i++) {
+    mock.timers.tick(10_000);
+    await flush();
+  }
+  assert.equal(t.dialogs.length, 1, '확인 중에는 시간이 아무리 지나도 두 번째 안내를 겹쳐 띄우지 않는다');
+  assert.equal(t.destroyed(), false, 'timeout만으로 닫지 않는다');
+  t.win.close();
+  assert.deepEqual(t.sent, [1], '확인 중의 중복 닫기는 새 시도를 만들지 않는다');
+  t.dialogs[0]!.resolve(0); // 사용자의 명시적 폐기 승인
   await flush();
-  assert.equal(t.dialogs[0]!.aborted, true, '떠 있던 대기 안내를 거둔다');
-  assert.equal(t.destroyed(), false, '안내를 거둔다고 시도가 끝나거나 닫히지 않는다');
-  mock.timers.tick(10_000);
+  assert.equal(t.destroyed(), true);
+  assert.equal(t.replyListeners(), 0, '닫히면 리스너를 정리한다');
+});
+
+test('폐기 거절(닫지 않기)이면 창을 두고 시도가 끝난다. 다시 닫으면 새 시도·새 확인이며, 옛 확인의 늦은 승인은 새 시도를 닫지 못한다', async () => {
+  const t = setup();
+  t.win.close();
+  t.unsaved(1);
   await flush();
-  mock.timers.tick(10_000);
+  t.dialogs[0]!.resolve(1); // 닫지 않기
   await flush();
-  assert.equal(t.dialogs.length, 1, '확인 중에는 시간이 지나도 새 대기 안내가 없다');
-  assert.equal(t.destroyed(), false, '확인 중 timeout만으로 닫지 않는다');
-  t.reply(false, 1); // 사용자가 폐기를 거절했다
   assert.equal(t.destroyed(), false);
   mock.timers.tick(60_000);
   await flush();
   assert.equal(t.dialogs.length, 1, '끝난 시도는 더 묻지 않는다');
-  // 새 시도: 명시 수락(true)으로만 닫힌다
   t.win.close();
-  t.confirming(2);
-  t.reply(true, 1);
-  assert.equal(t.destroyed(), false, '옛 시도의 답으로 닫히지 않는다');
-  t.reply(true, 2);
+  assert.deepEqual(t.sent, [1, 2], '다시 닫을 수 있다');
+  t.unsaved(2);
+  await flush();
+  assert.equal(t.dialogs.length, 2);
+  t.dialogs[0]!.resolve(0); // 옛 확인창의 늦은 승인
+  await flush();
+  assert.equal(t.destroyed(), false, '끝난 시도의 승인은 새 시도를 승인하지 못한다');
+  t.dialogs[1]!.resolve(0);
+  await flush();
   assert.equal(t.destroyed(), true);
 });
 
-test('폐기 확인이 timeout보다 먼저면 대기 안내를 띄우지 않는다. 다른 창·옛 시도의 확인 알림은 무시한다', async () => {
+test('저장 대기 안내가 먼저 떠 있다가 저장 실패가 알려지면 대기 안내를 거두고 폐기 확인으로 직렬화한다 (시도는 이어 간다)', async () => {
   const t = setup();
   t.win.close();
-  t.confirming(1, { id: 'other-window' });
-  t.confirming(9); // 없는 시도 번호
   mock.timers.tick(10_000);
   await flush();
-  assert.equal(t.dialogs.length, 1, '무시된 알림은 안내를 막지 못한다');
-  t.dialogs[0]!.reject(new Error('end')); // 정리
+  assert.deepEqual(t.dialogs[0]!.buttons, ['계속 기다리기', '닫기 취소']);
+  t.unsaved(1);
   await flush();
-
-  const u = setup();
-  u.win.close();
-  u.confirming(1);
-  mock.timers.tick(10_000);
+  assert.equal(t.dialogs[0]!.aborted, true, '대기 안내를 거둔다');
+  assert.equal(t.dialogs.length, 2);
+  assert.deepEqual(t.dialogs[1]!.buttons, ['저장하지 않고 닫기', '닫지 않기']);
+  assert.equal(t.destroyed(), false, '거둔다고 시도가 끝나거나 닫히지 않는다');
+  mock.timers.tick(60_000);
   await flush();
-  mock.timers.tick(10_000);
+  assert.equal(t.dialogs.length, 2, '확인 중에는 대기 안내가 다시 뜨지 않는다');
+  t.dialogs[1]!.resolve(1);
   await flush();
-  assert.equal(u.dialogs.length, 0, '확인이 먼저면 대기 안내가 없다');
-  u.reply(true, 1);
-  assert.equal(u.destroyed(), true);
+  assert.equal(t.destroyed(), false);
 });
 
-test('폐기 확인을 묻던 renderer가 사라지면 다음 시간 경과에 기다림/취소 안내로 복구한다', async () => {
+test('renderer가 알림 뒤 응답하지 않아도 확인창은 main이 소유한다: 확인창을 못 띄우면 시도가 끝나 다시 닫을 수 있고, 다른 창·옛 시도의 알림은 무시한다', async () => {
   const t = setup();
   t.win.close();
-  t.confirming(1);
-  mock.timers.tick(10_000);
+  t.unsaved(1, { id: 'other-window' });
+  t.unsaved(9);
   await flush();
-  assert.equal(t.dialogs.length, 0);
-  t.rendererGone();
-  mock.timers.tick(10_000);
+  assert.equal(t.dialogs.length, 0, '다른 창·없는 시도의 알림은 확인창을 띄우지 못한다');
+  t.unsaved(1);
   await flush();
-  assert.equal(t.dialogs.length, 1, '확인이 더 이상 보이지 않으면 복구 안내를 띄운다');
+  t.dialogs[0]!.reject(new Error('dialog failed')); // 확인창을 띄우지 못했다
+  await flush();
+  assert.equal(t.destroyed(), false, '확인창 실패는 닫는 근거가 아니다');
+  t.win.close();
+  assert.deepEqual(t.sent, [1, 2], '시도가 끝나 다시 닫을 수 있다 (영구 무시되지 않는다)');
+  // 확인창이 떠 있는 동안 renderer가 닫기를 취소(false)하면 확인창을 거둔다
+  t.unsaved(2);
+  await flush();
+  t.reply(false, 2);
+  assert.equal(t.dialogs[1]!.aborted, true);
   assert.equal(t.destroyed(), false);
 });
