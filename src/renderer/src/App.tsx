@@ -552,6 +552,17 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     [file, ai, refreshAi],
   );
 
+  /** 화를 디스크에서 읽는 데 성공했다: 그 프로젝트의 그 화 제목만 읽은 내용(chapterInfo 규칙)으로 맞춘다. 저장·해시·저장 상태는 건드리지 않는다 */
+  const onLoaded = useCallback((loadedFile: string, token: number, text: string) => {
+    const { title } = chapterInfo(text, loadedFile);
+    setProject((p) => {
+      if (!p || p.token !== token) return p; // 다른(같은 이름의) 프로젝트가 열렸다: 이전 읽기의 제목을 덮지 않는다
+      const at = p.list.chapters.find((c) => c.file === loadedFile);
+      if (!at || at.title === title) return p;
+      return { ...p, list: { ...p.list, chapters: p.list.chapters.map((c) => (c.file === loadedFile ? { ...c, title } : c)) } };
+    });
+  }, []);
+
   const onQuoteMissing = useCallback(
     (quote: string) => setNotice(`근거 문장을 지금 원고에서 찾을 수 없습니다 (지워졌거나 바뀌었습니다): “${quote}”`),
     [],
@@ -763,6 +774,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 locked={editorLocked}
                 onStatus={onStatus}
                 onSaved={onSaved}
+                onLoaded={onLoaded}
                 onReload={onReload}
                 jump={jump}
                 onQuoteMissing={onQuoteMissing}
