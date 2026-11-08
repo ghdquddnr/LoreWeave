@@ -9,6 +9,8 @@ import { openManuscript, serializeManuscript, type Doc, type Envelope } from '..
 import { editorProps, extensions } from './editor/extensions.ts';
 import { lineRangeToPositions } from './editor/jump.ts';
 import { ConflictCompare } from './ConflictCompare.tsx';
+import { ErrorNote } from './ErrorNote.tsx';
+import { friendlyReadError } from './userError.ts';
 import { reviewMarksKey, type MarkRange } from './editor/reviewMarks.ts';
 import { locateQuote } from '../../core/ai/locate.ts';
 import { visibleLines } from '../../core/manuscript/lines.ts';
@@ -112,17 +114,16 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
   if (loadError && !retrying)
     return (
       <p className="editor-message">
-        이 화를 열 수 없습니다: {loadError}{' '}
-        <button
-          type="button"
-          className="link"
-          onClick={() => {
+        {/* 기본 안내에는 IPC 문구·영문 시스템 오류·경로·코드를 두지 않고, 원문은 펼치는 기술 상세에 둔다. 상세의 열림은 이 오류 표시의 수명에만 속한다 (다시 시도·다른 화로 가면 새로 접힌 채 시작) */}
+        <ErrorNote
+          prefix="이 화를 열 수 없습니다"
+          error={friendlyReadError(loadError)}
+          retryLabel="다시 시도"
+          onRetry={() => {
             setRetrying(true);
             setAttempt((n) => n + 1);
           }}
-        >
-          다시 시도
-        </button>
+        />
       </p>
     );
   if (!loaded) return <p className="editor-message">여는 중…</p>;
