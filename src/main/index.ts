@@ -14,6 +14,8 @@ async function createWindow(): Promise<void> {
     // 첫 페인트 전의 색. 보이는 시점은 renderer가 테마를 적용한 첫 화면을 알릴 때다 (showWhenRendererReady)
     backgroundColor: await windowBackground(app.getPath('userData')),
     title: 'LoreWeave',
+    // 앱 아이콘 (Windows ICO 6프레임). 저장소 resources/에서 읽는다: 실행 중인 창·작업표시줄에 쓰이고, 설치 파일 아이콘은 아직 배포 기반이 없어 이 변경의 범위가 아니다
+    icon: join(__dirname, '../../resources/app-icon.ico'),
     webPreferences: {
       contextIsolation: true,
       sandbox: true,

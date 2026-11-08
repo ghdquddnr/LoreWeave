@@ -63,17 +63,73 @@ button {
   cursor: pointer;
 }
 
+/* 시작 화면: 왼쪽 장식 그림 + 오른쪽 안내 패널. 패널은 현재 테마 색을 따르고, 로고는 배경 밝기(data-scheme)에 맞는 쪽만 보인다 */
 .welcome {
   height: 100vh;
   display: grid;
-  place-content: center;
-  justify-items: start;
-  gap: 4px;
-  padding: 24px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  background: var(--lw-bg);
+  color: var(--lw-text);
 }
 
-.welcome h1 {
-  margin: 0;
+.welcome-art {
+  background: #101827 url('./assets/brand/welcome.png') left center / cover no-repeat;
+  border-right: 1px solid var(--lw-line);
+}
+
+.welcome-panel {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 4px;
+  padding: 24px clamp(24px, 5vw, 64px);
+  overflow: auto;
+}
+
+.welcome-logo {
+  margin: 0 0 12px;
+  line-height: 0;
+}
+
+.welcome-logo img {
+  display: block;
+  width: min(100%, 360px);
+  height: auto;
+  margin-left: -3%; /* 그림 안쪽 여백만큼 당겨 아래 글과 왼쪽 선을 맞춘다 */
+}
+
+.welcome-panel p {
+  word-break: keep-all;
+}
+
+.welcome-logo .logo-on-light {
+  display: none;
+}
+
+:root[data-scheme='light'] .welcome-logo .logo-on-dark {
+  display: none;
+}
+
+:root[data-scheme='light'] .welcome-logo .logo-on-light {
+  display: block;
+}
+
+@media (max-width: 720px) {
+  .welcome {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(96px, 26vh) minmax(0, 1fr);
+  }
+
+  .welcome-art {
+    background-position: 22% center;
+    border-right: 0;
+    border-bottom: 1px solid var(--lw-line);
+  }
+
+  .welcome-panel {
+    align-content: start;
+    padding-top: 20px;
+  }
 }
 
 .sidebar {
@@ -780,7 +836,15 @@ button {
 }
 
 .titlebar .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
+}
+
+.titlebar .brand-mark {
+  display: block;
+  border-radius: 4px;
 }
 
 .titlebar .search-trigger {
