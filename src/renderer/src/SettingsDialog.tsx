@@ -7,6 +7,7 @@ import { AppearanceSettings } from './AppearanceSettings.tsx';
 import type { AppearanceController } from './useAppearance.ts';
 import { ErrorNote } from './ErrorNote.tsx';
 import { type FriendlyError, friendlyError } from './userError.ts';
+import { tabStops } from './useModal.ts';
 
 const api = window.loreweave;
 
@@ -82,7 +83,7 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
         if (e.key === 'Escape') return onClose();
         if (e.key !== 'Tab' || !dialog.current) return;
         // 대화상자 안에서만 Tab이 돈다
-        const items = Array.from(dialog.current.querySelectorAll<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter((el) => !el.hasAttribute('disabled'));
+        const items = tabStops(dialog.current);
         const first = items[0];
         const last = items[items.length - 1];
         if (!first || !last) return;
