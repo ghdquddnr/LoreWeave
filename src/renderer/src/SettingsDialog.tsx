@@ -44,16 +44,20 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   const composingKey = useRef(false);
   /** 이 대화상자가 저장·삭제 응답을 직접 적용했다 (그 뒤에는 다른 대화상자의 늦은 응답으로 덮지 않는다) */
   const touched = useRef(false);
+  /** 마운트(또는 다시 시도) 조회 이후 더 최신 상태가 적용됐다 (직접 응답 또는 전달된 성공). 이 조회의 늦은 응답은 버린다 */
+  const applied = useRef(false);
 
   // 대화상자를 닫거나 다시 시도하면 이전 요청의 늦은 응답은 버린다
   useEffect(() => {
     let cancelled = false;
+    applied.current = false;
     api.ai.status().then(
       (next) => {
-        if (!cancelled) setStatus(next);
+        // 이 조회가 나가 있는 동안 더 최신 상태(직접 저장·삭제 성공 또는 닫힌 대화상자의 늦은 성공)가 이미 적용됐다면 과거 조회 응답으로 덮지 않는다
+        if (!cancelled && !applied.current) setStatus(next);
       },
       (e: unknown) => {
-        if (cancelled) return;
+        if (cancelled || applied.current) return; // 이미 적용된 최신 상태를 늦은 조회 실패로 오류로 되돌리지 않는다
         // 쓰기 오류 문구로 바뀌지 않게 안내는 고정하고, 원래 이유는 기술 상세로 둔다
         const f = friendlyError(e);
         setStatusError({ summary: 'AI 설정을 읽지 못했습니다', detail: f.detail || f.summary });
@@ -79,7 +83,9 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   // 새로 열린 대화상자가 이전 대화상자의 늦은 성공 응답을 받는다 (이 대화상자가 직접 적용한 상태는 덮지 않는다)
   useEffect(() => {
     const update = (next: AiStatus) => {
-      if (!touched.current) setStatus(next);
+      if (touched.current) return;
+      applied.current = true;
+      setStatus(next);
     };
     liveStatusUpdates.add(update);
     return () => {
@@ -99,6 +105,7 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   const apply = (next: AiStatus) => {
     setStatus(next);
     touched.current = true;
+    applied.current = true;
     // 저장·삭제 응답이 대화상자를 닫은 뒤 도착해도, 그 사이 새로 열린 대화상자(마운트 때 읽은 상태가 아직 최신인 것)의 키 상태를 맞춘다
     for (const update of liveStatusUpdates) update(next);
     onChange(next);
