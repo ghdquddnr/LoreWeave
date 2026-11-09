@@ -67,7 +67,7 @@ function ThemeSelect({ label, value, disabled, onChange }: { label: string; valu
 }
 
 export function AppearanceSettings({ controller }: { controller: AppearanceController }) {
-  const { appearance: a, systemDark, update, reset, saveError, retry } = controller;
+  const { appearance: a, systemDark, update, reset, saveError, saveErrorSeq, retry } = controller;
   const current = themeMeta(resolveTheme(a, systemDark));
   const themeDefaultSize = current.manuscriptFont === 'serif' ? 18 : 17;
   const effectiveSize = a.manuscriptSize ?? themeDefaultSize;
@@ -182,6 +182,7 @@ export function AppearanceSettings({ controller }: { controller: AppearanceContr
       {saveError && (
         <p className="error" role="alert">
           <ErrorNote
+            key={saveErrorSeq}
             prefix="외관 설정을 저장하지 못했습니다"
             error={friendlyError(saveError)}
             hint="화면에는 적용되어 있지만 이 컴퓨터의 설정 파일에는 아직 저장되지 않았습니다."

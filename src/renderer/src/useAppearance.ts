@@ -17,6 +17,8 @@ export interface AppearanceController {
   reset(): void;
   /** 저장하지 못한 변경이 있으면 오류 문구. 편집은 막지 않는다 */
   saveError: string | null;
+  /** 저장 실패가 일어날 때마다 늘어난다 (같은 문구가 연속으로 나와도 별개의 실패라 안내의 펼침 상태를 새로 시작하게 한다) */
+  saveErrorSeq: number;
   /** 저장하지 못한 변경을 다시 저장한다 */
   retry(): void;
 }
@@ -26,6 +28,7 @@ export function useAppearance(boot: AppearanceBootstrap, systemDarkStore: System
   const [appearance, setAppearance] = useState(boot.appearance);
   const systemDark = useSyncExternalStore(systemDarkStore.subscribe, systemDarkStore.get);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveErrorSeq, setSaveErrorSeq] = useState(0);
   /** 아직 저장이 확인되지 않은 변경 (키별 최신 값) */
   const unsaved = useRef<Partial<AppearanceSettings>>({});
   const sending = useRef(false);
@@ -51,7 +54,10 @@ export function useAppearance(boot: AppearanceBootstrap, systemDarkStore: System
         try {
           await api.update(sent);
         } catch (e) {
-          if (mounted.current) setSaveError(e instanceof Error ? e.message : String(e));
+          if (mounted.current) {
+            setSaveError(e instanceof Error ? e.message : String(e));
+            setSaveErrorSeq((n) => n + 1);
+          }
           return;
         }
         // 보내는 동안 같은 키가 또 바뀌었다면 그 값은 다음 반복에서 보낸다
@@ -76,5 +82,5 @@ export function useAppearance(boot: AppearanceBootstrap, systemDarkStore: System
   const reset = useCallback(() => update({ ...DEFAULT_APPEARANCE }), [update]);
   const retry = useCallback(() => void flush(), [flush]);
 
-  return { appearance, systemDark, update, reset, saveError, retry };
+  return { appearance, systemDark, update, reset, saveError, saveErrorSeq, retry };
 }
