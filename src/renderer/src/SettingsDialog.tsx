@@ -44,6 +44,7 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   const composingKey = useRef(false);
   /** 이 대화상자가 저장·삭제 응답을 직접 적용했다 (그 뒤에는 다른 대화상자의 늦은 응답으로 덮지 않는다) */
   const touched = useRef(false);
+  const keyInput = useRef<HTMLInputElement>(null);
   /** 마운트(또는 다시 시도) 조회 이후 더 최신 상태가 적용됐다 (직접 응답 또는 전달된 성공). 이 조회의 늦은 응답은 버린다 */
   const applied = useRef(false);
 
@@ -191,6 +192,8 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
                   composingKey.current = false;
                   return;
                 }
+                // 키보드로 누른 [저장]은 곧 disabled가 돼 포커스를 잃는다(BODY → Escape도 모달에 닿지 않음): 누른 버튼이 포커스를 가진 때만, 항상 살아 있는 키 입력창으로 옮긴다 (사용자가 다른 곳에 두었다면 건드리지 않고 늦은 응답은 포커스를 옮기지 않는다)
+                if (e.currentTarget.querySelector('button[type="submit"]') === document.activeElement) keyInput.current?.focus();
                 const submitted = key;
                 void run(async () => {
                   apply(await api.ai.setKey(submitted));
@@ -201,6 +204,7 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
               }}
             >
               <input
+                ref={keyInput}
                 type="password"
                 aria-label="API 키"
                 placeholder={status.hasKey ? '새 키로 바꾸기' : 'sk-…'}
