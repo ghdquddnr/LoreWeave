@@ -218,7 +218,15 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
                 저장
               </button>
               {status.hasKey && (
-                <button type="button" disabled={busy} onClick={() => void run(async () => apply(await api.ai.deleteKey()))}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={(e) => {
+                    // 키보드로 누른 [삭제]는 곧 disabled가 되고 성공하면 사라진다(포커스가 BODY로 잃어져 Escape도 모달에 닿지 않음): 누른 버튼이 포커스를 가진 때만, 항상 살아 있는 키 입력창으로 옮긴다 (이동은 한 번뿐이라 늦은 응답은 포커스를 옮기지 않는다)
+                    if (e.currentTarget === document.activeElement) keyInput.current?.focus();
+                    void run(async () => apply(await api.ai.deleteKey()));
+                  }}
+                >
                   삭제
                 </button>
               )}
