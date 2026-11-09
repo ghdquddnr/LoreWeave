@@ -91,6 +91,10 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
   const busyRef = useRef(false);
   busyRef.current = planning || starting || running !== null || dialog !== null;
   const dialogEl = useRef<HTMLElement>(null);
+  /** 분석 영역(항상 살아있는 컨테이너): [다시 시도]가 사라진 뒤에도 포커스가 BODY로 잃어지지 않게 받는다. planning으로 disabled되는 버튼은 대체 위치로 쓰지 않는다 */
+  const analysisRoot = useRef<HTMLDivElement>(null);
+  /** [다시 시도]를 눌러 포커스를 분석 영역으로 옮겨 둔 상태 (재실패로 새 [다시 시도]가 나타나면 그 버튼으로 돌려준다) */
+  const refocusRetry = useRef(false);
   const pending = Object.entries(states)
     .filter(([, s]) => s !== 'fresh')
     .map(([f]) => f);
@@ -125,6 +129,18 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     [],
   );
   useModalFocus(dialogEl, dialog !== null);
+  useEffect(() => {
+    if (!refocusRetry.current) return;
+    if (dialog !== null) {
+      refocusRetry.current = false; // 성공: 확인 창이 포커스를 받는다 (닫으면 분석 영역으로 돌아온다)
+      return;
+    }
+    if (error && !planning) {
+      refocusRetry.current = false;
+      // 그 사이 사용자가 다른 컨트롤로 옮겼다면(포커스가 분석 영역 자체가 아니면) 건드리지 않는다
+      if (document.activeElement === analysisRoot.current) analysisRoot.current?.querySelector<HTMLElement>('.error-note button')?.focus();
+    }
+  }, [error, planning, dialog]);
 
   const execute = async (kind: 'analysis' | 'check', work: () => Promise<Result>, unsavedText: string) => {
     setDialog(null);
@@ -283,7 +299,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
         )}
       {explorerSlot &&
         createPortal(
-          <div className="analysis">
+          <div ref={analysisRoot} tabIndex={-1} className="analysis">
             <div className="row">
               <button type="button" disabled={!idle || pending.length === 0} onClick={() => startAnalysis(pending)}>
                 남은 화 분석 ({pending.length})
@@ -338,7 +354,18 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
                 <ErrorNote
                   error={error}
                   hint="작성한 원고는 그대로입니다."
-                  onRetry={retry ? () => retry() : undefined}
+                  onRetry={
+                    retry
+                      ? () => {
+                          // 누른 [다시 시도]는 계획을 기다리는 동안 사라진다: 포커스가 이 오류 안내 안에 있었다면 분석 영역으로 옮긴다 (그 밖의 포커스는 건드리지 않아 늦은 응답이 빼앗지 않는다)
+                          if (analysisRoot.current?.contains(document.activeElement)) {
+                            analysisRoot.current.focus();
+                            refocusRetry.current = true;
+                          }
+                          retry();
+                        }
+                      : undefined
+                  }
                 />
               </p>
             )}
