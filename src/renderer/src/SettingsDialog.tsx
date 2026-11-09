@@ -33,6 +33,8 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   const [statusError, setStatusError] = useState<FriendlyError | null>(null);
   const [attempt, setAttempt] = useState(0);
   const dialog = useRef<HTMLElement>(null);
+  /** 상태 조회 다시 시도를 눌러 포커스를 대화상자로 옮겨 둔 상태 (재실패로 새 다시 시도 버튼이 나타나면 그 버튼으로 돌려준다) */
+  const retried = useRef(false);
   // compositionstart~end 구간 (isComposing·229가 빠진 이벤트 경계도 덮는다). end에서 반드시 풀려 이전 조합이 일반 Escape를 막지 않는다
   const composing = useRef(false);
 
@@ -54,6 +56,18 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
       cancelled = true;
     };
   }, [attempt]);
+
+  // 다시 시도가 다시 실패하면 새 다시 시도 버튼으로 포커스를 돌려준다. 그 사이 사용자가 다른 컨트롤로 옮겼다면(포커스가 대화상자 자체가 아니면) 건드리지 않는다
+  useEffect(() => {
+    if (!retried.current) return;
+    if (status) {
+      retried.current = false;
+      return;
+    }
+    if (!statusError) return;
+    retried.current = false;
+    if (document.activeElement === dialog.current) dialog.current?.querySelector<HTMLElement>('.error-note button')?.focus();
+  }, [status, statusError]);
 
   // 키보드 focus: 열 때 대화상자로 들어가고, 닫으면 연 버튼(또는 열기 전 포커스)으로 돌아간다
   useEffect(() => {
@@ -120,6 +134,11 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
                 error={statusError}
                 hint="환경설정의 다른 항목과 원고는 그대로입니다."
                 onRetry={() => {
+                  // 눌린 다시 시도 버튼이 곧 사라지므로 포커스가 BODY로 잃어지지 않게 대화상자로 옮겨 둔다 (읽는 중·성공에서도 모달 안에 머문다)
+                  if (dialog.current?.contains(document.activeElement)) {
+                    dialog.current.focus();
+                    retried.current = true;
+                  }
                   setStatusError(null);
                   setAttempt((n) => n + 1);
                 }}
