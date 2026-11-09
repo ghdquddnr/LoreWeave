@@ -31,6 +31,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
   ref,
 ) {
   const input = useRef<HTMLInputElement>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
   /** 한글 등 조합 중이다 (compositionstart~end). 조합 중의 Enter(확정)·Escape(조합 취소)는 검색 실행·검색어 지우기가 아니다 */
   const composing = useRef(false);
   /** 마지막 keydown이 조합에 속했다 (isComposing, 또는 IME가 처리한 키 keyCode 229). 그 키가 일으킨 form submit을 걸러 낸다 */
@@ -100,6 +101,8 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     } finally {
       if (mine === seq.current) {
         inflight.current = false;
+        // 사용자가 키보드로 [검색 취소]를 골라 둔 채 완료되면 그 버튼이 곧 사라진다: 포커스가 BODY로 잃어지지 않게 검색창으로 옮긴다. 다른 곳(검색창·다른 컨트롤)에 포커스가 있으면 건드리지 않는다
+        if (cancelButton.current && document.activeElement === cancelButton.current) input.current?.focus();
         setBusy(false);
       }
     }
@@ -186,7 +189,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
       {busy && (
         <p className="search-summary">
           찾는 중…{' '}
-          <button type="button" className="link" onClick={cancelSearch}>
+          <button ref={cancelButton} type="button" className="link" onClick={cancelSearch}>
             검색 취소
           </button>
         </p>
