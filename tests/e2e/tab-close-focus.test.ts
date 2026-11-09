@@ -116,6 +116,9 @@ test('키보드로 닫은 탭의 포커스 복구: 비활성·활성·마지막 
     assert.equal(b.connected, true);
     assert.ok(b.tab === 'Two' || b.inEditor, `이웃 탭 버튼 또는 편집기로 포커스가 있다: ${JSON.stringify(b)}`);
     assert.equal(await selectedTab(page), 'Two', '기존 이웃 선택(왼쪽)과 같다');
+    // 이웃 편집기의 시작 포커스는 본문이 보인 뒤 한 프레임 늦게 실행된다(onCreate의 rAF). 그 시작 포커스가 끝나기를 기다린 뒤 다음 단계를 한다:
+    // 기다리지 않고 닫기 버튼에 포커스를 두면 그 직후 늦게 실행된 시작 포커스가 편집기로 가져가 이어지는 Enter가 편집기로 들어가 닫기가 유실된다 (원시 로그 probe-run-4)
+    await until('이웃 편집기의 시작 포커스', async () => (await focused(page)).inEditor);
 
     // 마지막 탭 닫기: 실제 남은 화 목록으로
     await page.getByRole('button', { name: '탭 닫기: Two', exact: true }).focus();
