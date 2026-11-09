@@ -97,6 +97,22 @@ test('팔레트의 키보드 선택은 넘치는 목록에서도 보이는 영�
       assert.equal((await palette(page)).visible, true, `ArrowUp ${i + 1}번째 선택이 보인다`);
     }
 
+    // 공백 필터: 끝 선택으로 스크롤한 뒤 공백 하나를 입력하면(query.trim상 전체 목록 유지) 선택은 첫 enabled 항목으로 되돌고, 그 항목이 보인다
+    await page.keyboard.press('ArrowUp'); // 끝으로
+    const atEnd = await palette(page);
+    assert.ok(atEnd.scrollTop > 0 && atEnd.overflow, '끝 선택으로 스크롤돼 있다');
+    await page.keyboard.type(' ');
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+    const spaced = await palette(page);
+    assert.equal(spaced.inputValue, ' ', '입력은 공백 하나다');
+    assert.equal(spaced.label, first.label, `공백 필터 뒤 선택은 첫 enabled 항목으로 되돌았다: ${JSON.stringify(spaced)}`);
+    assert.equal(spaced.visible, true, `공백 필터 뒤 선택이 보인다: ${JSON.stringify(spaced)}`);
+    assert.equal(spaced.scrollTop, 0, '첫 항목이 보이도록 목록이 맨 위로 돌아왔다');
+    assert.equal(spaced.inputFocused, true);
+    assert.equal(spaced.pageScroll, 0, '페이지 전체가 튀지 않았다');
+    await page.keyboard.press('Backspace');
+    assert.equal((await palette(page)).inputValue, '');
+
     // 필터: 스크롤을 내린 뒤 필터를 바꾸면 새 선택이 보인다
     await page.keyboard.press('ArrowUp'); // 끝으로
     assert.ok((await palette(page)).scrollTop > 0);

@@ -41,10 +41,6 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
   const current = enabled[Math.min(active, Math.max(enabled.length - 1, 0))];
 
   useEffect(() => input.current?.focus(), []);
-  useEffect(() => {
-    reveal.current = true;
-    setActive(0);
-  }, [query]);
   // 고른 항목이 목록의 보이는 영역 밖이면 목록만 스크롤한다 (scrollIntoView는 바깥 스크롤까지 움직일 수 있어 쓰지 않는다)
   useEffect(() => {
     if (!reveal.current) return;
@@ -96,7 +92,12 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
           value={query}
           autoComplete="off"
           spellCheck={false}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            // 필터가 바뀌면 선택을 첫 항목으로 되돌리고 그 선택을 보이게 한다: 같은 배치로 갱신해 스크롤 효과가 되돌린 뒤의 선택으로 한 번만 돈다
+            reveal.current = true;
+            setActive(0);
+            setQuery(e.target.value);
+          }}
           onCompositionStart={() => (composing.current = true)}
           onCompositionEnd={() => (composing.current = false)}
           onKeyDown={(e) => {
