@@ -24,7 +24,10 @@ interface Props {
 export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, onChange }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [key, setKey] = useState('');
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  /** 작업 결과 한 줄. error는 run이 잡은 예외 실패(안내 + 접힌 기술 상세), 없으면 성공이거나 이미 사람이 쓴 안내(연결 확인 실패 등). seq는 새 결과마다 달라 접힌 상세가 이전 결과에서 이어지지 않게 한다 */
+  const [message, setMessage] = useState<{ ok: boolean; text: string; error?: FriendlyError; seq: number } | null>(null);
+  const messageSeq = useRef(0);
+  const show = (ok: boolean, text: string, error?: FriendlyError) => setMessage({ ok, text, error, seq: ++messageSeq.current });
   const [busy, setBusy] = useState(false);
   /** AI 상태를 읽지 못했다 (키 없음·암호화 불가와 다르다: 아직 모른다). 다시 시도로 처음부터 읽는다 (자동 재시도 없음) */
   const [statusError, setStatusError] = useState<FriendlyError | null>(null);
@@ -72,7 +75,8 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
     try {
       await task();
     } catch (e) {
-      setMessage({ ok: false, text: friendlyError(e).summary });
+      const f = friendlyError(e);
+      show(false, f.summary, f);
     } finally {
       setBusy(false);
     }
@@ -140,7 +144,7 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
                   apply(await api.ai.setKey(submitted));
                   // 응답을 기다리는 동안 새로 입력한 초안은 지우지 않는다: 제출한 값 그대로일 때만 비운다
                   setKey((current) => (current === submitted ? '' : current));
-                  setMessage({ ok: true, text: '키를 저장했습니다' });
+                  show(true, '키를 저장했습니다');
                 });
               }}
             >
@@ -184,7 +188,8 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
                 onClick={() =>
                   void run(async () => {
                     const result = await api.ai.check();
-                    setMessage(result.ok ? { ok: true, text: '연결됨: 이 키로 선택한 모델을 쓸 수 있습니다' } : { ok: false, text: result.message });
+                    if (result.ok) show(true, '연결됨: 이 키로 선택한 모델을 쓸 수 있습니다');
+                    else show(false, result.message);
                   })
                 }
               >
@@ -194,7 +199,7 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
             </div>
             {message && (
               <p className={message.ok ? 'notice' : 'error'} role="status">
-                {message.text}
+                {message.error ? <ErrorNote key={message.seq} error={message.error} inline /> : message.text}
               </p>
             )}
           </>
