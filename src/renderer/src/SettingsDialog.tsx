@@ -21,6 +21,9 @@ interface Props {
   onChange(status: AiStatus): void;
 }
 
+/** 지금 열려 있는 환경설정 대화상자들의 상태 갱신기 (대화상자가 닫힌 뒤 도착한 응답을 새 대화상자에 전한다) */
+const liveStatusUpdates = new Set<(next: AiStatus) => void>();
+
 export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, onChange }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [key, setKey] = useState('');
@@ -39,6 +42,8 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   const composing = useRef(false);
   /** 마지막 keydown이 조합에 속했다 (isComposing, 또는 IME가 처리한 키 keyCode 229). 그 키가 일으킨 form submit(조합 확정 Enter)을 걸러 낸다 */
   const composingKey = useRef(false);
+  /** 이 대화상자가 저장·삭제 응답을 직접 적용했다 (그 뒤에는 다른 대화상자의 늦은 응답으로 덮지 않는다) */
+  const touched = useRef(false);
 
   // 대화상자를 닫거나 다시 시도하면 이전 요청의 늦은 응답은 버린다
   useEffect(() => {
@@ -71,6 +76,17 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
     if (document.activeElement === dialog.current) dialog.current?.querySelector<HTMLElement>('.error-note button')?.focus();
   }, [status, statusError]);
 
+  // 새로 열린 대화상자가 이전 대화상자의 늦은 성공 응답을 받는다 (이 대화상자가 직접 적용한 상태는 덮지 않는다)
+  useEffect(() => {
+    const update = (next: AiStatus) => {
+      if (!touched.current) setStatus(next);
+    };
+    liveStatusUpdates.add(update);
+    return () => {
+      liveStatusUpdates.delete(update);
+    };
+  }, []);
+
   // 키보드 focus: 열 때 대화상자로 들어가고, 닫으면 연 버튼(또는 열기 전 포커스)으로 돌아간다
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -82,6 +98,9 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
 
   const apply = (next: AiStatus) => {
     setStatus(next);
+    touched.current = true;
+    // 저장·삭제 응답이 대화상자를 닫은 뒤 도착해도, 그 사이 새로 열린 대화상자(마운트 때 읽은 상태가 아직 최신인 것)의 키 상태를 맞춘다
+    for (const update of liveStatusUpdates) update(next);
     onChange(next);
   };
 
