@@ -109,6 +109,9 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
   const retrySearch = () => {
     // 실제 조합 중(compositionstart~end)에만 막는다. composingKey는 IME 키가 만든 form submit을 거르는 이력이라 포인터로 누른 버튼에는 적용하지 않는다 (조합이 끝난 뒤 키 입력 없이 누른 버튼이 영구히 막히지 않게)
     if (inflight.current || !query.trim() || composing.current) return;
+    // 누른 [다시 검색] 버튼은 검색이 시작되면 곧 사라진다: 포커스가 BODY로 잃어지지 않게 같은 패널의 검색창으로 옮긴다 (선택은 건드리지 않고, 진행 중·성공·재실패 어디서도 Enter로 다시 검색할 수 있다)
+    const pressed = document.activeElement;
+    if (pressed instanceof HTMLButtonElement && pressed.closest('.search')) input.current?.focus();
     void search();
   };
 
