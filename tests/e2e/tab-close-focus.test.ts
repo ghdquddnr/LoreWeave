@@ -116,6 +116,9 @@ test('키보드로 닫은 탭의 포커스 복구: 비활성·활성·마지막 
     assert.equal(b.connected, true);
     assert.ok(b.tab === 'Two' || b.inEditor, `이웃 탭 버튼 또는 편집기로 포커스가 있다: ${JSON.stringify(b)}`);
     assert.equal(await selectedTab(page), 'Two', '기존 이웃 선택(왼쪽)과 같다');
+    // 이웃 편집기의 시작 포커스는 본문이 보인 뒤 한 프레임 늦게 실행된다(onCreate의 rAF). 그 시작 포커스가 끝나기를 기다린 뒤 다음 단계를 한다:
+    // 기다리지 않고 닫기 버튼에 포커스를 두면 그 직후 늦게 실행된 시작 포커스가 편집기로 가져가 이어지는 Enter가 편집기로 들어가 닫기가 유실된다 (원시 로그 probe-run-4)
+    await until('이웃 편집기의 시작 포커스', async () => (await focused(page)).inEditor);
 
     // 마지막 탭 닫기: 실제 남은 화 목록으로
     await page.getByRole('button', { name: '탭 닫기: Two', exact: true }).focus();
@@ -213,6 +216,57 @@ test('저장 응답을 기다리는 사이 사용자가 남은 탭으로 옮긴 
     await page.locator('.ProseMirror').getByText('Gamma three').waitFor();
     await until('편집기 포커스', async () => (await focused(page)).inEditor);
   } finally {
+    await closeWindow(app);
+  }
+});
+
+test('이웃 편집기가 만들어진 뒤 시작 포커스가 실행되기 전에 실제 키보드 Tab으로 고른 닫기 컨트롤을 늦은 시작 포커스가 빼앗지 않고, 이어지는 Enter가 닫기를 실행한다', { timeout: 120_000 }, async () => {
+  const { app, page, dir } = await start();
+  try {
+    // 관측용 최소 장벽: 같은 창의 requestAnimationFrame 콜백을 잠시 쌓아 두었다가 풀 수 있게 감싼다. 실제 포커스 핸들러는 그대로이고 풀리면 원래 콜백이 원래 순서로 실행된다.
+    // 한계: 장벽 중에는 같은 창의 모든 rAF가 미뤄지며(Playwright의 locator 대기는 rAF를 쓰므로 이 구간은 evaluate 폴링만 쓴다), 실제 사용에서 이 틈은 한 프레임이다.
+    await page.evaluate(`(() => {
+      window.__ed = 0; window.__f = [];
+      document.addEventListener('focusin', (e) => { if (e.target.closest && e.target.closest('.ProseMirror')) window.__ed++; window.__f.push('in ' + e.target.tagName + (e.target.getAttribute && e.target.getAttribute('aria-label') ? '[' + e.target.getAttribute('aria-label') + ']' : '')); }, true);
+      document.addEventListener('keydown', (e) => window.__f.push('keydown ' + e.key + ' on ' + e.target.tagName), true);
+      const realRaf = window.requestAnimationFrame.bind(window);
+      window.__hold = false; window.__queue = [];
+      window.requestAnimationFrame = (cb) => { if (window.__hold) { window.__queue.push(cb); return 0; } return realRaf(cb); };
+      window.__release = () => { window.__hold = false; const q = window.__queue.splice(0); q.forEach((cb) => realRaf(cb)); };
+    })()`);
+    await openTab(page, 'One', 'Alpha one');
+    await openTab(page, 'Two', 'Beta two');
+    await openTab(page, 'Three', 'Gamma three');
+    await until('편집기 시작 포커스(준비)', async () => (await focused(page)).inEditor);
+    const base = await counts(app);
+
+    // 활성 Three를 키보드로 닫는다: 이웃 Two 편집기가 만들어질 때까지 rAF를 쌓는다
+    await page.getByRole('button', { name: '탭 닫기: Three', exact: true }).focus();
+    await page.evaluate('window.__hold = true');
+    await page.keyboard.press('Enter');
+    await until('Three 탭 제거', async () => !(await tabNames(page)).includes('Three'));
+    await until('Two 편집기 생성(본문 표시)', async () => page.evaluate(() => document.querySelector('.ProseMirror')?.textContent?.includes('Beta two') ?? false));
+    const edBefore = (await page.evaluate('window.__ed')) as number;
+    assert.equal(((await page.evaluate('window.__queue.length')) as number) >= 1, true, '편집기의 시작 포커스가 아직 실행되기 전이다');
+
+    // 생성~시작 포커스 사이: 실제 키보드 Tab으로 살아있는 닫기 컨트롤을 고른다 (DOM focus 호출이 아니다)
+    await page.keyboard.press('Tab');
+    assert.equal((await focused(page)).closeLabel, '탭 닫기: Two', '실제 Tab으로 Two의 닫기 컨트롤을 골랐다');
+    await page.evaluate('window.__release()');
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => r())))));
+    const kept = await focused(page);
+    assert.equal(kept.closeLabel, '탭 닫기: Two', `늦은 시작 포커스가 사용자가 키보드로 고른 닫기 컨트롤을 빼앗지 않았다: ${JSON.stringify(kept)}`);
+    assert.equal(await page.evaluate('window.__ed'), edBefore, '편집기는 그 뒤 포커스를 받지 않았다');
+
+    // 이어지는 Enter가 편집기가 아니라 닫기 컨트롤로 가서 마지막 활성 탭(Two)을 닫는다
+    await page.keyboard.press('Enter');
+    await until('Two 탭 제거', async () => !(await tabNames(page)).includes('Two'));
+    const end = await counts(app);
+    assert.equal(end.writes, base.writes, '저장 진입 0 (포커스·닫기만의 경로)');
+    assert.equal(end.analyzes, base.analyzes, 'AI 실행 0');
+    for (const [name, text] of Object.entries(FILES)) assert.ok((await readFile(join(dir, 'chapters', name), 'utf8')) === text, `${name} 바이트(BOM·CRLF·frontmatter) 불변`);
+  } finally {
+    page.on('dialog', (d) => void d.accept());
     await closeWindow(app);
   }
 });
