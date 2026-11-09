@@ -138,6 +138,8 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
  * 예약 뒤에 사용자가 검색창을 선택하면 그 선택을 덮고, 이어지는 글자·Enter가 원고로 들어간다. 그래서 선택은 포커스 없이 즉시 설정하고 포커스만 이 함수로 준다
  */
 function focusEditorUnlessTyping(target: Editor, keepFocus?: { current: HTMLElement | null }): void {
+  // 호출 시점의 포커스: 한 프레임 뒤 실행될 때 포커스가 다른 살아있는 컨트롤로 옮겨져 있으면 사용자가 그사이(Tab 등) 고른 것이므로 빼앗지 않는다
+  const before = document.activeElement;
   requestAnimationFrame(() => {
     // 탭 닫기를 기다리는 사이 사용자가 직접 옮긴 포커스(남은 탭 등)는 이웃 편집기가 만들어진 뒤에도 빼앗지 않는다. 한 번 쓰면 비운다
     const kept = keepFocus?.current ?? null;
@@ -148,6 +150,7 @@ function focusEditorUnlessTyping(target: Editor, keepFocus?: { current: HTMLElem
     if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
     const active = document.activeElement;
     if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+    if (active && active !== before && active !== document.body && active.isConnected) return;
     target.view.focus();
   });
 }
