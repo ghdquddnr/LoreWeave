@@ -37,6 +37,8 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
   const retried = useRef(false);
   // compositionstart~end 구간 (isComposing·229가 빠진 이벤트 경계도 덮는다). end에서 반드시 풀려 이전 조합이 일반 Escape를 막지 않는다
   const composing = useRef(false);
+  /** 마지막 keydown이 조합에 속했다 (isComposing, 또는 IME가 처리한 키 keyCode 229). 그 키가 일으킨 form submit(조합 확정 Enter)을 걸러 낸다 */
+  const composingKey = useRef(false);
 
   // 대화상자를 닫거나 다시 시도하면 이전 요청의 늦은 응답은 버린다
   useEffect(() => {
@@ -158,6 +160,11 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
               className="row"
               onSubmit={(e) => {
                 e.preventDefault();
+                // 조합을 확정하는 Enter가 만든 submit은 키 저장이 아니다. 조합이 끝난 뒤의 일반 Enter·마우스 [저장]은 이 플래그와 무관하게 정상이다
+                if (composing.current || composingKey.current) {
+                  composingKey.current = false;
+                  return;
+                }
                 const submitted = key;
                 void run(async () => {
                   apply(await api.ai.setKey(submitted));
@@ -173,10 +180,11 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
                 placeholder={status.hasKey ? '새 키로 바꾸기' : 'sk-…'}
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
+                onKeyDown={(e) => (composingKey.current = e.nativeEvent.isComposing || e.keyCode === 229)}
                 autoComplete="off"
                 spellCheck={false}
               />
-              <button type="submit" disabled={busy || !key.trim() || !status.canEncrypt}>
+              <button type="submit" disabled={busy || !key.trim() || !status.canEncrypt} onPointerDown={() => (composingKey.current = false)}>
                 저장
               </button>
               {status.hasKey && (
