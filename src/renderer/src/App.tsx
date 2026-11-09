@@ -229,6 +229,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const [aiVersion, setAiVersion] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const editor = useRef<ChapterEditorHandle>(null);
+  /** 활성 탭 닫기를 기다리는 사이 사용자가 옮긴 포커스: 이웃 편집기의 시작 포커스가 빼앗지 않게 한 번 알린다 */
+  const keepFocus = useRef<HTMLElement | null>(null);
   const search = useRef<SearchPanelHandle>(null);
   /** 가장 최근 검색 직전의 열린 화 상태 (결과 이동의 정확성 확인용) */
   const searchSnapshot = useRef<{ file: string; editId: string | null } | null>(null);
@@ -409,12 +411,19 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         setTabs((t) => t.filter((f) => f !== target));
         return;
       }
+      const owner = document.activeElement;
+      keepFocus.current = null;
       if (!(await leave()) || !isCurrent(gen)) return;
+      const moved = document.activeElement;
+      if (moved && moved !== owner && moved !== document.body && moved.isConnected && moved instanceof HTMLElement) keepFocus.current = moved;
       const list = tabsRef.current;
       const at = list.indexOf(target);
       const neighbor = list[at + 1] ?? list[at - 1] ?? null;
       setTabs((t) => t.filter((f) => f !== target));
-      if (fileRef.current !== target) return;
+      if (fileRef.current !== target) {
+        keepFocus.current = null;
+        return;
+      }
       setJump(null);
       setFile(neighbor);
       if (neighbor === null) {
@@ -820,6 +829,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 onMatchMissing={onMatchMissing}
                 marks={reviewMarks.file === file ? reviewMarks.quotes : undefined}
                 onReady={() => setEditorTick((t) => t + 1)}
+                keepFocus={keepFocus}
               />
             ) : (
               <p className="editor-message">

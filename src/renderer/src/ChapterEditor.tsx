@@ -72,6 +72,8 @@ interface Props {
   marks?: string[];
   /** 편집기가 만들어져 본문을 읽을 수 있게 됐다 (패널이 지금 본문과 대조해 다시 그리게 한다) */
   onReady?(): void;
+  /** 탭 닫기 대기 중 사용자가 옮긴 포커스를 시작 포커스가 빼앗지 않게 하는 한 번용 표시 (App이 닫기 때만 채운다) */
+  keepFocus?: { current: HTMLElement | null };
 }
 
 interface Loaded {
@@ -135,8 +137,12 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
  * TipTap의 commands.focus / chain().focus()는 view.focus()를 requestAnimationFrame으로 예약해 실행 시점의 포커스를 보지 못한다 —
  * 예약 뒤에 사용자가 검색창을 선택하면 그 선택을 덮고, 이어지는 글자·Enter가 원고로 들어간다. 그래서 선택은 포커스 없이 즉시 설정하고 포커스만 이 함수로 준다
  */
-function focusEditorUnlessTyping(target: Editor): void {
+function focusEditorUnlessTyping(target: Editor, keepFocus?: { current: HTMLElement | null }): void {
   requestAnimationFrame(() => {
+    // 탭 닫기를 기다리는 사이 사용자가 직접 옮긴 포커스(남은 탭 등)는 이웃 편집기가 만들어진 뒤에도 빼앗지 않는다. 한 번 쓰면 비운다
+    const kept = keepFocus?.current ?? null;
+    if (keepFocus) keepFocus.current = null;
+    if (kept && kept.isConnected && document.activeElement === kept) return;
     if (target.isDestroyed || target.view.hasFocus()) return;
     const active = document.activeElement;
     if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
@@ -147,7 +153,7 @@ function focusEditorUnlessTyping(target: Editor): void {
 let editorInstances = 0;
 
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
-  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, onMatchMissing, locked = false, marks, onReady },
+  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, onMatchMissing, locked = false, marks, onReady, keepFocus },
   ref,
 ) {
   const editorRef = useRef<Editor | null>(null);
@@ -297,7 +303,7 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
     onCreate: ({ editor: created }) => {
       onReady?.();
       if (jump) return;
-      focusEditorUnlessTyping(created);
+      focusEditorUnlessTyping(created, keepFocus);
     },
     editable: !locked,
     onUpdate: () => {

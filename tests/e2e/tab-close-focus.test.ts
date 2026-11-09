@@ -176,3 +176,43 @@ test('닫기를 거절하면 탭·본문·포커스가 그대로이고, 저장 �
     await closeWindow(app);
   }
 });
+
+test('저장 응답을 기다리는 사이 사용자가 남은 탭으로 옮긴 포커스는 이웃 편집기가 만들어진 뒤에도 유지되고, 이후 탭 탐색·일반 화 열기 포커스는 정상이다', { timeout: 120_000 }, async () => {
+  const { app, page, dir } = await start();
+  try {
+    await openTab(page, 'One', 'Alpha one');
+    await openTab(page, 'Two', 'Beta two');
+    await page.locator('.ProseMirror').getByText('Beta two').click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' Z');
+    await app.evaluate(() => { (globalThis as unknown as { c: Counters }).c.holdWrite = true; });
+    const before = (await counts(app)).writes;
+    await page.getByRole('button', { name: '탭 닫기: Two', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await until('붙잡은 저장 진입', async () => (await counts(app)).writes === before + 1);
+    // 해제 전: 사용자가 남은 One 탭 버튼에 실제로 포커스를 둔다
+    await page.getByRole('tab', { name: 'One', exact: true }).focus();
+    assert.equal((await focused(page)).tab, 'One', '해제 전 One 탭에 포커스가 있다');
+    await app.evaluate(() => (globalThis as unknown as { c: Counters }).c.releaseGate!());
+    await until('Two 탭 제거', async () => !(await tabNames(page)).includes('Two'));
+    await page.locator('.ProseMirror').getByText('Alpha one').waitFor();
+    // 새 편집기 onCreate가 예약한 한 프레임 포커스까지 지난 뒤에도 One 탭이 유지된다
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => r())))));
+    const kept = await focused(page);
+    assert.equal(kept.tab, 'One', `이웃 편집기가 만들어진 뒤에도 사용자가 고른 One 탭에 포커스가 남아 있다: ${JSON.stringify(kept)}`);
+    assert.equal(await selectedTab(page), 'One');
+    assert.ok((await readFile(join(dir, 'chapters', '002.md'), 'utf8')).includes('Beta two Z'), '닫기 전 저장된 본문이 디스크에 있다');
+
+    // 선택한 탭에서 키보드가 계속 동작한다 (Enter로 One 유지·ArrowRight는 탭 사이 이동 없음(탭 하나))
+    await page.keyboard.press('Enter');
+    await page.locator('.ProseMirror').getByText('Alpha one').waitFor();
+    assert.equal(await selectedTab(page), 'One');
+
+    // 일반 화 열기(탐색기)의 편집기 포커스는 그대로다 (한 번용 표시가 남아 막지 않는다)
+    await nav(page).getByRole('button', { name: 'Three' }).click();
+    await page.locator('.ProseMirror').getByText('Gamma three').waitFor();
+    await until('편집기 포커스', async () => (await focused(page)).inEditor);
+  } finally {
+    await closeWindow(app);
+  }
+});
