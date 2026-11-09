@@ -133,22 +133,28 @@ test('읽기 [다시 시도]를 Space로 실행해 성공하면 정상 편집 �
   }
 });
 
-test('읽기 응답을 기다리는 사이 사용자가 실제 키보드로 옮긴 포커스는 늦은 실패 응답이 빼앗지 않는다', { timeout: 120_000 }, async () => {
-  const { app, page } = await start('crf-moved');
-  try {
-    const base = await hooks(app);
-    await setMode(app, 'hold-fail');
-    await page.keyboard.press('Enter');
-    await until(app, (h) => h.reads === base.reads + 1);
-    await page.keyboard.press('Shift+Tab'); // 사용자가 실제 키보드로 앞 컨트롤로 옮긴다
-    const moved = await active(page);
-    assert.equal(moved.body, false);
-    assert.equal(moved.inMessage, false, '읽기 안내 밖의 컨트롤로 옮겼다');
-    await release(app);
-    await page.getByRole('button', { name: '다시 시도', exact: true }).waitFor();
-    await settled(page);
-    assert.deepEqual(await active(page), moved, '늦은 실패 응답이 사용자가 옮긴 포커스를 빼앗지 않았다');
-  } finally {
-    await closeWindow(app);
-  }
-});
+for (const outcome of ['fail', 'ok'] as const) {
+  test(`읽기 응답을 기다리는 사이 사용자가 실제 키보드로 옮긴 포커스는 늦은 ${outcome === 'ok' ? '성공' : '실패'} 응답이 빼앗지 않는다`, { timeout: 120_000 }, async () => {
+    const { app, page, dir, log } = await start(`crf-moved-${outcome}`);
+    try {
+      const base = await hooks(app);
+      await setMode(app, outcome === 'ok' ? 'hold-ok' : 'hold-fail');
+      await page.keyboard.press('Enter');
+      await until(app, (h) => h.reads === base.reads + 1);
+      await page.keyboard.press('Shift+Tab'); // 사용자가 실제 키보드로 앞 컨트롤로 옮긴다
+      const moved = await active(page);
+      assert.equal(moved.body, false);
+      assert.equal(moved.inMessage, false, '읽기 안내 밖의 컨트롤로 옮겼다');
+      await release(app);
+      if (outcome === 'ok') await page.locator('.ProseMirror').getByText('B 본문 줄', { exact: true }).waitFor();
+      else await page.getByRole('button', { name: '다시 시도', exact: true }).waitFor();
+      // 새 편집기 onCreate가 예약한 한 프레임 시작 포커스까지 지난 뒤에도 확인한다
+      await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => r())))));
+      assert.deepEqual(await active(page), moved, `늦은 ${outcome === 'ok' ? '성공' : '실패'} 응답이 사용자가 옮긴 포커스를 빼앗지 않았다 / ${JSON.stringify(await log())}`);
+      assert.equal((await hooks(app)).writes, base.writes, '저장 진입 0');
+      assert.equal(await bytes(dir), `${A}|${B}`, '두 파일 바이트(BOM·CRLF·frontmatter) 불변');
+    } finally {
+      await closeWindow(app);
+    }
+  });
+}

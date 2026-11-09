@@ -100,6 +100,12 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
     window.loreweave.chapters.read(props.file, props.projectToken).then(
       ({ text, hash }) => {
         if (cancelled) return;
+        // [다시 시도]를 누른 뒤 응답을 기다리는 사이 사용자가 다른 살아있는 컨트롤로 옮겼다면, 편집기의 시작 포커스가 그 선택을 빼앗지 않게 한 번용 표시(keepFocus)로 알린다.
+        // (시작 포커스는 호출 시점의 포커스와 같으면 기존 버튼으로 보고 편집기가 가져가므로, 사용자가 이미 옮겨 둔 포커스를 따로 알려야 한다)
+        if (refocusRetry.current) {
+          const a = document.activeElement;
+          if (a instanceof HTMLElement && a !== document.body && a !== message.current && a.isConnected && props.keepFocus) props.keepFocus.current = a;
+        }
         setLoaded({ ...openManuscript(text), hash });
         onLoadedRef.current?.(props.file, props.projectToken, text);
         setLoadError(null);
