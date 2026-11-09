@@ -159,14 +159,14 @@ test('다른 화를 거쳐 돌아와도(편집기가 새로 만들어져도) 검
   }
 });
 
-test('다음 검색이 실패해도 이전 결과의 이동은 그 결과의 검색 당시 상태를 기준으로 한다 (실패한 검색의 스냅샷을 이전 결과에 적용하지 않는다)', { timeout: 90_000 }, async () => {
-  const { app, page } = await start('sjs-failed-search', '001.md', DUP, 'DUP');
+test('다음 검색이 실패하면 이전 결과를 지우고 화 목록·검색어·실패 안내를 보이며(PR152 정책), 재검색 성공 뒤의 이동은 새로 게시된 결과의 검색 당시 상태를 기준으로 한다', { timeout: 90_000 }, async () => {
+  const { app, page, disk } = await start('sjs-failed-search', '001.md', DUP, 'DUP');
   try {
     assert.equal(await results(page).count(), 2);
     await results(page).nth(1).click();
     await settled(page);
     assert.equal(await selectedParagraph(page), 2, '둘째 결과(변경 전)');
-    // 첫 문단 앞에 TOP1/TOP2 삽입 → 다음 검색 IPC만 실패시킨다
+    // 첫 문단 앞에 TOP1/TOP2 삽입 → 다음 검색 IPC만 실패시킨다 (성공 대역은 보관해 두었다가 복구한다)
     await editor(page).getByText('지현이 말했다 반복').first().click();
     await page.keyboard.press('Control+Home');
     await page.keyboard.insertText('TOP1');
@@ -175,19 +175,55 @@ test('다음 검색이 실패해도 이전 결과의 이동은 그 결과의 검
     await page.keyboard.press('Enter');
     await editor(page).getByText('TOP2', { exact: true }).waitFor();
     await app.evaluate(({ ipcMain }) => {
+      const map = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => unknown> })._invokeHandlers;
+      const g = globalThis as unknown as { realSearch: (...a: unknown[]) => unknown; searchCalls: number };
+      g.realSearch = map.get('chapters:search')!;
+      g.searchCalls = 0;
       ipcMain.removeHandler('chapters:search');
       ipcMain.handle('chapters:search', () => {
+        g.searchCalls += 1;
         throw new Error('REVIEW_SEARCH_FAILURE');
       });
     });
     await box(page).press('Enter');
     await page.locator('.search .error').waitFor({ timeout: 15_000 });
-    assert.equal(await results(page).count(), 2, '실패해도 이전 결과가 남는다');
-    // 이전 결과의 둘째: 실패한 검색 직전의 편집 상태가 아니라 이 결과의 검색 당시 기준 → 옛 좌표를 믿지 않고 원래 둘째(문단 4)로
+    // PR152 정책: 최신 검색이 실패하면 이전 결과·개수·없음 안내를 지우고 화 목록으로 돌아가며, 입력과 실패 안내는 남는다 (실패를 0건 성공으로 표시하지 않는다)
+    assert.equal(await results(page).count(), 0, '이전 결과가 남지 않는다');
+    assert.equal(await page.getByText('줄에서 찾음', { exact: false }).count(), 0, '이전 개수 안내가 남지 않는다');
+    assert.equal(await page.getByText('없음', { exact: false }).count(), 0, '실패를 0건 성공(없음)으로 표시하지 않는다');
+    await page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: 'DUP' }).waitFor();
+    assert.equal(await box(page).inputValue(), '지현', '검색어는 남는다');
+    assert.equal(await page.locator('.error.search-summary').count(), 1, '실패 안내는 남는다');
+    assert.equal(await app.evaluate(() => (globalThis as unknown as { searchCalls: number }).searchCalls), 1, '실패한 검색 요청은 한 번');
+    // 검색 전 flush가 한 의도한 쓰기: 저장된 본문에 앞 문단 삽입이 있고 BOM·CRLF·frontmatter가 보존된다
+    const afterFail = await disk();
+    assert.ok(afterFail === `${envelope('dup', 'DUP')}${lines('TOP1', 'TOP2', '지현이 말했다 반복', 'CCCC 사이', '지현이 말했다 반복')}`, `의도한 저장(검색 전 flush) 뒤 본문: ${JSON.stringify(afterFail)}`);
+
+    // 대역을 복구하고 같은 검색어로 실제 Enter → 성공한 새 결과만 게시된다
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler('chapters:search');
+      ipcMain.handle('chapters:search', (...a: unknown[]) => (globalThis as unknown as { realSearch: (...a: unknown[]) => unknown }).realSearch(...a));
+    });
+    await box(page).press('Enter');
+    await results(page).first().waitFor();
+    assert.equal(await results(page).count(), 2, '재검색 성공 결과만 보인다');
+    assert.equal(await page.locator('.error.search-summary').count(), 0, '성공하면 이전 실패 안내가 사라진다');
+    // 새로 게시된 결과의 둘째: 현재 본문의 올바른 반복 발생(문단 4)으로 이동한다
     await results(page).nth(1).click();
     await settled(page);
     assert.equal(await selection(page), '지현');
-    assert.equal(await selectedParagraph(page), 4, '실패한 검색 때문에 옛 좌표(다른 첫 발생)를 믿지 않는다');
+    assert.equal(await selectedParagraph(page), 4, '재검색 결과의 둘째는 현재 본문의 둘째 발생이다');
+
+    // 이 성공 결과 기준으로 다시 앞 문단을 편집하면 옛 좌표를 믿지 않고 원래 둘째(문단 5)로 간다
+    await editor(page).getByText('TOP1', { exact: true }).click();
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.insertText('TOP3');
+    await page.keyboard.press('Enter');
+    await editor(page).getByText('TOP3', { exact: true }).waitFor();
+    await results(page).nth(1).click();
+    await settled(page);
+    assert.equal(await selection(page), '지현');
+    assert.equal(await selectedParagraph(page), 5, '새로 게시된 성공 결과의 검색 당시 상태를 기준으로 밀린 둘째 발생을 찾는다');
   } finally {
     await closeWindow(app);
   }
