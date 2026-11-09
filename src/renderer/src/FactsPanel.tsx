@@ -1,7 +1,7 @@
 // 현재 화에서 AI가 뽑은 사실 (M3-PLAN 1절). 인용을 누르면 그 줄로 이동한다.
 // 이동할 때는 저장된 줄 번호를 그대로 믿지 않고 지금 본문에서 인용을 다시 찾는다 (분석 뒤 본문이 바뀌었을 수 있다).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { locateQuote, type QuoteLocation } from '../../core/ai/locate.ts';
 import type { AnalysisState, StoredAnalysis } from '../../preload/api.ts';
 import { ErrorNote } from './ErrorNote.tsx';
@@ -31,6 +31,8 @@ export function FactsPanel({ file, projectToken, locked, state, version, current
   const [missing, setMissing] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [open, setOpen] = useState(true);
+  /** 패널 제목의 접기 버튼: 항상 살아있어 [다시 읽기]가 사라질 때 포커스를 받는다 */
+  const toggle = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,14 +71,23 @@ export function FactsPanel({ file, projectToken, locked, state, version, current
   return (
     <aside className="facts" aria-label="AI가 찾은 사실">
       <h2>
-        <button type="button" className="sec-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <button ref={toggle} type="button" className="sec-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
           <span aria-hidden="true">{open ? '▾' : '▸'}</span> <span>AI가 찾은 사실</span>
         </button>
       </h2>
       <div className="sec-body" hidden={!open}>
         {failed && (
           <p className="error" role="alert">
-            <ErrorNote prefix="분석 결과를 읽지 못했습니다" error={friendlyReadError(failed)} onRetry={() => setReload((n) => n + 1)} retryLabel="다시 읽기" />
+            <ErrorNote
+              prefix="분석 결과를 읽지 못했습니다"
+              error={friendlyReadError(failed)}
+              onRetry={() => {
+                // 누른 [다시 읽기]는 읽는 동안 사라진다: 포커스가 이 오류 안내 안에 있었다면 패널의 살아있는 접기 버튼으로 옮긴다 (그 밖의 포커스는 건드리지 않아 늦은 응답이 빼앗지 않는다)
+                if (document.activeElement instanceof HTMLElement && document.activeElement.closest('aside.facts .error-note')) toggle.current?.focus();
+                setReload((n) => n + 1);
+              }}
+              retryLabel="다시 읽기"
+            />
           </p>
         )}
         {analysis === undefined && !failed && <p className="muted">불러오는 중…</p>}
