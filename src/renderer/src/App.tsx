@@ -187,6 +187,17 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const [retrying, setRetrying] = useState(false);
   const retryingRef = useRef(false);
   const retrySeq = useRef(0);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  /** [다시 저장]이 끝났을 때 그 버튼이 아직 포커스를 갖고 있었다: 성공으로 버튼이 사라지면 편집기로 돌려준다 (재실패면 버튼이 남아 그대로) */
+  const restoreAfterRetry = useRef(false);
+  useEffect(() => {
+    if (!restoreAfterRetry.current) return;
+    restoreAfterRetry.current = false;
+    const active = document.activeElement;
+    // 버튼이 남았거나(재실패) 사용자가 다른 곳으로 옮겼다면(포커스가 BODY·제거된 요소가 아님) 건드리지 않는다
+    if (active && active !== document.body && active.isConnected) return;
+    editor.current?.focus();
+  }, [retrying]);
   useEffect(() => {
     retrySeq.current++;
     retryingRef.current = false;
@@ -202,6 +213,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     } finally {
       if (mine === retrySeq.current) {
         retryingRef.current = false;
+        restoreAfterRetry.current = document.activeElement === retryButton.current;
         setRetrying(false);
       }
     }
@@ -881,7 +893,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
               <span>입력은 이 화면에 남아 있고 디스크에는 아직 저장되지 않았습니다. Ctrl+S로 다시 저장할 수 있습니다.</span>
               {' '}
               {/* aria-disabled: 저장하는 중에도 포커스를 유지하고(키보드 사용자), 중복 실행은 retrySave가 막는다 */}
-              <button type="button" className="link" aria-disabled={busy || retrying} onClick={() => void retrySave()}>
+              <button ref={retryButton} type="button" className="link" aria-disabled={busy || retrying} onClick={() => void retrySave()}>
                 {retrying ? '저장하는 중…' : '다시 저장'}
               </button>
               {' '}
