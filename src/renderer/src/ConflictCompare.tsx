@@ -35,6 +35,8 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
   /** 내 내용 복사의 결과: 가장 최근에 누른 복사의 대기·성공·실패만 보인다 */
   const [copy, setCopy] = useState<'idle' | 'pending' | 'ok' | 'fail'>('idle');
   const copySeq = useRef(0);
+  /** 위쪽의 항상 살아있는 [다시 비교]: 오류 안내 안의 [다시 비교]가 읽는 동안 사라질 때 포커스가 잃어지지 않게 받는다 */
+  const headerReload = useRef<HTMLButtonElement>(null);
   const seq = useRef(0);
   useEffect(
     () => () => {
@@ -111,7 +113,7 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
           </span>
         )}
         <span className="compare-actions">
-          <button type="button" className="link" onClick={() => void load()}>
+          <button ref={headerReload} type="button" className="link" onClick={() => void load()}>
             다시 비교
           </button>
           <button type="button" className="link" onClick={() => void copyMine()}>
@@ -137,7 +139,15 @@ export function ConflictCompare({ file, projectToken, diskHash, editor }: Props)
       )}
       {view.kind === 'error' && !refreshing && (
         <p className="error" role="alert">
-          <ErrorNote error={view.error} onRetry={() => void load()} retryLabel="다시 비교" />
+          <ErrorNote
+            error={view.error}
+            onRetry={() => {
+              // 누른 오류 안의 [다시 비교]는 읽는 동안 사라진다: 포커스가 거기 있었다면 위쪽의 살아있는 [다시 비교]로 옮긴다 (그 밖의 포커스는 건드리지 않는다)
+              if (document.activeElement instanceof HTMLElement && document.activeElement.closest('.compare [role="alert"]')) headerReload.current?.focus();
+              void load();
+            }}
+            retryLabel="다시 비교"
+          />
         </p>
       )}
       {stale && <p className="warning">디스크가 다시 바뀌었습니다. 다시 불러오는 중입니다 (아래 비교는 이전 내용입니다).</p>}
