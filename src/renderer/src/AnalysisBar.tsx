@@ -142,7 +142,32 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     }
   }, [error, planning, dialog]);
 
+  /**
+   * 실행 중 작업의 [취소] 요청 상태. 한 작업(run)에만 속한다: 작업이 끝나거나 다른 작업이 시작되면 사라져 늦게 온 응답이 끝난 작업·다음 작업·다른 프로젝트에 표시되지 않는다.
+   * requested는 "요청이 받아들여졌다"일 뿐 작업이 끝났다는 뜻이 아니다 (작업은 응답·진행이 도착할 때까지 실행 중으로 남는다).
+   */
+  const [cancelNote, setCancelNote] = useState<{ run: number; kind: 'pending' | 'requested' | 'failed'; error?: FriendlyError; fail: number } | null>(null);
+  const runId = useRef(0);
+  const activeRun = useRef<number | null>(null);
+  const cancelFail = useRef(0);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const cancelAi = async () => {
+    const run = activeRun.current;
+    if (run === null || cancelNote?.run === run && cancelNote.kind === 'pending') return; // 대기 중 중복 요청 방지
+    setCancelNote({ run, kind: 'pending', fail: cancelFail.current });
+    try {
+      await api.ai.cancel();
+      if (activeRun.current === run) setCancelNote({ run, kind: 'requested', fail: cancelFail.current });
+    } catch (e) {
+      // 요청을 보내지 못했다 (안내는 취소 요청 실패로 고정하고 원래 이유는 접힌 기술 상세에 둔다: 쓰기 오류 문구로 바뀌지 않게): 작업은 계속 실행 중이다 (취소 완료·분석 실패로 표시하지 않는다). 수동으로 다시 요청할 수 있다
+      if (activeRun.current === run) setCancelNote({ run, kind: 'failed', error: { summary: '취소 요청을 보내지 못했습니다', detail: friendlyError(e).detail || friendlyError(e).summary }, fail: ++cancelFail.current });
+    }
+  };
+
   const execute = async (kind: 'analysis' | 'check', work: () => Promise<Result>, unsavedText: string) => {
+    const myRun = ++runId.current;
+    activeRun.current = myRun;
+    setCancelNote(null);
     setDialog(null);
     planOwner.current = null; // 보낸 실행은 화를 옮겨도 이어진다
     setRunning(kind);
@@ -160,6 +185,8 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       setError(friendlyError(e));
     } finally {
       unlock();
+      if (activeRun.current === myRun) activeRun.current = null;
+      setCancelNote(null);
       setRunning(null);
       onAnalyzed();
     }
@@ -321,9 +348,34 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
                   ? '검사 중…'
                   : `${running === 'check' ? '검사 전 분석' : '분석'} 중 ${progress?.done ?? 0}/${progress?.total ?? '…'}`}
                 {progress && ` · $${progress.costUsd.toFixed(4)}`}{' '}
-                <button type="button" className="link" onClick={() => void api.ai.cancel()}>
+                <button ref={cancelButton} type="button" className="link" aria-disabled={cancelNote?.kind === 'pending'} onClick={() => void cancelAi()}>
                   취소
                 </button>
+              </p>
+            )}
+            {running && cancelNote?.kind === 'pending' && (
+              <p className="muted" role="status">
+                취소 요청을 보내는 중… (작업은 아직 진행 중입니다)
+              </p>
+            )}
+            {running && cancelNote?.kind === 'requested' && (
+              <p className="muted" role="status">
+                취소를 요청했습니다. 진행 중인 요청이 끝나면 멈춥니다 (아직 끝나지 않았을 수 있습니다).
+              </p>
+            )}
+            {running && cancelNote?.kind === 'failed' && cancelNote.error && (
+              <p className="error" role="alert">
+                <ErrorNote
+                  key={cancelNote.fail}
+                  error={cancelNote.error}
+                  hint="작업은 계속 진행 중입니다."
+                  retryLabel="다시 취소"
+                  onRetry={() => {
+                    // 누른 [다시 취소]는 요청 중에 사라진다: 포커스를 항상 살아있는 [취소] 버튼으로 옮긴 뒤 다시 요청한다
+                    cancelButton.current?.focus();
+                    void cancelAi();
+                  }}
+                />
               </p>
             )}
             {!running && result?.kind === 'analysis' && (
