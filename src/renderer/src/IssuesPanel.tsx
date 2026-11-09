@@ -65,6 +65,8 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   const [undoPending, setUndoPending] = useState<number | null>(null);
   const undoRef = useRef<number | null>(null);
   const [reload, setReload] = useState(0);
+  /** 패널 제목의 접기 버튼: 항상 살아있어 [다시 읽기]가 사라질 때 포커스를 받는다 */
+  const toggle = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
@@ -166,7 +168,7 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
   return (
     <section className="issues" aria-label="문제 가능성">
       <h2 aria-label={`문제 가능성${visible > 0 ? ` (${visible})` : ''}`}>
-        <button type="button" className="sec-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <button ref={toggle} type="button" className="sec-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
           <span aria-hidden="true">{open ? '▾' : '▸'}</span> <span>문제 가능성</span>
         </button>
         {visible > 0 && (
@@ -178,7 +180,16 @@ export function IssuesPanel({ file, projectToken, locked, state, version, curren
       <div className="sec-body" hidden={!open}>
         {loadError && (
           <p className="error" role="alert">
-            <ErrorNote prefix="검사 결과를 읽지 못했습니다" error={friendlyReadError(loadError)} onRetry={() => setReload((n) => n + 1)} retryLabel="다시 읽기" />
+            <ErrorNote
+              prefix="검사 결과를 읽지 못했습니다"
+              error={friendlyReadError(loadError)}
+              onRetry={() => {
+                // 누른 [다시 읽기]는 읽는 동안 사라진다: 포커스가 이 오류 안내 안에 있었다면 패널의 살아있는 접기 버튼으로 옮긴다 (그 밖의 포커스는 건드리지 않아 늦은 응답이 빼앗지 않는다)
+                if (document.activeElement instanceof HTMLElement && document.activeElement.closest('section.issues .error-note')) toggle.current?.focus();
+                setReload((n) => n + 1);
+              }}
+              retryLabel="다시 읽기"
+            />
           </p>
         )}
         {check === undefined && !loadError && <p className="muted">불러오는 중…</p>}
