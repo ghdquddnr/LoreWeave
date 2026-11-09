@@ -213,7 +213,16 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
             {/* 요약의 검색어는 실제 게시된 결과의 검색어(result.query)다. 입력창의 현재 글자(query)가 아니다: 입력만 바꿔도 표시된 결과의 검색어는 새 검색이 성공할 때까지 그대로다 */}
             <span className="search-query">"{result.query}"</span>{' '}
             {result.total === 0 ? '없음' : `${result.total}줄에서 찾음${result.total > result.hits.length ? ` (처음 ${result.hits.length}줄)` : ''}`}{' '}
-            <button type="button" className="link" onClick={clear}>
+            <button
+              type="button"
+              className="link"
+              onClick={(e) => {
+                // 키보드로 누른 [목록으로]는 곧 사라진다(포커스가 BODY로 잃어짐): 누른 버튼이 포커스를 가진 때만 검색입력으로 옮겨 바로 새 검색을 할 수 있게 한다. clear()의 다른 경로(Escape·빈 검색·프로젝트 전환 등)는 포커스를 건드리지 않는다
+                const pressed = e.currentTarget === document.activeElement;
+                clear();
+                if (pressed) input.current?.focus();
+              }}
+            >
               목록으로
             </button>
           </p>
