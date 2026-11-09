@@ -250,13 +250,15 @@ export function SettingsDialog({ appearance, totalCostUsd, hasProject, onClose, 
               <button
                 type="button"
                 disabled={busy || !status.hasKey}
-                onClick={() =>
+                onClick={(e) => {
+                  // 키보드로 누른 [연결 확인]은 곧 disabled가 돼 포커스를 잃는다(BODY → Escape도 모달에 닿지 않음): 누른 버튼이 포커스를 가진 때만, 항상 살아 있는 키 입력창으로 옮긴다 (이동은 한 번뿐이라 늦은 응답은 포커스를 옮기지 않는다)
+                  if (e.currentTarget === document.activeElement) keyInput.current?.focus();
                   void run(async () => {
                     const result = await api.ai.check();
                     if (result.ok) show(true, '연결됨: 이 키로 선택한 모델을 쓸 수 있습니다');
                     else show(false, result.message);
-                  })
-                }
+                  });
+                }}
               >
                 연결 확인
               </button>
