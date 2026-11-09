@@ -942,7 +942,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             {unlisted && unlisted.seq === errorSeq && (
               <>
                 {' '}
-                <button type="button" className="link" disabled={busy} onClick={() => void rereadList()}>
+                <button type="button" className="link" aria-disabled={busy} onClick={() => !busy && void rereadList()}>
                   목록 다시 읽기
                 </button>
               </>
@@ -960,7 +960,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         {unlisted && unlisted.seq !== errorSeq && (
           <span className="warning">
             <span aria-hidden="true">⚠</span> {unlisted.file ? `새 화(${unlisted.file})가 목록에 아직 없습니다` : '화 목록이 아직 갱신되지 않았습니다'}{' '}
-            <button type="button" className="link" disabled={busy} onClick={() => void rereadList()}>
+            <button type="button" className="link" aria-disabled={busy} onClick={() => !busy && void rereadList()}>
               목록 다시 읽기
             </button>
           </span>

@@ -30,6 +30,12 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* 처리 중에도 키보드 포커스를 잃지 않게 disabled 대신 aria-disabled를 쓰는 링크 버튼 (클릭은 처리기에서 막는다) */
+button.link[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 input:not([type='range']):not([type='checkbox']):not([type='radio']),
 select,
 textarea {
