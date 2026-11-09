@@ -144,6 +144,8 @@ function focusEditorUnlessTyping(target: Editor, keepFocus?: { current: HTMLElem
     if (keepFocus) keepFocus.current = null;
     if (kept && kept.isConnected && document.activeElement === kept) return;
     if (target.isDestroyed || target.view.hasFocus()) return;
+    // 늦게 준비된 편집기·검색 이동이 열린 모달(설정·팔레트·AI 확인)의 키보드 포커스를 빼앗지 않는다: 모달이 닫히면 모달이 연 곳으로 포커스를 돌려준다
+    if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
     const active = document.activeElement;
     if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
     target.view.focus();
