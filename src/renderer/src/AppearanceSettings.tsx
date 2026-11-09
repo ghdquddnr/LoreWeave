@@ -11,6 +11,7 @@ import {
   type ManuscriptFont,
   type ThemeId,
 } from '../../core/appearance.ts';
+import { useEffect, useRef } from 'react';
 import { ErrorNote } from './ErrorNote.tsx';
 import type { AppearanceController } from './useAppearance.ts';
 import { friendlyError } from './userError.ts';
@@ -73,9 +74,23 @@ export function AppearanceSettings({ controller }: { controller: AppearanceContr
   const effectiveSize = a.manuscriptSize ?? themeDefaultSize;
   const effectiveLineHeight = a.lineHeight ?? 1.9;
   const isDefault = JSON.stringify(a) === JSON.stringify(DEFAULT_APPEARANCE);
+  const section = useRef<HTMLElement>(null);
+  const resetButton = useRef<HTMLButtonElement>(null);
+  const hadError = useRef(false);
+  // 저장 실패 안내가 성공으로 사라질 때 포커스가 그 안(다시 저장 버튼)에 있었다면 BODY로 잃지 않게 같은 대화상자 안의 컨트롤로 옮긴다.
+  // 그 사이 사용자가 다른 곳으로 옮겼다면(포커스가 살아있으면) 건드리지 않는다
+  useEffect(() => {
+    const was = hadError.current;
+    hadError.current = saveError !== null;
+    if (!was || saveError !== null) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    const target = resetButton.current && !resetButton.current.disabled ? resetButton.current : section.current?.closest<HTMLElement>('[role="dialog"]');
+    target?.focus();
+  }, [saveError]);
 
   return (
-    <section className="appearance" aria-labelledby="appearance-title">
+    <section ref={section} className="appearance" aria-labelledby="appearance-title">
       <h2 id="appearance-title">테마와 글꼴</h2>
 
       <fieldset className="theme-cards">
@@ -175,14 +190,14 @@ export function AppearanceSettings({ controller }: { controller: AppearanceContr
 
       <div className="appearance-footer">
         <span className="muted">변경은 바로 적용되고 이 컴퓨터의 설정 파일에 저장됩니다. 원고 파일은 바뀌지 않습니다.</span>
-        <button type="button" onClick={reset} disabled={isDefault}>
+        <button ref={resetButton} type="button" onClick={reset} disabled={isDefault}>
           기본값으로
         </button>
       </div>
       {saveError && (
         <p className="error" role="alert">
           <ErrorNote
-            key={saveErrorSeq}
+            resetKey={saveErrorSeq}
             prefix="외관 설정을 저장하지 못했습니다"
             error={friendlyError(saveError)}
             hint="화면에는 적용되어 있지만 이 컴퓨터의 설정 파일에는 아직 저장되지 않았습니다."
