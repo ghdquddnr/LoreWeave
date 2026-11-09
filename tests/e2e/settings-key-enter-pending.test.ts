@@ -11,8 +11,8 @@ import { closeWindow, launch, tempDir } from './launch.ts';
 const FIRST = 'sk-test-first-draft'; // 길이 19
 const SECOND = 'sk-test-second-draft-longer'; // 길이 27 (첫 값과 길이가 달라 길이만으로 구분한다)
 
-async function script(app: ElectronApplication) {
-  await app.evaluate(({ ipcMain }) => {
+async function script(app: ElectronApplication, firstOutcome: 'ok' | 'fail') {
+  await app.evaluate(({ ipcMain }, firstOutcome) => {
     const g = globalThis as unknown as { lens: number[]; held: boolean; release?: () => void; hold: boolean };
     g.lens = [];
     g.held = false;
@@ -27,11 +27,12 @@ async function script(app: ElectronApplication) {
         g.held = true;
         await new Promise<void>((resolve) => (g.release = resolve));
         g.held = false;
+        if (firstOutcome === 'fail') throw new Error('합성 키 저장 실패'); // 첫 요청만 실패시킨다 (이후 요청은 성공)
       }
       saved = true;
       return { hasKey: true, canEncrypt: true, model: 'fake', models: [{ id: 'fake', label: 'fake' }] };
     });
-  });
+  }, firstOutcome);
 }
 const lens = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { lens: number[] }).lens);
 const held = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { held: boolean }).held);
@@ -48,45 +49,57 @@ const dialog = (page: Page) => page.getByRole('dialog', { name: '환경설정' }
 const keyInput = (page: Page) => dialog(page).getByLabel('API 키');
 const saveButton = (page: Page) => dialog(page).getByRole('button', { name: '저장', exact: true });
 
-test('저장 응답 대기 중 암호 입력창의 실제 Enter(연속)는 중복 저장 요청을 만들지 않고, 응답 뒤 새 초안은 보존되며 새 명시 저장 1회가 가능하다', { timeout: 90_000 }, async () => {
-  const { app, page } = await launch(await tempDir('settings-key-enter-ud'));
-  try {
-    await script(app);
-    await page.getByRole('button', { name: '환경설정', exact: true }).click();
-    await keyInput(page).waitFor();
-    await keyInput(page).fill(FIRST);
-    await saveButton(page).click();
-    await until(() => held(app), '첫 저장 요청이 도착해 붙잡혔다');
-    assert.deepEqual(await lens(app), [FIRST.length], '첫 응답 전에는 요청이 하나뿐이다');
+for (const outcome of ['ok', 'fail'] as const) {
+  test(`저장 응답 대기 중 암호 입력창의 실제 Enter(연속)는 중복 저장 요청을 만들지 않고, 응답(${outcome === 'ok' ? '성공' : '실패'}) 뒤 새 초안은 보존되며 새 명시 저장 1회가 가능하다`, { timeout: 90_000 }, async () => {
+    const { app, page } = await launch(await tempDir(`settings-key-enter-${outcome}-ud`));
+    try {
+      await script(app, outcome);
+      await page.getByRole('button', { name: '환경설정', exact: true }).click();
+      await keyInput(page).waitFor();
+      await keyInput(page).fill(FIRST);
+      await saveButton(page).click();
+      await until(() => held(app), '첫 저장 요청이 도착해 붙잡혔다');
+      assert.deepEqual(await lens(app), [FIRST.length], '첫 응답 전에는 요청이 하나뿐이다');
 
-    // 대기 중 실제 키보드로 새 초안을 입력하고(전체 선택 후 입력) 실제 Enter를 연속으로 누른다
-    const state = await page.evaluate(() => ({ editable: !(document.querySelector('input[aria-label="API 키"]') as HTMLInputElement).readOnly && !(document.querySelector('input[aria-label="API 키"]') as HTMLInputElement).disabled, saveDisabled: (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '저장') as HTMLButtonElement).disabled }));
-    assert.equal(state.saveDisabled, true, '대기 중 저장 버튼은 disabled다 (implicit submit 차단의 전제)');
-    assert.equal(state.editable, true, '대기 중에도 입력창은 편집 가능하다');
-    await keyInput(page).focus();
-    await page.keyboard.press('Control+A');
-    await page.keyboard.type(SECOND);
-    await page.keyboard.press('Enter');
-    await page.keyboard.press('Enter');
-    await page.keyboard.press('Enter');
-    await frames(page); // 렌더 관측 (IPC 요청 도착은 아래에서 main 쪽 호출 수로 따로 본다)
-    assert.deepEqual(await lens(app), [FIRST.length], '대기 중 실제 Enter(연속)로 set-key 요청이 추가되지 않았다');
-    assert.equal(await keyInput(page).inputValue(), SECOND, '대기 중 입력한 새 초안이 그대로다');
+      // 대기 중 실제 키보드로 새 초안을 입력하고(전체 선택 후 입력) 실제 Enter를 연속으로 누른다
+      const state = await page.evaluate(() => ({ editable: !(document.querySelector('input[aria-label="API 키"]') as HTMLInputElement).readOnly && !(document.querySelector('input[aria-label="API 키"]') as HTMLInputElement).disabled, saveDisabled: (Array.from(document.querySelectorAll('button')).find((b) => b.textContent === '저장') as HTMLButtonElement).disabled }));
+      assert.equal(state.saveDisabled, true, '대기 중 저장 버튼은 disabled다 (implicit submit 차단의 전제)');
+      assert.equal(state.editable, true, '대기 중에도 입력창은 편집 가능하다');
+      await keyInput(page).focus();
+      await page.keyboard.press('Control+A');
+      await page.keyboard.type(SECOND);
+      await page.keyboard.press('Enter');
+      await page.keyboard.press('Enter');
+      await page.keyboard.press('Enter');
+      await frames(page); // 렌더 관측 (IPC 요청 도착은 main 쪽 호출 수로 따로 본다)
+      assert.deepEqual(await lens(app), [FIRST.length], '대기 중 실제 Enter(연속)로 set-key 요청이 추가되지 않았다');
+      assert.equal(await keyInput(page).inputValue(), SECOND, '대기 중 입력한 새 초안이 그대로다');
 
-    // 응답을 풀면: 성공 안내, 새 초안 보존(제출값과 달랐으므로), busy 해제
-    await release(app);
-    await dialog(page).getByText('키를 저장했습니다').waitFor();
-    assert.equal(await keyInput(page).inputValue(), SECOND, '늦은 성공이 새 초안을 지우지 않는다');
-    await until(async () => await saveButton(page).isEnabled(), '응답 뒤 [저장]이 다시 활성이다');
-    assert.deepEqual(await lens(app), [FIRST.length], '풀린 뒤에도 자동 재시도·추가 요청이 없다');
+      // 응답을 푼다: 성공이면 성공 안내, 실패면 오류 안내(렌더 완료 관측) — 어느 쪽이든 새 초안 보존, busy 해제
+      await release(app);
+      if (outcome === 'ok') await dialog(page).getByText('키를 저장했습니다').waitFor();
+      else {
+        await dialog(page).getByText('합성 키 저장 실패').waitFor();
+        assert.equal(await dialog(page).getByText('키를 저장했습니다').count(), 0, '실패를 성공으로 표시하지 않는다');
+      }
+      assert.equal(await keyInput(page).inputValue(), SECOND, `${outcome === 'ok' ? '늦은 성공' : '실패'}가 새 초안을 지우지 않는다`);
+      await until(async () => await saveButton(page).isEnabled(), '응답 뒤 [저장]이 다시 활성이다 (busy 해제)');
+      assert.deepEqual(await lens(app), [FIRST.length], '풀린 뒤에도 자동 재시도·추가 요청이 없다');
 
-    // 사용자의 새 명시 저장 1회: 실제 Enter 한 번이 정확히 새 초안으로 한 요청을 만든다
-    await keyInput(page).focus();
-    await page.keyboard.press('Enter');
-    await until(async () => (await lens(app)).length === 2, '새 명시 저장 요청 1회');
-    await frames(page);
-    assert.deepEqual(await lens(app), [FIRST.length, SECOND.length], '새 명시 저장은 정확히 한 번, 새 초안(길이로 구분)으로 나갔다');
-  } finally {
-    await closeWindow(app);
-  }
-});
+      // 사용자의 새 명시 저장 1회: 실제 Enter 한 번이 정확히 새 초안으로 한 요청을 만든다
+      await keyInput(page).focus();
+      await page.keyboard.press('Enter');
+      await until(async () => (await lens(app)).length === 2, '새 명시 저장 요청 1회');
+      await frames(page);
+      assert.deepEqual(await lens(app), [FIRST.length, SECOND.length], '새 명시 저장은 정확히 한 번, 새 초안(길이로 구분)으로 나갔다');
+      if (outcome === 'fail') {
+        // 실패 뒤 재사용 가능: 이 두 번째 요청은 성공하고 성공 안내가 보이며 이전 오류는 사라진다
+        await dialog(page).getByText('키를 저장했습니다').waitFor();
+        assert.equal(await dialog(page).getByText('합성 키 저장 실패').count(), 0, '성공하면 이전 오류가 사라진다');
+        assert.deepEqual(await lens(app), [FIRST.length, SECOND.length], '성공 뒤에도 추가 요청이 없다');
+      }
+    } finally {
+      await closeWindow(app);
+    }
+  });
+}
