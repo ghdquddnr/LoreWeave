@@ -190,7 +190,16 @@ export function AppearanceSettings({ controller }: { controller: AppearanceContr
 
       <div className="appearance-footer">
         <span className="muted">변경은 바로 적용되고 이 컴퓨터의 설정 파일에 저장됩니다. 원고 파일은 바뀌지 않습니다.</span>
-        <button ref={resetButton} type="button" onClick={reset} disabled={isDefault}>
+        <button
+          ref={resetButton}
+          type="button"
+          onClick={(e) => {
+            // 키보드로 누른 [기본값으로]는 즉시 기본값이 적용돼 disabled가 된다(포커스가 BODY로 잃어져 Escape도 모달에 닿지 않음): 누른 버튼이 포커스를 가진 때만 같은 대화상자로 옮긴다 (이동은 한 번뿐이라 늦은 응답은 포커스를 옮기지 않는다)
+            if (e.currentTarget === document.activeElement) e.currentTarget.closest<HTMLElement>('[role="dialog"]')?.focus();
+            reset();
+          }}
+          disabled={isDefault}
+        >
           기본값으로
         </button>
       </div>
