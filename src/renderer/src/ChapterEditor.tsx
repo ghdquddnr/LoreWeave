@@ -90,6 +90,10 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
   const [retrying, setRetrying] = useState(false);
   const onLoadedRef = useRef(props.onLoaded);
   onLoadedRef.current = props.onLoaded;
+  /** 읽기 안내 영역(오류/여는 중 모두 같은 <p>): 다시 시도 버튼이 사라져도 포커스가 BODY로 잃어지지 않게 이 영역이 포커스를 받는다 */
+  const message = useRef<HTMLParagraphElement>(null);
+  /** [다시 시도]를 눌러 포커스를 안내 영역으로 옮겨 둔 상태 (재실패로 새 다시 시도 버튼이 나타나면 그 버튼으로 돌려준다) */
+  const refocusRetry = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,22 +117,44 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
     };
   }, [props.file, props.projectToken, attempt]);
 
+  useEffect(() => {
+    if (!refocusRetry.current) return;
+    if (loaded) {
+      refocusRetry.current = false;
+      return;
+    }
+    if (loadError && !retrying) {
+      refocusRetry.current = false;
+      // 그 사이 사용자가 다른 컨트롤로 옮겼다면(포커스가 안내 영역이 아니면) 건드리지 않는다
+      if (document.activeElement === message.current) message.current?.querySelector('button')?.focus();
+    }
+  }, [loaded, loadError, retrying]);
+
   if (loadError && !retrying)
     return (
-      <p className="editor-message">
+      <p ref={message} tabIndex={-1} className="editor-message">
         {/* 기본 안내에는 IPC 문구·영문 시스템 오류·경로·코드를 두지 않고, 원문은 펼치는 기술 상세에 둔다. 상세의 열림은 이 오류 표시의 수명에만 속한다 (다시 시도·다른 화로 가면 새로 접힌 채 시작) */}
         <ErrorNote
           prefix="이 화를 열 수 없습니다"
           error={friendlyReadError(loadError)}
           retryLabel="다시 시도"
           onRetry={() => {
+            if (message.current?.contains(document.activeElement)) {
+              message.current.focus();
+              refocusRetry.current = true;
+            }
             setRetrying(true);
             setAttempt((n) => n + 1);
           }}
         />
       </p>
     );
-  if (!loaded) return <p className="editor-message">여는 중…</p>;
+  if (!loaded)
+    return (
+      <p ref={message} tabIndex={-1} className="editor-message">
+        여는 중…
+      </p>
+    );
   return <LoadedEditor ref={ref} {...props} loaded={loaded} />;
 });
 
