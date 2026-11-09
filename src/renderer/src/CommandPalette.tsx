@@ -28,6 +28,9 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  const listEl = useRef<HTMLUListElement>(null);
+  /** 키보드 이동·필터 변경으로 바뀐 선택만 보이게 한다 (마우스 hover·사용자 스크롤은 건드리지 않는다) */
+  const reveal = useRef(false);
   // compositionstart~end 구간 (isComposing·229가 빠진 이벤트 경계도 덮는다). end에서 반드시 풀려 이전 조합이 일반 Escape를 막지 않는다
   const composing = useRef(false);
   const list = useMemo(() => {
@@ -38,10 +41,22 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
   const current = enabled[Math.min(active, Math.max(enabled.length - 1, 0))];
 
   useEffect(() => input.current?.focus(), []);
-  useEffect(() => setActive(0), [query]);
+  // 고른 항목이 목록의 보이는 영역 밖이면 목록만 스크롤한다 (scrollIntoView는 바깥 스크롤까지 움직일 수 있어 쓰지 않는다)
+  useEffect(() => {
+    if (!reveal.current) return;
+    reveal.current = false;
+    const ul = listEl.current;
+    const li = current ? document.getElementById(`palette-${current.id}`) : null;
+    if (!ul || !li) return;
+    const u = ul.getBoundingClientRect();
+    const r = li.getBoundingClientRect();
+    if (r.top < u.top) ul.scrollTop -= u.top - r.top;
+    else if (r.bottom > u.bottom) ul.scrollTop += r.bottom - u.bottom;
+  }, [current, list]);
 
   const move = (delta: number) => {
     if (enabled.length === 0) return;
+    reveal.current = true;
     setActive((a) => (Math.min(a, enabled.length - 1) + delta + enabled.length) % enabled.length);
   };
 
@@ -77,7 +92,12 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
           value={query}
           autoComplete="off"
           spellCheck={false}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            // 필터가 바뀌면 선택을 첫 항목으로 되돌리고 그 선택을 보이게 한다: 같은 배치로 갱신해 스크롤 효과가 되돌린 뒤의 선택으로 한 번만 돈다
+            reveal.current = true;
+            setActive(0);
+            setQuery(e.target.value);
+          }}
           onCompositionStart={() => (composing.current = true)}
           onCompositionEnd={() => (composing.current = false)}
           onKeyDown={(e) => {
@@ -94,7 +114,7 @@ export function CommandPalette({ commands, onCancel, onRun }: Props) {
             }
           }}
         />
-        <ul id="palette-list" role="listbox" aria-label="명령 목록">
+        <ul ref={listEl} id="palette-list" role="listbox" aria-label="명령 목록">
           {list.length === 0 && (
             <li className="palette-empty" role="presentation">
               맞는 명령이 없습니다
