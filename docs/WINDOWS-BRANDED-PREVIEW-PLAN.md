@@ -1,6 +1,6 @@
 # Windows 실행파일 브랜드·아이콘·production 실행 경계 후속 계획
 
-상태: **PR-1(production 시작 경계)은 구현·검증됐다**(`process.defaultApp === true && !app.isPackaged && ELECTRON_RENDERER_URL`일 때만 개발 서버를 읽음; 폴더 실행본의 `process.defaultApp`은 undefined로 관측). **PR-2(실행파일 이름·ICO·메타데이터·packager)는 아직 구현되지 않았고 승인되지 않았다.** 아래는 **작성 당시(PR-1 구현 전)의 계획 원문**이다. 본문의 "현재 상태"·"구현 0" 서술은 그 당시 기록이며, **PR-1은 그 뒤 구현됐고 PR-2(이름·ICO·메타데이터·packager)만 아직 계획이다**. 계획 원문은 작성 당시 제품 코드·테스트·의존성·다운로드·빌드·패키징 실행 0이었고, PR-2는 감독의 검토·승인 전에는 시작하지 않는다.
+상태: **PR-1(production 시작 경계)은 구현·검증됐다**(`process.defaultApp === true && !app.isPackaged && ELECTRON_RENDERER_URL`일 때만 개발 서버를 읽음; 폴더 실행본의 `process.defaultApp`은 undefined로 관측). **PR-2(실행파일 이름·ICO·메타데이터·packager)는 아직 구현되지 않았고 승인되지 않았다.** PR-2 도입의 두 선행 게이트(packager 호환·Electron zip 확보)는 2026-11-16에 읽기 전용으로 좁혔다(§4.1): zip은 로컬 캐시에 있고 해시가 공식 값과 같다, 호환은 "Electron 44를 인지한 흔적"까지만 확인했고 실행 증거는 없다. 권고는 **현행 경로 A 유지**이며, packager가 출력 경로를 재귀 삭제하는 호출이 소스에 남아 있어(§4.1) **격리 실험도 감독이 허용 범위·출력 경계를 정하기 전에는 승인하지 않는다(실험 승인 0)**. 아래는 **작성 당시(PR-1 구현 전)의 계획 원문**이다. 본문의 "현재 상태"·"구현 0" 서술은 그 당시 기록이며, **PR-1은 그 뒤 구현됐고 PR-2(이름·ICO·메타데이터·packager)만 아직 계획이다**. 계획 원문은 작성 당시 제품 코드·테스트·의존성·다운로드·빌드·패키징 실행 0이었고, PR-2는 감독의 검토·승인 전에는 시작하지 않는다.
 앞선 계획 [WINDOWS-PREVIEW-PLAN.md](WINDOWS-PREVIEW-PLAN.md)의 A안(수동 폴더 배포)은 PR #219에서 **구현·검증됐다**(`corepack pnpm package:win`, 합성 Electron 자동 검증까지). 이 문서는 그 다음 단계다.
 근거는 저장소의 실제 파일과 공식 문서·레지스트리 메타데이터(읽기 전용 조회)뿐이며, 확인하지 못한 것은 "미확인"이다. 현재 실제 유출·원고 손상·환경변수 재현 결함은 관측하지 않았다.
 
@@ -55,13 +55,13 @@
 | `icon` | Windows는 `.ico` 로컬 경로 | 확인(문서) |
 | `appVersion`/`appCopyright` | 각각 `ProductVersion`/`LegalCopyright`로 매핑 | 확인(문서) |
 | `win32metadata` | 필드와 기본값은 링크된 [Win32MetadataOptions](https://electron.github.io/packager/main/interfaces/Win32MetadataOptions.html)에 있다: `CompanyName`(기본: `package.json`의 `author` 이름), `FileDescription`·`InternalName`·`ProductName`(기본: `productName` 또는 `name`), `OriginalFilename`(기본: 이름을 바꾼 `.exe`), `requested-execution-level`(`asInvoker`/`highestAvailable`/`requireAdministrator`, 기본 값은 문서에 없음), `application-manifest`(로컬 매니페스트 경로). v20.3.0 `src/types.ts`의 `win32metadata`/`Win32MetadataOptions` 설명과 일치 | 확인(공식 문서·소스 텍스트) |
-| `asar` | 기본 `false` | 확인(문서) |
+| `asar` | **문서와 구현이 어긋난다**(정확 태그 v20.3.0): `types.ts`의 주석은 "기본 false"처럼 읽히지만, `common.ts`의 `createAsarOpts()`는 `opts.asar === true` **또는 `undefined`**이면 ASAR 옵션을 만들고 `false`일 때만 끈다(그 밖의 값은 경고 후 끔). 따라서 "기본 false"를 문서만 보고 단정하지 않는다 — 현행 비ASAR 레이아웃을 유지하려면 **`asar: false`를 명시**해야 한다. 실제 실행은 미확인 | 확인(소스 대조: `types.ts` `asar`, `common.ts` `createAsarOpts`) / 실행 미확인 |
 | `ignore` | 절대 경로에 대한 정규식(glob 아님) | 확인(문서) — 우리는 staging 입력만 쓰므로 의존을 줄인다 |
 | `prune` | 기본 `true`(devDependencies 제외) | 확인(문서). staging에는 `openai`뿐이라 의미는 작지만 동작을 관측해야 함 |
-| Electron 다운로드 | `@electron/get`으로 받는다. `electronZipDir`로 로컬 **zip**을 쓰면 다운로드를 끈다 | 확인(문서). 현재 로컬엔 압축 해제된 `node_modules/electron/dist`만 있고 zip은 없다 → **빌드 때 네트워크 다운로드 필요 여부는 미확인**(캐시 위치·zip 확보 방법 확인 필요) |
+| Electron 다운로드 | `@electron/get`으로 받는다. `electronZipDir`로 로컬 **zip**을 쓰면 다운로드를 끈다 | 확인(문서·소스). **2026-11-16 갱신: 일치하는 로컬 캐시 zip이 있고 해시가 공식 값과 같다** → `electronZipDir` 사용 시 Electron 바이너리 다운로드는 필요 없다(§4.1). *(작성 당시 "zip 없음·미확인"은 `node_modules/electron/dist`만 보고 쓴 것이며 캐시를 확인하지 않았다)* |
 | 직접 의존 | `resedit`(Windows 실행파일 리소스), `@electron/get`, `@electron/asar`, `@electron/notarize`, `@electron/osx-sign`, `@electron/universal`, `@electron/windows-sign` 등 | 확인(메타데이터). 서명·macOS 의존까지 끌려와 **전이 의존 트리가 크다**; 실제 설치 크기·보안 감사는 미확인 |
 | 공식 도구가 실행파일을 수정하는 경로 | **정확 태그 v20.3.0 공식 소스를 읽었다**([`src/win32.ts`](https://raw.githubusercontent.com/electron/packager/v20.3.0/src/win32.ts), [`src/resedit.ts`](https://raw.githubusercontent.com/electron/packager/v20.3.0/src/resedit.ts), [`src/types.ts`](https://raw.githubusercontent.com/electron/packager/v20.3.0/src/types.ts)). `win32.ts`: `generateReseditOptionsSansIcon()`가 `FileDescription`·`InternalName`·`ProductName`(=`opts.name`)과 `OriginalFilename`(=`newElectronName`)을 기본값으로 만들고 사용자 `win32metadata`를 마지막에 덮어쓰며, `productVersion`=`appVersion`, `fileVersion`=`buildVersion`(없으면 `appVersion`), `legalCopyright`=`appCopyright`로 매핑한다. `runResedit()`는 `needsResedit()`(icon/win32metadata/appCopyright/appVersion/buildVersion/name 중 하나라도 설정)일 때만 동작하고, `getIconPath()`(`.ico`로 정규화, 배열이면 오류)를 `iconPath`로 넘겨 `resedit(electronBinaryPath, …)`를 호출한다. 대상은 `electronBinaryPath = path.join(stagingPath, newElectronName)`, 즉 **packager가 만든 staging 안의 이름을 바꾼 exe**이고 `create()`가 `renameElectron()` 뒤에 `runResedit()`를 부른다. `resedit.ts`: `.ico`를 `Data.IconFile.from`으로 읽고 `Resource.IconGroupEntry.replaceIconsForResource`로 기존 아이콘 그룹(정확히 1개 필요)을 교체, `Resource.VersionInfo`(정확히 1개, 언어 1개)에 문자열(`CompanyName`/`FileDescription`/`InternalName`/`OriginalFilename`/`LegalCopyright`/`ProductName`/`FileVersion`/`ProductVersion`)을 쓰되 **빈 값은 지워 원래 문자열이 남는다**, `application-manifest`와 `requested-execution-level`을 함께 주면 오류, 마지막에 `res.outputResource(exe)`→`exe.generate()`→`writeFile(exePath)`로 **제자리 덮어쓴다(임시 파일·백업 없음)** | 확인(공식 소스 텍스트). 아래 "의미" 참고 |
-| Electron 44.9.3 지원 | 읽은 문서·메타데이터에 지원 범위 언급 없음 | **미확인** |
+| Electron 44.9.3 지원 | **갱신(§4.1)**: 일반 "지원 범위" 문구는 여전히 없다. 대신 정확 태그에서 Electron 44를 **인지한 명시 흔적**(README 각주, v20.0.4 릴리스 노트, `@electron/get` 5.1.0 `utils.ts`)을 찾았으나 모두 win32/ia32·linux/armv7l 산출물 중단에 관한 것이다. **44.9.3 + win32-x64 명시 지원 문구는 없음, 실행 호환 증거는 없음** | 부분 확인: 인지 흔적 O / 명시 지원 없음 / 실행 증거 없음 |
 | `rcedit` | 같은 계열 도구지만 저장소가 2026-04-06 보관(read-only)됐고 [README](https://github.com/electron/rcedit)는 CLI만 설명 | 직접 쓰지 않는다 |
 | 출력의 고지 보존 | packager가 Electron 배포본의 `LICENSE`, `LICENSES.chromium.html`을 유지하는지 | **미확인** (후속에서 산출물 파일 존재로 확인) |
 
@@ -69,9 +69,44 @@
 **소스를 읽은 것은 Electron 44.9.3 호환이나 실행 결과의 검증이 아니다.** 아래 항목은 그대로 미확인이다.
 
 **권고: 경로 B(엄격 staging + `@electron/packager`, 정확 버전 고정)를 *조건부*로 권고한다.** 이유: 이름·ICO·메타데이터를 우리가 직접 PE 리소스로 패치하지 않고 공식 도구의 지원 옵션에 맡길 수 있고, 우리 허용 목록·사전 검사·실제 경로 보호는 그대로 입력 단계에 남는다. 조건(구현 전 확인 게이트, 설치·실행 없이 가능한 것부터):
-1. 패키지 [릴리스 노트/README](https://github.com/electron/packager)에서 Electron 44(또는 최신 stable) 지원 문구를 찾는다. 없으면 **미확인으로 두고 구현하지 않는다**.
-2. 새 devDependency와 lockfile 변경(전이 의존 포함)과 **빌드 때 Electron zip 다운로드**가 필요하다는 점을 감독이 승인해야 한다 (이번 과제 범위 밖; "새 의존성·다운로드는 사전 질문").
+1. 패키지 [릴리스 노트/README](https://github.com/electron/packager)에서 Electron 44(또는 최신 stable) 지원 문구를 찾는다. 없으면 **미확인으로 두고 구현하지 않는다**. *(2026-11-16: 명시 지원 문구는 없고 44 인지 흔적만 있다 — §4.1. 조건 1은 충족되지 않았고, 실제 비호환의 증거도 아니다. 실행 증거는 격리 실험으로만 얻을 수 있다.)*
+2. 새 devDependency와 lockfile 변경(전이 의존 포함)과 ~~빌드 때 Electron zip 다운로드~~가 필요하다는 점을 감독이 승인해야 한다 (이번 과제 범위 밖; "새 의존성·다운로드는 사전 질문"). *(2026-11-16: 로컬 캐시 zip이 있어 **Electron zip 다운로드는 필요 없다**. 필요한 승인은 packager 패키지와 전이 의존의 **npm 설치(패키지 다운로드)·lockfile 변경**이다. 전이 의존 트리의 크기·설치 스크립트 유무는 미확인.)*
 3. 위가 모두 확인되지 않으면 경로 A를 유지하고(이름·아이콘은 그대로) 이 목표를 보류한다. 새 도구가 불필요하면 추가하지 않는다.
+
+### 4.1 PR-2 선행 게이트 판정 (2026-11-16, 읽기 전용)
+
+읽은 것: 정확 태그 [`electron/packager@v20.3.0`](https://github.com/electron/packager/tree/v20.3.0)의 `README.md`·`package.json`·`src/{packager,platform,download,unzip,common,types}.ts`, [packager 릴리스 노트](https://github.com/electron/packager/releases)(v20.0.4·v20.3.0), [`electron/get@v5.1.0`](https://github.com/electron/get/tree/v5.1.0)의 `src/{Cache,artifact-utils,index,utils}.ts`, npm 레지스트리 메타데이터(텍스트), [Electron v44.9.3 `SHASUMS256.txt`](https://github.com/electron/electron/releases/download/v44.9.3/SHASUMS256.txt)(텍스트). 로컬은 Electron 캐시 폴더의 파일명·크기·SHA-256과 설치된 `node_modules/electron/checksums.json`만 읽었다. **설치·다운로드한 zip/바이너리·빌드·패키징·캐시 수정 0**(zip은 읽어서 해시만 계산).
+
+**게이트 1 — 호환 근거 (일반 지원 / 44 인지 흔적 / 44.9.3 명시 지원 / 실행 증거를 구분)**
+
+| 구분 | 내용 | 결과 |
+|---|---|---|
+| 일반 요구 | 20.3.0(npm 게시 2026-08-11, GitHub 릴리스 노트는 `asar integrity digest` 하나), `engines.node >= 22.12.0`, 개발 Node 24.13.0 충족. `@electron/get ^5.0.0` 의존(레지스트리상 5.x는 5.0.0·5.1.0, latest 5.1.0), `resedit ^2.0.3` | 확인 |
+| 지원 Electron 범위 문구 | README·`package.json`·`types.ts`에 Electron **버전 범위(최소/최대) 문구 없음** | **없음** |
+| Electron 44 인지 흔적 | ① README 각주: Windows x86(ia32)·Linux armv7l 빌드는 "Electron 44.0.0-alpha.4부터 공식 제공되지 않는다". ② 릴리스 v20.0.4(2026-07-22): "add Electron 44 version gates for win32/ia32 and linux/armv7l (#1935)". ③ `@electron/get` 5.1.0 `utils.ts`: `FIRST_RELEASE_WITHOUT_32_BIT_SUPPORT = '44.0.0-alpha.4'`, `isOfficialDropped32BitDownload()` | 확인. **win32/x64는 이 게이트의 대상이 아니다**(대상은 win32/ia32·linux/armv7l) |
+| 44.9.3 + win32-x64 명시 지원 | 찾지 못했다 | **없음/미확인** ("지원하지 않음"이 아니다) |
+| 소스상 win32 처리 | `win32.ts`가 `renameElectron()` 뒤 `runResedit()`로 staging 안의 이름 바꾼 exe에 `resedit` 적용(앞 표). 44.9.3 `electron.exe`에 실제로 적용되는지는 소스만으로 알 수 없다 | 소스 추론만 |
+| 실행 호환 증거 | 없음(설치·실행하지 않았다) | **없음** |
+
+→ 게이트 1은 **충족되지 않았으나 차단도 아니다**: "명시 지원 없음 + 44 인지 흔적 + 실행 증거 없음"이며, 이 상태를 충족으로 처리하지 않는다.
+
+**게이트 2 — Electron zip (네트워크 텍스트 조회와 실행 바이너리 다운로드를 구분)**
+
+- `electronZipDir` 요구(`packager.ts` `getElectronZipPath`): 폴더가 있고 그 안에 정확히 `electron-v${version}-${platform}-${arch}.zip`(여기서는 `electron-v44.9.3-win32-x64.zip`)이 있어야 한다. 없으면 오류(자동 다운로드로 넘어가지 않는다). 이때 `download` 하위 옵션은 무시된다(`types.ts`). **packager는 이 zip의 해시를 검증하지 않는다**(`existsSync`만) → 구현은 사용 전에 해시를 직접 대조해야 한다.
+- `@electron/get` 캐시(`Cache.ts`): 캐시 루트는 `env-paths('electron', {suffix: ''}).cache`, 하위 폴더는 **다운로드 URL의 디렉터리(`https://github.com/electron/electron/releases/download/v44.9.3`)의 SHA-256**, 파일명은 `electron-v44.9.3-win32-x64.zip`(`artifact-utils.ts`). 다운로드 URL 기본값은 `https://github.com/electron/electron/releases/download/`. 캐시가 있으면 쓰고 체크섬(`SHASUMS256.txt`, `sumchecker`)이 맞지 않으면 재다운로드한다(`index.ts`).
+- **로컬 확인**: 위 규칙으로 계산한 캐시 폴더(`%LOCALAPPDATA%\electron\Cache\902aaaf9…9562`)에 `electron-v44.9.3-win32-x64.zip`이 **있다**(158,508,870바이트). 그 SHA-256 `41a1ffa0541cb0f2c9b9fe920dd2cef1793ad0ea2ada1a9582958880f4d1b23c`는 **공식 `SHASUMS256.txt`의 같은 파일 값과 같고, 설치된 `node_modules/electron/checksums.json` 값과도 같다**. 같은 캐시 루트에 이 작업과 무관한 다른 Electron 버전 zip들도 있다(건드리지 않았다).
+- 결론: `electronZipDir`에 이 캐시 폴더(해당 zip만 들어 있는 해시 폴더)를 주면 **Electron 바이너리 다운로드는 필요 없다**. 단 이 경로는 사용자 환경의 캐시이므로 저장소에 하드코딩하지 않고, 구현은 `node_modules/electron/checksums.json`의 값과 SHA-256이 같을 때만 쓰고 다르거나 없으면 **실패**해야 한다(다운로드로 우회하지 않는다). 다른 PC·CI에서는 캐시가 없을 수 있다 — 그 경우의 확보 방법은 이번 범위 밖이다.
+
+**소스에서 찾은 구현 제약 (실행해 보지 않았다 — 소스 관측이며 실제 기존 출력 손실을 재현한 것이 아니다; 정확 태그 v20.3.0 `src/packager.ts`·`src/platform.ts`·`src/common.ts` 기준)**
+1. **재귀 삭제 호출이 두 모드 모두에 있다.**
+   - 기본(`tmpdir` 미지정): `ensureTempDir()`가 시작 때 `<os tmpdir>/electron-packager`(`baseTempDir`)를 `rm {recursive, force}`한다 — **공용 임시 폴더 삭제**. 이 모드에서는 `packageForPlatformAndArchWithOpts`가 `checkOverwrite`를 거치므로 최종 폴더가 있고 `overwrite`가 없으면 "Skipping … use --overwrite"로 **오류 없이 건너뛰고**, `overwrite: true`면 최종 폴더를 `rm -rf`한다(`overwriteAndCreateApp`).
+   - `tmpdir: false`: 공용 tempBase 삭제는 피한다. 그러나 `!useTempDir`이면 `packageForPlatformAndArchWithOpts`가 **`checkOverwrite` 없이 곧바로 `createApp`** 으로 가고, `platform.ts`의 `stagingPath` getter가 `tmpdir === false`일 때 `generateFinalPath(opts)`(= `<out>/<name>-win32-x64`)를 돌려주며, `initialize()`가 **`fs.promises.rm(this.stagingPath, {recursive: true, force: true})` 뒤에 템플릿 폴더를 그 경로로 `rename`** 한다. 즉 이 모드에서는 **최종 출력 경로의 재귀 삭제 호출이 남고**, `overwrite` 미설정 시 건너뛴다는 위 설명은 **적용되지 않는다**(`overwrite` 옵션이 이 경로에서는 보호가 되지 않는다). 템플릿 폴더는 `out` 안의 `win32-x64-template-*`로 만들어져(`buildDir`) `initialize()`에서 최종 이름으로 이동한다(이름 변경은 소스에서 확인됨; EXDEV 때는 복사 후 삭제). 이후 단계의 잔여물 여부는 실행하지 않아 미확인.
+   - **이 계획의 "재귀 삭제 0·기존 출력 보호" 경계와 충돌한다.** 현재 제안만으로 "삭제 0"이나 "기존 출력 보호"가 충족된다고 보지 않으며, 이를 근거로 실험이 안전하다고 보지 않는다. 우리 `checkOutput`의 사전 거절은 packager 호출 **앞**의 방어일 뿐이고, 호출 시점의 경합·경로 별칭까지 막는다는 증거는 없다.
+2. 출력 폴더 이름은 packager가 `<name>-win32-x64`로 정한다(README, `generateFinalPath`) — 우리 현행 출력 이름과 다르다(설계 변경 필요).
+3. **`asar` 문서·구현 불일치**(위 표): 후속 설계는 `asar: false`를 **명시**해야 한다(`createAsarOpts`는 `undefined`를 ASAR 사용으로 처리). `asarIntegrityDigest`(20.3.0 신규)는 `types.ts`의 조건 문구상 `asar` 사용 + 플랫폼 `darwin`/`mas` + Electron ≥ 41 + macOS 호스트일 때만 동작하고 그 밖에는 no-op이라고 적혀 있다 → **win32 대상·`asar: false`에서는 해당 없음**(소스 문구로 좁혔을 뿐 실행 증거는 없다).
+4. 미확인: 전이 의존 트리의 크기·설치 스크립트·보안 감사, 44.9.3 `electron.exe` 대상 `resedit` 실제 동작, `CompanyName` 기본값, 산출물의 `LICENSE`/`LICENSES.chromium.html` 보존, 기본 `app.name`/`userData` 불변.
+
+**권고 (한 가지): 현행 경로 A 유지. 격리 실험은 지금 승인을 요청하지 않는다.** 게이트 2는 해소됐지만 게이트 1은 실행 증거 없이는 닫을 수 없고, 실행하려면 packager의 재귀 삭제 호출(위 1)이 우리 경계와 충돌하는 문제를 먼저 정해야 한다. 공식 명시 지원이 없다는 이유로 비호환이라고 단정하지 않는다. **감독이 먼저 별도로 결정할 것**: 실험(및 후속 PR-2)에서 허용할 출력 경계 — 예) 호출 전 출력 경로 사전 검사 범위, packager 전용 **독점 새 루트**(항상 비어 있는 새 폴더만 `out`으로 주고 그 안에서만 삭제 호출이 일어나게 함, 공용 `<tmp>/electron-packager`도 피하도록 `tmpdir` 처리) 등. 이 결정과 별도 실험 승인이 있기 전에는 실험을 하지 않는다. 이번 PR은 패치·대체 도구·실험으로 이 충돌을 해결하지 않는다. 그 결정 뒤 실험을 승인한다면 최소 조건(참고용 초안, 승인 아님): 저장소 밖 새 임시 폴더에 `@electron/packager@20.3.0`을 `--ignore-scripts`로 설치(저장소 `package.json`·lockfile·`node_modules` 변경 0), 합성 staging 앱, `electronVersion: '44.9.3'`·`electronZipDir`(해시 대조 통과 시)·**`asar: false` 명시**·새 독점 출력 루트, Electron dist와 캐시 zip의 해시 전후 불변 확인, exe `VersionInfo`·아이콘·고지 파일·기본 `userData` 관측. 성공하고 의존 트리를 수용할 수 있을 때만 §6 PR-2(정확 `20.3.0` devDependency·lockfile 범위, 로컬 캐시 zip(해시 대조 후), 새 출력만, 원본 Electron 불변, 허용 목록·realpath 보호·고지·SDK·`app.name`/`userData` 불변)의 실행 허용안을 별도로 올린다. 실패하거나 경계를 정하지 못하거나 의존 트리를 수용할 수 없으면 경로 A를 유지한다.
 
 ## 5. production 시작 경계 (후속 수용기준 제안)
 
@@ -95,6 +130,6 @@
 
 ## 7. 남은 결정과 미확인
 
-- 결정 필요: (1) 구현을 PR-1/PR-2로 나눌지와 순서, (2) 경로 B를 위한 새 devDependency·lockfile 변경·Electron zip 다운로드 승인, (3) *(해소)* 원본 ICO 위치·동일성은 확인 완료(§2) — 구현 PR은 빌드 검증에서 `resources/app-icon.ico`의 SHA-256을 위 값과 재대조할지만 정하면 된다, (4) production 가드 방식(§5 a/b/c), (5) `productName`/`name`/`userData`는 건드리지 않는다는 원칙의 확인.
-- 미확인: `@electron/packager` 20.3.0의 Electron 44.9.3 지원과 실제 실행 결과(소스를 읽었을 뿐 호환·산출물 검증이 아니다), `CompanyName` 기본값의 실제 동작, 고지 파일 보존, Electron zip 확보 방식, `app.isPackaged` 판정 방식과 이름 변경의 영향, 기본 `userData`의 실제 값, OS 아이콘 표시·SmartScreen·다른 PC 실행. (해소: `win32metadata` 필드·기본값, `resedit`가 쓰이는 경로의 소스 근거, 제공 원본 ICO와의 동일성.)
-- 이 문서의 공식 문서·메타데이터 인용은 2026-11-15에 읽은 내용이며 구현 시점에 다시 확인해야 한다.
+- 결정 필요: (1) 구현을 PR-1/PR-2로 나눌지와 순서, (2) 경로 B를 위한 새 devDependency·lockfile 변경 승인과, 그에 앞서 **packager의 출력 경로 재귀 삭제 호출과 "삭제 0" 경계의 충돌을 어떻게 다룰지(허용 범위·출력 경로 사전 검사·독점 새 루트 등) 감독이 먼저 결정**하는 것, 그 뒤의 격리 실험 별도 승인(지금은 승인 0; §4.1. Electron zip 다운로드는 로컬 캐시로 불필요해졌다), (3) *(해소)* 원본 ICO 위치·동일성은 확인 완료(§2) — 구현 PR은 빌드 검증에서 `resources/app-icon.ico`의 SHA-256을 위 값과 재대조할지만 정하면 된다, (4) production 가드 방식(§5 a/b/c), (5) `productName`/`name`/`userData`는 건드리지 않는다는 원칙의 확인.
+- 미확인: `@electron/packager` 20.3.0의 Electron 44.9.3 **명시 지원(없음)**과 실제 실행 결과(44 인지 흔적과 소스를 읽었을 뿐 호환·산출물 검증이 아니다), 전이 의존 트리·설치 스크립트, `asar`의 문서·구현 불일치가 실제 실행에서 어떻게 나타나는지(`asar: false` 명시 시 동작), `initialize()` 이후 단계의 잔여물, `CompanyName` 기본값의 실제 동작, 고지 파일 보존, 다른 PC·CI의 Electron zip 확보, `app.isPackaged` 판정 방식과 이름 변경의 영향, 기본 `userData`의 실제 값, OS 아이콘 표시·SmartScreen·다른 PC 실행. (해소: `win32metadata` 필드·기본값, `resedit`가 쓰이는 경로의 소스 근거, 제공 원본 ICO와의 동일성, 이 PC의 Electron 44.9.3 zip 확보와 해시 일치.)
+- 이 문서의 공식 문서·메타데이터 인용은 2026-11-15, §4.1은 2026-11-16에 읽은 내용이며 구현 시점에 다시 확인해야 한다.
