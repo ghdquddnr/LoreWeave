@@ -9,6 +9,7 @@
 1. **도입 확정 없음.** 읽은 근거로는 어떤 설치 도구도 "원고·설정·키·AI DB를 건드리지 않고, 다운로드·네이티브 실행도구·제품 코드 변경 없이" 쓸 수 있다고 입증되지 않았다 (§4).
 2. 후보 중 **가장 작은 격리 검증 후보는 `electron-builder`의 `--prepackaged` + NSIS(사용자별 one-click)** 하나다. 이미 검증한 브랜드 폴더를 **그대로 입력**으로 받는 옵션이 문서화되어 있고 **제품 코드 변경이 필요하다는 증거가 없다**. 단 NSIS 실행 도구(`makensis`)를 받는 **다운로드와 네이티브 실행**이 필요하고, 제거기의 기본 동작에 **`RMDir /r $INSTDIR` 재귀 삭제**가 있어 사용자 추가 파일 보존이 보장되지 않는다 — 이는 **미해결 도입 차단 조건**이다 (§5-8).
 3. 지원 근거(Electron 44.9.3과의 호환)는 **명시 문구 미확인·실행 증거 없음**이므로 구현 전에 **별도 승인된 최소 격리 검증**이 먼저다 (§7). 이번에 실험하지 않았다.
+4. **삭제 경로 선행 판정(§5-1)**: `customRemoveFiles`는 `RMDir /r $INSTDIR` 블록만 공식 훅으로 대체할 수 있으나 안전성은 직접 작성한 코드에 달려 입증되지 않았고, `--delete-app-data` 분기는 훅·옵션으로 끌 수 없어 닫는 확장점이 소스로 입증되지 않았다. **현재 근거로는 설치기 도입 유보·폴더 배포 유지를 권고한다.**
 
 ## 2. 입력과 현재 상태 (실제 코드 대조)
 
@@ -68,9 +69,51 @@
    - Squirrel(B)은 설치·제거 중 앱을 `--squirrel-*` 인자로 실행하므로 제품 코드 변경과 start 장벽 재설계가 필요하다.
    - A의 NSIS 도구는 **다운로드**(고정 sha256)와 **네이티브 `makensis` 실행**을 요구한다 — 새 의존성·다운로드·네이티브 실행 승인이 필요하다.
 
+## 5-1. 두 삭제 경로의 선행 판정 (정확 태그 소스 텍스트, 2026-11-16)
+
+감독이 "설치기를 더 늘리거나 실험하기 전에, 이미 확인된 두 삭제 경로를 닫을 수 있는지부터 판정"하라고 선택한 조사다(사용자가 도구를 고른 것이 아니다). **소스를 읽었을 뿐 실행·설치·makensis·설치기 실행은 하지 않았다.** 읽은 소스(정확 태그 `electron-builder@26.18.0`, `https://raw.githubusercontent.com/electron-userland/electron-builder/electron-builder%4026.18.0/…`, 줄 번호는 그 파일 기준): `packages/app-builder-lib/templates/nsis/{uninstaller.nsh, installer.nsi, installSection.nsh}`, `…/nsis/include/{installUtil.nsh, installer.nsh}`, `website/docs/nsis.md`, `…/src/targets/nsis/nsisOptions.ts`(7개).
+
+**A. 제거 흐름과 훅 순서 [명시: `uninstaller.nsh`]**
+
+| 순서 | 위치 | 하는 일 | 훅 |
+|---|---|---|---|
+| 1 | `un.onInit` `:5-36` | `/S`면 무음, 일반 제거는 확인창, 앱 실행 중 검사, 다중 사용자 초기화 | **`customUnInit`** `:33-34` (맨 끝) |
+| 2 | `Section "un.…"` `:145-259` | 바로가기 변수 설정 | **`customUnInstall`** `:156-157` (파일 삭제·앱 데이터 삭제보다 **앞**) |
+| 3 | `:161-188` | 설치 파일 삭제. `customRemoveFiles`가 **정의되어 있으면 그 매크로만 실행**(`:161-162`), 없으면 `isUpdated`일 때 `un.atomicRMDir`로 폴더 전체 내용을 `$PLUGINSDIR\old-install`로 **이동**(`:164-`) 후 `RMDir /r $INSTDIR`(`:187`) | **`customRemoveFiles`**: 3번 블록(이동+`RMDir /r`)**만** 대체 |
+| 4 | `:190-214` | 바로가기·레지스트리 정리 등 | (`customRemoveFiles`와 무관하게 실행) |
+| 5 | `:216-247` | `--delete-app-data`를 `${GetParameters}`/`${GetOptions}`로 **별도 해석**: 인자가 있으면 `isDeleteAppData=1`, 인자가 없고 `DELETE_APP_DATA_ON_UNINSTALL`이 정의되고 `isUpdated`가 아니면 `1`. `1`이면 `RMDir /r "$APPDATA\<APP_FILENAME>"`·`<productFilename>`·`<package name>` | 이 분기를 끄거나 대체하는 훅은 **읽은 범위에 없다** |
+| 6 | `:250-258` | 제거 레지스트리 키 삭제 | `customUnInstallSection`(`:261-263`)은 그 뒤 |
+
+- **`customRemoveFiles`가 대체하는 범위** = 3번(설치 폴더 이동·재귀 삭제)뿐이다. 4·5·6번은 그대로다 [명시]. 특히 **5번의 `--delete-app-data` 분기는 `customRemoveFiles`·`deleteAppDataOnUninstall: false`와 무관하게 남는다**: 옵션이 `false`여도 제거기에 `--delete-app-data`가 주어지면 `isDeleteAppData=1`이 된다 [명시 `:219-229`]. 따라서 `false` 옵션만으로 차단이 보장되지 않는다.
+- **삭제보다 앞서는 훅**: `customUnInit`(1)과 `customUnInstall`(2)은 3·5번보다 먼저 실행된다 [명시: 매크로 삽입 위치]. 여기에 명령행(`${GetParameters}`)을 읽어 `--delete-app-data`를 발견하면 제거를 중단하는 코드를 넣는다는 아이디어가 구조상 가능해 보이나, **NSIS 언어에서 `un.onInit`/섹션 안의 `Abort`/`Quit`이 실제로 제거를 변경 전에 중단하는지, 그리고 이 템플릿의 `GetOptions` 해석과 정확히 같은 규칙으로 인자를 잡아낼 수 있는지는 NSIS 공식 문서를 읽지 않았고 실행도 하지 않아 [미확인]이다** (이번 범위는 electron-builder 정확 태그 소스로 한정).
+- **훅이 중단할 수 있는 범위(추론)**: 1·2번은 3~6번보다 앞이라 이론상 변경 전 중단 지점이다. 중단 시 `RMDir /r`·앱 데이터 삭제는 실행되지 않을 것으로 **추론**되나 입증되지 않았다.
+
+**B. 업그레이드·재설치 경로 [명시: `installer.nsi`, `installUtil.nsh`, `installSection.nsh`]**
+- 새 설치기는 파일을 쓰기 **전에** `uninstallOldVersion`으로 **이미 설치된 옛 제거기**를 복사해 실행한다: `ExecWait '"…old-uninstaller.exe" /S /KEEP_APP_DATA <인자> _?=<설치 경로>'` (`installUtil.nsh:224,230`). 인자는 `--delete-app-data`(설치기 쪽 `isDeleteAppData`가 참일 때) 또는 `--updated`(`:202-206`, "`--updated`를 항상 넘겨 `DELETE_APP_DATA_ON_UNINSTALL`이 정의돼도 사용자 데이터를 지우지 않게 한다"는 주석)다. 설치기 쪽 `isDeleteAppData`/`isUpdated`가 설치기 명령행의 무엇에서 오는지는 정의를 읽은 범위에서 찾지 못했다 **[미확인]**.
+- 따라서 **업그레이드의 삭제는 새 제거기가 아니라 이미 설치된 옛 제거기의 코드가 한다.** 안전한 제거 로직은 **첫 설치본부터** 들어 있어야 하고, 기본 제거기로 설치된 적이 있는 환경에는 소급 적용할 수 없다(현재 설치본이 없으므로 새로 시작할 때만 해당) [추론: 위 흐름에서].
+- 설치 파일 쓰기: `installApplicationFiles`/`customInstall`(`installSection.nsh:60-82`)이 `$INSTDIR`에 앱 파일을 푼다. 덮어쓰기·기존 파일 처리의 세부 동작은 `extractAppPackage.nsh` 등을 읽지 않아 **[미확인]**이다. `customInstall`(`:81-82`)은 앱 파일을 푼 **뒤**, 바로가기 등록 후에 실행되므로 설치 시점 manifest 기록에 쓸 수는 있어 보이나 **[추론]**이다.
+
+**C. 설계 후보 (1~2개; 어느 것도 승인·채택 아님)**
+
+| | 후보 1: manifest 제한 제거 (`customRemoveFiles`) | 후보 2: 사용자 파일이 있으면 변경 전 거절 (후보 1 + 사전 검사) |
+|---|---|---|
+| 내용 | 빌드 때 우리 스크립트가 **앱 소유 파일 목록(manifest, 상대 경로)**을 만들어 설치기에 넣고, 제거 때 `customRemoveFiles`가 manifest에 **있는 파일만** 지우고 폴더는 **비재귀 `RMDir`**(비어 있을 때만 성공)로 정리한다 | `customUnInit`/`customUnInstall`에서 설치 폴더를 `FindFirst`(템플릿이 이미 쓰는 열거 방식, `uninstaller.nsh:44-`)로 훑어 manifest에 없는 항목·링크가 있으면 **아무것도 바꾸기 전에 제거를 거절**한다 |
+| 보존 | manifest 밖 사용자 추가 파일·폴더는 지워지지 않고 남는다(폴더는 안 비어서 남음) | 변경 자체를 하지 않는다 |
+| 한계 | 같은 이름의 앱 소유 파일을 사용자가 바꿨다면 그대로 삭제될 수 있다(내용 해시 검증은 NSIS 기본 기능에 없고 추가 플러그인 필요 여부 **[미확인]**); manifest가 없거나 변조되거나 구버전이면 **제거를 거절**하도록 해야 하며 그 코드는 직접 써야 한다; 점검과 삭제 사이의 변경(TOCTOU)은 막지 못한다; 설치 경로나 하위가 junction/symlink(별칭)일 때 NSIS가 그것을 어떻게 다루는지 **[미확인]** | 후보 1의 한계 + 거절이 사용자에게 "제거 불가"로 보일 수 있고 열거·판정 코드가 길어진다 |
+| 공식 확장점으로 입증? | `customRemoveFiles`는 문서화된 훅이고 3번 블록만 대체함은 **[명시]**. 그러나 manifest 읽기·삭제 로직의 안전성은 **직접 작성한 NSIS 코드의 정확성**에 달려 있고 **소스 읽기만으로 입증되지 않는다** | 같음 |
+
+**D. 판정**
+1. **경로 1(`RMDir /r $INSTDIR`)**: `customRemoveFiles`가 공식 확장점으로 이 블록을 통째로 대체할 수 있음은 소스로 확인했다(**명시**). 그러나 대체 코드(manifest 기반 제한 제거와 거절)는 **직접 작성해야 하고 실행 검증 없이는 보존을 보장할 수 없다.** 같은 이름·변경 파일·manifest 변조/누락/구버전·TOCTOU·별칭은 위 한계 그대로이며 "설치 폴더 전체 삭제 예외"는 승인되지 않았다.
+2. **경로 2(`--delete-app-data`)**: 이 분기는 템플릿에 **고정**되어 있고 `customRemoveFiles`·옵션으로 끌 수 없다(**명시**). 막으려면 앞선 훅(`customUnInit`/`customUnInstall`)에서 인자를 읽어 중단하거나, NSIS `script` 옵션으로 **템플릿 전체를 대체**(문서가 "일반적으로 불필요, 이슈가 해결되리라 기대하지 말라"고 권하지 않음 [명시: `nsis.md`])해야 한다. 앞선 훅이 변경 전에 중단하는지는 **[미확인]**. 인자 주입(사용자가 제거기를 직접 실행하며 인자 전달)·옛 제거기가 새 설치기의 `--delete-app-data`를 받는 업그레이드·수동 제거 세 경우 모두에서 데이터를 만지기 전에 거절된다는 소스 근거는 **없다** → **계속 도입 차단**.
+3. 프로젝트 경계(앱이 설치 폴더·`userData`와 겹치는 프로젝트를 열지 못하게 함, §2·§5-8의 ③)를 제품에 추가해도 **설치 뒤 사용자가 설치 폴더에 파일을 넣는 경우와 제거기 명령행 인자 문제는 해결되지 않는다.** 그 둘은 제거기 쪽 설계로만 닫힌다.
+4. **결론(공식 확장점 범위의 판정)**: 경로 1은 확장점이 있으나 안전성 입증이 안 되고, 경로 2는 소스상 닫는 확장점이 입증되지 않았다. 따라서 **현재 근거로는 두 삭제 경로를 닫는다고 입증하지 못했다 → 설치기 도입 유보, 현행 폴더 배포(A·B) 유지**를 권고한다. 위 판정은 소스 텍스트 읽기이며 실행 증거가 아니다.
+
+**E. 해소되기 전까지 도입 차단인 선행조건 (순서)**
+① NSIS 공식 문서/소스로 `un.onInit`·섹션의 `Abort`/`Quit`·`GetOptions` 의미를 확인(읽기), ② `--delete-app-data`를 변경 전에 거절하는 훅 코드의 설계(읽기 판정) — 불가하면 `script` 대체 여부는 **감독 결정**(유지보수 부담), ③ manifest 방식의 한계(해시·변경 파일·별칭)를 받아들일지 결정, ④ 위 설계가 합성 환경에서 §7 음성 기준을 만족하는지의 실행 검증(**별도 승인된 격리 환경이 있을 때만**; 이번 미실행), ⑤ 제품 쪽 프로젝트 경계는 별개(§5-8 ③). 다음 감독 결정은 둘 중 하나다: **(a) 폴더 배포 유지(설치기 보류)** 또는 **(b) 위 ①부터 읽기 조사 한 단계만 승인**.
+
 ## 6. 권고 (하나)
 
-**설치형 도입을 지금 확정하지 않는다. 가장 작은 다음 단계는 `electron-builder@26.18.0`(정확 버전)의 `--prepackaged` + NSIS(사용자별 one-click, `runAfterFinish`·`deleteAppDataOnUninstall` 끔, 설치 경로 고정)를 저장소 밖 독점 격리 루트에서 1회 검증하는 것**이다 — 단 아래 §7의 **별도 승인**이 있어야 한다. 이유: 기존 폴더 입력이 문서화되어 있고, 제품 코드 변경 증거가 없으며(B와의 차이), 의존이 Squirrel의 `install` 스크립트 같은 라이프사이클 스크립트를 갖지 않는다. 이유가 되지 않는 것: 지원 근거 충분성(미확인), 안전한 제거(조건부), 다운로드 불필요(아님). 근거가 부족하면 **구현이 아니라 이 격리 검증만** 진행하고, 검증이 막히면 현행 폴더 배포(A·B)를 유지한다. **I0 설치/제거 실행과 I1 제품 도입은 승인되지 않았고**, §5-8의 차단 조건에 대한 안전 설계(또는 격리 환경)가 확정되기 전에는 요청하지도 않는다.
+**설치형 도입을 지금 확정하지 않는다. 가장 작은 다음 단계는 `electron-builder@26.18.0`(정확 버전)의 `--prepackaged` + NSIS(사용자별 one-click, `runAfterFinish`·`deleteAppDataOnUninstall` 끔, 설치 경로 고정)를 저장소 밖 독점 격리 루트에서 1회 검증하는 것**이다 — 단 아래 §7의 **별도 승인**이 있어야 한다. 이유: 기존 폴더 입력이 문서화되어 있고, 제품 코드 변경 증거가 없으며(B와의 차이), 의존이 Squirrel의 `install` 스크립트 같은 라이프사이클 스크립트를 갖지 않는다. 이유가 되지 않는 것: 지원 근거 충분성(미확인), 안전한 제거(조건부), 다운로드 불필요(아님). 근거가 부족하면 **구현이 아니라 이 격리 검증만** 진행하고, 검증이 막히면 현행 폴더 배포(A·B)를 유지한다. **I0 설치/제거 실행과 I1 제품 도입은 승인되지 않았고**, §5-8의 차단 조건에 대한 안전 설계(또는 격리 환경)가 확정되기 전에는 요청하지도 않는다. **§5-1의 선행 판정 결과, 두 삭제 경로를 닫는다는 입증이 없어 현재 권고는 "폴더 배포(A·B) 유지, 설치기 도입 유보"**이며 위 격리 검증 후보는 §5-1-E의 선행조건이 해소된 뒤에만 의미가 있다.
 
 ## 7. 후속 작업 분할 (이번 실행 아님; 모두 별도 승인 필요)
 
@@ -90,10 +133,10 @@
 
 ## 8. 감독 결정이 필요한 것
 
-(1) 설치형 도입을 계속할지(현행 폴더 배포 유지 포함) · (2) A안(electron-builder+NSIS)을 격리 검증 후보로 승인할지, Forge/B/D를 더 조사할지 · (3) 전이 의존 설치와 NSIS 도구 다운로드·네이티브 실행 승인 · (4) NSIS 제거기의 `RMDir /r $INSTDIR`를 "앱 전용 고정 설치 폴더 한정 예외"로 받을지, `--delete-app-data`/`deleteAppDataOnUninstall`을 구조적으로 막을 방법 · (5) 설치/제거를 실제 사용자 환경과 격리할 수 있는 실행 환경이 있는지 · (6) 설치본·개발본의 기본 `userData` 공유를 그대로 둘지. · (7) **§5-8 도입 차단 조건**(제거가 앱 소유 파일만 지우도록 하는 설계, `--delete-app-data` 차단, 설치 폴더·`userData`와 겹치는 프로젝트 열기 경계)을 어떻게 풀지 — 풀기 전에는 I0 설치/제거 실행·I1 도입 승인 없음
+(1) 설치형 도입을 계속할지(현행 폴더 배포 유지 포함) · (2) A안(electron-builder+NSIS)을 격리 검증 후보로 승인할지, Forge/B/D를 더 조사할지 · (3) 전이 의존 설치와 NSIS 도구 다운로드·네이티브 실행 승인 · (4) NSIS 제거기의 `RMDir /r $INSTDIR`를 "앱 전용 고정 설치 폴더 한정 예외"로 받을지, `--delete-app-data`/`deleteAppDataOnUninstall`을 구조적으로 막을 방법 · (5) 설치/제거를 실제 사용자 환경과 격리할 수 있는 실행 환경이 있는지 · (6) 설치본·개발본의 기본 `userData` 공유를 그대로 둘지. · (7) **§5-8 도입 차단 조건**(제거가 앱 소유 파일만 지우도록 하는 설계, `--delete-app-data` 차단, 설치 폴더·`userData`와 겹치는 프로젝트 열기 경계)을 어떻게 풀지 — 풀기 전에는 I0 설치/제거 실행·I1 도입 승인 없음 · (8) **§5-1-D 결론에 따라 폴더 배포 유지(설치기 보류)로 갈지, §5-1-E ①(NSIS 공식 문서 읽기)만 승인할지** — 어느 쪽이든 I0 설치/제거 실행·I1 도입 승인 없음
 
 ## 9. 이 문서가 확인하지 않은 것
 
 - Electron 44.9.3과 `electron-builder` 26.18.0/`electron-winstaller` 5.4.4/Forge 8.0.1의 **명시 지원 문구와 실행 호환**, NSIS가 우리 사용 경로에서 실제로 내려받는 도구와 호스트, 기본 설치 경로의 실제 값, 앱 식별 값(`appId`)의 영향 범위, 실행 중 파일·재설치·중단 때의 실제 동작, 설치기 생성·설치·제거 결과, 바로가기·제거 항목이 만들어지는 실제 위치, D(외부 설치기 도구)의 요구사항, `@electron/windows-installer` 외 다른 Squirrel 래퍼.
 - 실제 기본 `userData`의 값과 내용(조회 0), 설치/제거가 사용자 데이터에 미치는 실제 영향(실행 0).
-- 읽은 자료의 URL: `registry.npmjs.org/{electron-builder, electron-winstaller, @electron-forge/maker-squirrel, @electron-forge/maker-wix}`, `raw.githubusercontent.com/electron-userland/electron-builder/electron-builder%4026.18.0/{website/docs/nsis.md, packages/app-builder-lib/src/targets/nsis/nsisOptions.ts, packages/app-builder-lib/src/toolsets/windows.ts, packages/app-builder-lib/src/options/CommonWindowsInstallerConfiguration.ts, packages/app-builder-lib/templates/nsis/uninstaller.nsh, packages/electron-builder/src/builder.ts, packages/app-builder-lib/src/packager.ts}`, `raw.githubusercontent.com/electron/windows-installer/v5.4.4/README.md`, `raw.githubusercontent.com/Squirrel/Squirrel.Windows/master/docs/using/install-process.md`, `raw.githubusercontent.com/electron/electron/v44.9.3/docs/tutorial/application-distribution.md`, `www.electronforge.io/cli`. 모두 2026-11-16에 읽었고 구현 시점에 다시 확인해야 한다.
+- 읽은 자료의 URL: `registry.npmjs.org/{electron-builder, electron-winstaller, @electron-forge/maker-squirrel, @electron-forge/maker-wix}`, `raw.githubusercontent.com/electron-userland/electron-builder/electron-builder%4026.18.0/{website/docs/nsis.md, packages/app-builder-lib/src/targets/nsis/nsisOptions.ts, packages/app-builder-lib/src/toolsets/windows.ts, packages/app-builder-lib/src/options/CommonWindowsInstallerConfiguration.ts, packages/app-builder-lib/templates/nsis/uninstaller.nsh, packages/electron-builder/src/builder.ts, packages/app-builder-lib/src/packager.ts}`, `raw.githubusercontent.com/electron/windows-installer/v5.4.4/README.md`, `raw.githubusercontent.com/Squirrel/Squirrel.Windows/master/docs/using/install-process.md`, `raw.githubusercontent.com/electron/electron/v44.9.3/docs/tutorial/application-distribution.md`, `www.electronforge.io/cli`. 모두 2026-11-16에 읽었고 구현 시점에 다시 확인해야 한다. §5-1에서 추가로 읽은 정확 태그 소스: `…/templates/nsis/{uninstaller.nsh, installer.nsi, installSection.nsh}`, `…/templates/nsis/include/{installUtil.nsh, installer.nsh}`(모두 `electron-builder%4026.18.0`, 2026-11-16, 텍스트만). 못 읽은 것: NSIS 언어 문서, `extractAppPackage.nsh`, 설치기 쪽 `isDeleteAppData`/`isUpdated` 정의, `script` 옵션 상세.
