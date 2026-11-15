@@ -61,6 +61,15 @@ const until = async (app: ElectronApplication, ok: (h: Hooks) => boolean) => {
 
 const list = (page: Page) => page.getByRole('navigation', { name: '화 목록' });
 const message = (page: Page) => page.locator('.editor-message');
+const footerText = (page: Page) => page.locator('footer.statusbar').innerText();
+/** 읽기 실패·대기 중 상태줄은 쓰기 결과(저장됨 등)가 아니라 읽기 상태를 말한다 */
+async function assertReadFooter(page: Page, expected: RegExp) {
+  // 읽기 오류 화면이 보인 뒤 상태줄 렌더(React 상태 전달)를 기다린다
+  await page.locator('footer.statusbar').getByText(expected).waitFor();
+  const text = await footerText(page);
+  assert.match(text, expected, `상태줄: ${text}`);
+  for (const wrong of ['저장됨', '저장 중', '저장 실패', '저장 대기']) assert.ok(!text.includes(wrong), `읽기 상태 중 상태줄에 쓰기 결과(${wrong})가 없다: ${text}`);
+}
 const retry = (page: Page) => page.locator('.editor-pane').getByRole('button', { name: '다시 시도' });
 
 async function start(prefix: string) {
@@ -82,6 +91,7 @@ test('일시적인 읽기 실패 뒤 같은 화를 다시 눌러도, [다시 시
     await list(page).getByRole('button', { name: 'B_CH' }).click();
     await message(page).getByText(/이 화를 열 수 없습니다/).waitFor();
     assert.equal(await page.locator('.ProseMirror').count(), 0, '실패 중에는 편집기(빈 본문)가 없다');
+    await assertReadFooter(page, /열기 실패/);
     // 대역이 복구돼도, 같은 화를 다시 누르는 것만으로는 복구되지 않던 경계 (다시 시도 조작이 필요)
     await setMode(app, 'ok');
     await list(page).getByRole('button', { name: 'B_CH' }).click();
@@ -96,6 +106,7 @@ test('일시적인 읽기 실패 뒤 같은 화를 다시 눌러도, [다시 시
     await retry(page).click();
     await message(page).getByText(/이 화를 열 수 없습니다/).waitFor();
     await retry(page).waitFor();
+    await assertReadFooter(page, /열기 실패/); // 재실패에도 같다
     assert.equal((await hooks(app)).reads, before + 1, '시도 1회 = 읽기 1회');
     assert.equal((await hooks(app)).writes, 0, '실패하는 동안 저장 0');
     // 복구
@@ -128,6 +139,7 @@ test('재시도 중 연타는 읽기 한 번만 보내고, 재시도 대기 중 
     await settled(page);
     assert.equal(await page.locator('.ProseMirror').getByText('B 본문 줄').count(), 0, '늦은 성공이 새 화면(A)을 B로 바꾸지 않는다');
     assert.equal(await page.locator('.ProseMirror').getByText('A 본문', { exact: true }).count(), 1);
+    assert.match(await footerText(page), /저장됨/, '늦은 성공이 새 화면(A) 상태줄을 읽기 상태로 오염하지 않는다');
 
     // 늦은 실패: 다시 B로 가서 실패 → 재시도를 붙잡고 → A로 이동 → 풀어 실패해도 A 화면에 오류가 보이지 않는다
     await setMode(app, 'fail');
@@ -143,6 +155,9 @@ test('재시도 중 연타는 읽기 한 번만 보내고, 재시도 대기 중 
     await settled(page);
     await settled(page);
     assert.equal(await page.getByText(/이 화를 열 수 없습니다/).count(), 0, '늦은 실패 오류가 A 화면에 보이지 않는다');
+    const lateFooter = await footerText(page);
+    assert.match(lateFooter, /저장됨/, `늦은 실패가 A 화면 상태줄을 열기 실패로 오염하지 않는다: ${lateFooter}`);
+    assert.ok(!lateFooter.includes('열기 실패') && !lateFooter.includes('여는 중'), `A 상태줄에 읽기 상태가 남지 않는다: ${lateFooter}`);
     assert.equal((await hooks(app)).writes, 0, '저장 0');
     assert.equal(await readFile(join(dir, 'chapters', '001.md'), 'utf8'), A);
     assert.equal(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), B);

@@ -73,6 +73,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [explorerSlot, setExplorerSlot] = useState<HTMLElement | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  /** 열린 화 편집기의 읽기 상태 (표시 전용, 편집기 인스턴스 키별). 아래 readState로 읽는다 */
+  const [read, setRead] = useState<{ key: string; state: 'reading' | 'failed' | 'ready' } | null>(null);
   /**
    * 프로젝트를 열 때마다 1씩 는다. 에디터·검색·AI 패널의 key에 넣어, 다른 프로젝트에 같은 이름의 화(001.md)가 있어도
    * 새 프로젝트의 화를 다시 읽게 한다 (같은 폴더를 다시 열 때도 새로 읽는다)
@@ -690,6 +692,12 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   }
 
   const current = project.list.chapters.find((c) => c.file === file);
+  /**
+   * 열린 화의 읽기 상태 (표시 전용). 편집기 인스턴스(키)별로 받아, 다른 화·프로젝트로 바뀐 뒤 이전 인스턴스의 상태가 새 화면에 남지 않게 한다.
+   * 아직 이 인스턴스가 알리지 않았으면 읽는 중으로 본다. 저장 상태(save)와 저장 제어는 이 값에 영향받지 않는다
+   */
+  const editorKey = `${projectGen}:${file}:${reloadKey}`;
+  const readState: 'reading' | 'failed' | 'ready' = !file ? 'ready' : read?.key === editorKey ? read.state : 'reading';
   const titleOf = (f: string) => project.list.chapters.find((c) => c.file === f)?.title ?? f;
   const busy = switching || acting;
   const copyNote =
@@ -864,7 +872,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
           <main className="editor-pane">
             {file ? (
               <ChapterEditor
-                key={`${projectGen}:${file}:${reloadKey}`}
+                key={editorKey}
                 ref={editor}
                 file={file}
                 projectToken={project.token}
@@ -872,6 +880,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 onStatus={onStatus}
                 onSaved={onSaved}
                 onLoaded={onLoaded}
+                onReadState={(state) => setRead({ key: editorKey, state })}
                 onReload={onReload}
                 jump={jump}
                 onQuoteMissing={onQuoteMissing}
@@ -918,6 +927,13 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       </div>
       <footer className="statusbar" role="status">
         <span>{current?.title ?? ''}</span>
+        {readState !== 'ready' && (
+          // 읽기 전·읽기 실패 중에는 저장할 편집기가 없다: "저장됨" 대신 읽기 상태를 말한다 (읽기 오류와 [다시 시도]는 편집 영역이 맡는다)
+          <span className={`save save-read-${readState}`}>
+            <span aria-hidden="true">{readState === 'failed' ? '✕' : '…'}</span> <span>{readState === 'failed' ? '열기 실패' : '여는 중…'}</span>
+          </span>
+        )}
+        {readState === 'ready' && (
         <span className={`save save-${save.status.kind}`}>
           <span aria-hidden="true">{STATUS_SYMBOL[save.status.kind]}</span>{' '}
           <span>
@@ -958,12 +974,13 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
             </>
           )}
         </span>
+        )}
         {save.changesOnReopen !== null && (
           <span className="warning">
             <span aria-hidden="true">⚠</span> {save.changesOnReopen + 1}번째 줄 근처는 다시 열면 다르게 보입니다 (예: `*` 두 개 사이가 기울임이 됨)
           </span>
         )}
-        {notice && (
+        {notice && readState === 'ready' && (
           <span className="notice">
             <span aria-hidden="true">ℹ</span> {notice}
           </span>

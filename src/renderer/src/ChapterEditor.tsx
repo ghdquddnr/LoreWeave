@@ -57,6 +57,8 @@ interface Props {
   onSaved(text: string): void;
   /** 이 화를 디스크에서 읽는 데 성공했다 (처음 열기·[디스크 내용 불러오기]·외부 변경 재읽기·[다시 시도]). 읽은 파일 내용으로 표시 제목을 맞추는 데 쓴다. 실패·취소된 읽기는 부르지 않는다 */
   onLoaded?(file: string, projectToken: number, text: string): void;
+  /** 이 화의 읽기 상태 (표시 전용: 저장 제어와 무관하다). reading: 처음 열기·[다시 시도]의 읽기 대기, failed: 읽기 실패, ready: 읽어서 편집기가 열렸다. 상태줄이 읽기 전·실패 중에 "저장됨"으로 보이지 않게 한다 */
+  onReadState?(state: 'reading' | 'failed' | 'ready'): void;
   /** 디스크 내용을 다시 불러온다 (부모가 이 컴포넌트를 새로 만든다). outside: 다른 프로그램의 변경 때문에 자동으로 */
   onReload(outside?: boolean): void;
   jump?: Jump | null;
@@ -90,6 +92,13 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, Props>(function Cha
   const [retrying, setRetrying] = useState(false);
   const onLoadedRef = useRef(props.onLoaded);
   onLoadedRef.current = props.onLoaded;
+  const onReadStateRef = useRef(props.onReadState);
+  onReadStateRef.current = props.onReadState;
+  // 읽기 상태를 알린다 (이 인스턴스의 것만: 화·프로젝트가 바뀌면 부모가 이 컴포넌트를 새로 만들고, 늦은 응답은 cancelled로 버려져 상태를 바꾸지 못한다)
+  const readState: 'reading' | 'failed' | 'ready' = loaded ? 'ready' : loadError && !retrying ? 'failed' : 'reading';
+  useEffect(() => {
+    onReadStateRef.current?.(readState);
+  }, [readState]);
   /** 읽기 안내 영역(오류/여는 중 모두 같은 <p>): 다시 시도 버튼이 사라져도 포커스가 BODY로 잃어지지 않게 이 영역이 포커스를 받는다 */
   const message = useRef<HTMLParagraphElement>(null);
   /** [다시 시도]를 눌러 포커스를 안내 영역으로 옮겨 둔 상태 (재실패로 새 다시 시도 버튼이 나타나면 그 버튼으로 돌려준다) */
