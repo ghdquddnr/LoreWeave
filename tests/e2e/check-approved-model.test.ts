@@ -184,3 +184,112 @@ for (const [name, path] of [
     }
   });
 }
+
+// ---- 검사 최종 승인 뒤 보내기 전 준비 구간(confirmRun의 재계산 ai:plan-check·모델 재확인 ai:status)
+
+const textOf = (title: string) => (title === 'One' ? '민수는 스무 살이었다.' : '민수는 학교에 갔다.');
+/** 요청 종별: 선행 분석(추출) / 검사(판정). 검사 요청 입력은 '# 참고 자료'로 시작한다 */
+const kindOf = (r: { body: unknown }) => {
+  const user = (r.body as { input?: { role: string; content: string }[] }).input?.find((m) => m.role === 'user')?.content ?? '';
+  return user.startsWith('# 참고 자료') ? 'check' : 'extract';
+};
+
+type S = { armed: boolean; held: boolean; release?: () => void; planChecks: number };
+/** 실제 ai:status handler를 감싼다: arm한 뒤 첫 호출(최종 승인 뒤 모델 재확인)의 시작을 붙잡는다. ai:plan-check는 호출 수만 센다. 둘 다 실제 handler를 그대로 부른다 */
+async function holdStatus(app: ElectronApplication) {
+  await app.evaluate(({ ipcMain }) => {
+    const s: S = ((globalThis as unknown as { __s?: S }).__s = { armed: false, held: false, planChecks: 0 });
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
+    const status = handlers.get('ai:status')!;
+    handlers.set('ai:status', async (...args: unknown[]) => {
+      if (s.armed) {
+        s.armed = false;
+        s.held = true;
+        await new Promise<void>((resolve) => (s.release = resolve));
+        s.held = false;
+      }
+      return status(...args);
+    });
+    const plan = handlers.get('ai:plan-check')!;
+    handlers.set('ai:plan-check', async (...args: unknown[]) => {
+      s.planChecks++;
+      return plan(...args);
+    });
+  });
+}
+const ss = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { __s: S }).__s);
+const armStatus = (app: ElectronApplication) => app.evaluate(() => void ((globalThis as unknown as { __s: S }).__s.armed = true));
+const releaseStatus = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { __s?: S }).__s?.release?.());
+const cleanup2 = async (app: ElectronApplication, page: Page) => {
+  await releaseStatus(app).catch(() => {});
+  await cleanup(app, page);
+};
+/** Two의 '이 화 검사'를 승인하고, 최종 실행 뒤 모델 재확인(ai:status)이 붙잡히고 최종 재계산(ai:plan-check)이 수신된 상태로 만든다 */
+async function prepHeld(app: ElectronApplication, page: Page) {
+  await holdStatus(app);
+  await page.getByRole('button', { name: '이 화 검사', exact: true }).click();
+  await dialog(page).waitFor(); // 첫 확인 창 (모델 A)
+  const plansBefore = (await ss(app)).planChecks;
+  assert.equal(plansBefore, 1, '첫 확인 창의 계획 한 번');
+  await armStatus(app);
+  await dialog(page).locator('button.primary').click();
+  await until('최종 재확인(ai:status)이 붙잡히지 않았다', async () => (await ss(app)).held);
+  await until('최종 재계산(ai:plan-check)이 수신되지 않았다', async () => (await ss(app)).planChecks > plansBefore);
+  assert.equal(responses().length, 0, '승인 직후 준비 구간에서는 선행 분석 요청도 없다');
+}
+
+for (const [name, path] of [
+  ['Two → One', ['One']],
+  ['Two → One → Two', ['One', 'Two']],
+] as const) {
+  test(`검사 최종 승인 뒤 재확인을 기다리는 중 화 이동(${name}) 후 모델이 달라져도, 이전 화의 확인 창·[다시 시도]를 만들지 않고 AI 요청도 0이며 입력이 풀린다`, { timeout: 120_000 }, async () => {
+    const { dir, app, page, B } = await setup();
+    try {
+      const before = await bytes(dir);
+      await prepHeld(app, page);
+      for (const title of path) {
+        await nav(page, title).click();
+        await page.locator('.ProseMirror').getByText(textOf(title)).waitFor();
+      }
+      await page.evaluate((m) => window.loreweave.ai.setModel(m), B);
+      await releaseStatus(app);
+      await page.waitForTimeout(600);
+      assert.equal(responses().length, 0, '선행 분석·검사 요청이 없다');
+      assert.equal(await dialog(page).count(), 0, '이전 화의 확인 창이 다시 열리지 않았다');
+      assert.equal(await page.getByRole('button', { name: '다시 시도', exact: true }).count(), 0);
+      assert.equal(await page.locator('.ProseMirror').getAttribute('contenteditable'), 'true', '입력이 풀렸다');
+      assert.deepEqual(await bytes(dir), before, '원고 바이트는 그대로다');
+    } finally {
+      await cleanup2(app, page);
+    }
+  });
+}
+
+test('대조: 같은 화에서 검사 최종 승인 뒤 모델이 달라지면 새 B 검사 확인 창(대상·모델 표시, 요청 0) → 취소 0 → 새 확인·B 명시 승인 뒤에만 선행 분석과 검사가 모두 B로 나간다', { timeout: 120_000 }, async () => {
+  const { dir, app, page, B } = await setup();
+  try {
+    const before = await bytes(dir);
+    const labelB = (await page.evaluate(() => window.loreweave.ai.status())).models.find((m) => m.id === B)!.label;
+    await prepHeld(app, page);
+    await page.evaluate((m) => window.loreweave.ai.setModel(m), B);
+    await releaseStatus(app);
+    await dialog(page).waitFor();
+    const text = await dialog(page).innerText();
+    assert.ok(text.includes(labelB), '새 확인 창이 B를 보인다');
+    assert.ok(text.includes('비교할까요') && text.includes('001.md') && text.includes('002.md'), `새 확인 창이 이 화 검사(앞 화 비교)와 먼저 분석할 두 화를 보인다: ${JSON.stringify(text)}`);
+    await page.waitForTimeout(300);
+    assert.equal(responses().length, 0, '확인 전에는 요청이 없다');
+    await dialog(page).getByRole('button', { name: '취소', exact: true }).click();
+    await page.waitForTimeout(300);
+    assert.equal(responses().length, 0, '취소 뒤에도 요청이 없다');
+    await page.getByRole('button', { name: '이 화 검사', exact: true }).click();
+    await dialog(page).waitFor();
+    await dialog(page).locator('button.primary').click(); // B 명시 승인
+    await until('선행 분석 2건과 검사 1건이 나가지 않았다', async () => responses().length >= 3);
+    const kinds = responses().map((r) => `${kindOf(r)}:${modelOf(r)}`).sort();
+    assert.deepEqual(kinds, [`check:${B}`, `extract:${B}`, `extract:${B}`], '요청 종별마다 B');
+    assert.deepEqual(await bytes(dir), before);
+  } finally {
+    await cleanup2(app, page);
+  }
+});
