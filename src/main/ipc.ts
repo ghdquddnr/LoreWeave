@@ -245,6 +245,11 @@ export function guardWindowClose(win: BrowserWindow): void {
     pending.asking?.abort();
     pending = null;
   };
+  /** 사용자가 닫기를 취소했거나 안내를 띄우지 못해 이 시도를 끝낸다: 저장 응답을 기다리는 renderer가 이 시도가 건 편집 잠금을 돌려주도록 알린다 */
+  const cancel = (attempt: CloseAttempt) => {
+    if (!win.isDestroyed()) win.webContents.send(CHANNELS.closeCancelled, attempt.id);
+    end();
+  };
   const close = () => {
     allowed = true;
     if (!win.isDestroyed()) win.close();
@@ -272,11 +277,11 @@ export function guardWindowClose(win: BrowserWindow): void {
           if (pending !== attempt || attempt.asking !== asking) return; // 이미 끝났거나 취소된 시도
           attempt.asking = null;
           if (response === 0) attempt.timer = setTimeout(() => ask(attempt), CLOSE_TIMEOUT_MS);
-          else end();
+          else cancel(attempt);
         },
         () => {
           // 안내를 띄우지 못했거나 도중에 끊겼다: 닫지 않고 시도를 끝낸다 (저장 확인 없이 닫지 않는다)
-          if (pending === attempt && attempt.asking === asking) end();
+          if (pending === attempt && attempt.asking === asking) cancel(attempt);
         },
       );
   };

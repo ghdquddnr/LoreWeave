@@ -60,6 +60,11 @@ const api: LoreweaveApi = {
     },
     replyClose: (proceed, attempt) => ipcRenderer.send(CHANNELS.replyClose, proceed, attempt),
     unsavedClose: (attempt) => ipcRenderer.send(CHANNELS.closeUnsaved, attempt),
+    onCloseCancelled(listener) {
+      const handler = (_event: unknown, attempt: number) => listener(attempt);
+      ipcRenderer.on(CHANNELS.closeCancelled, handler);
+      return () => ipcRenderer.off(CHANNELS.closeCancelled, handler);
+    },
   },
 };
 
