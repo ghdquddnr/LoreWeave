@@ -33,10 +33,12 @@ async function holdAnalyze(app: ElectronApplication) {
     const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
     const original = handlers.get('ai:analyze')!;
     handlers.set('ai:analyze', async (...args: unknown[]) => {
-      g.entered++;
-      g.held = true;
-      await new Promise<void>((resolve) => (g.release = resolve));
-      g.held = false;
+      // 첫 호출만 붙잡는다 (다시 확인 뒤의 호출은 그대로 통과)
+      if (++g.entered === 1) {
+        g.held = true;
+        await new Promise<void>((resolve) => (g.release = resolve));
+        g.held = false;
+      }
       return original(...args); // 실제 handler: 이 뒤에 설정을 다시 읽는다
     });
   });
@@ -85,6 +87,7 @@ test('최종 확인 뒤 실행 handler가 설정을 읽기 전에 모델이 바�
   const { dir, app, page, A, B } = await setup();
   try {
     const before = await bytes(dir);
+    const labelB = (await page.evaluate(() => window.loreweave.ai.status())).models.find((m) => m.id === B)!.label;
     await holdAnalyze(app);
     await page.getByRole('button', { name: '이 화 분석', exact: true }).click();
     await dialog(page).locator('button.primary').click(); // 승인한 모델은 A
@@ -98,6 +101,21 @@ test('최종 확인 뒤 실행 handler가 설정을 읽기 전에 모델이 바�
     assert.deepEqual(models, [], '보내지 않았다');
     assert.ok((await page.getByRole('alert').count()) >= 1, '오류 안내가 보인다');
     assert.equal(await page.locator('.ProseMirror').getAttribute('contenteditable'), 'true', '입력이 풀렸다');
+    // 거절 뒤 명시적 재확인 경로: [다시 시도]는 새 계획과 새 모델 표시의 확인 창만 열고, 사용자가 승인하기 전에는 아무것도 보내지 않는다
+    const retryButton = page.getByRole('button', { name: '다시 시도', exact: true });
+    assert.equal(await retryButton.count(), 1, '[다시 시도]가 있다');
+    await retryButton.click();
+    await dialog(page).waitFor();
+    assert.ok((await dialog(page).innerText()).includes(labelB), `확인 창이 새 모델 B(${labelB})를 보인다`);
+    await page.waitForTimeout(300);
+    assert.equal(responses().length, 0, '승인 전에는 요청이 없다');
+    assert.equal(await page.getByRole('button', { name: '다시 시도', exact: true }).count(), 0, '확인 창이 열린 동안 오래된 [다시 시도]는 없다');
+    await dialog(page).locator('button.primary').click(); // 사용자가 B를 명시 승인
+    await until('B 분석 요청이 나가지 않았다', async () => responses().length >= 1);
+    assert.ok(responses().every((r) => modelOf(r) === B), `B 승인 뒤 요청: ${JSON.stringify(responses().map(modelOf))}`);
+    const sent = responses().length;
+    await page.waitForTimeout(300);
+    assert.equal(responses().length, sent, '재시도·승인으로 추가 전송이 없다');
     assert.deepEqual(await bytes(dir), before, '원고 바이트는 그대로다');
   } finally {
     await cleanup(app, page);
