@@ -272,6 +272,7 @@ test('창 닫기의 선행 저장 동안 편집이 잠겨 Y는 수락되지 않�
     assert.equal(editable, 'false', '닫기의 저장 동안 편집 잠금 (자동저장이 아니라 닫기 조작이 건 잠금)');
     assert.equal(held.windows, 1, '저장 중에는 창이 그대로다');
     assert.equal(held.discards.length + held.waits, 0, '붙잡힌 동안 native 안내 0');
+    assert.equal(held.creates + held.reissues + held.ais, 0, '불필요한 create/reissue/AI 진입 0 (붙잡힌 시점)');
     assert.deepEqual(await read('001.md'), Buffer.from(A1), '저장이 디스크에 닿기 전이다');
     assert.deepEqual(await read('002.md'), Buffer.from(B2));
     assert.deepEqual(await read('003.md'), Buffer.from(C3));
@@ -282,7 +283,9 @@ test('창 닫기의 선행 저장 동안 편집이 잠겨 Y는 수락되지 않�
     assert.equal(await editor(page).getByText('A첫째 본문 X', { exact: true }).count(), 1, '잠그기 전에 받은 X는 그대로다');
     assert.deepEqual(await read('001.md'), Buffer.from(A1), 'Y 시도 뒤에도 첫 저장은 아직 디스크에 닿지 않았다');
 
-    // 저장을 풀면 폐기 확인·대기 안내 없이 닫힌다 (거절·취소 대역이 걸려 있다: 뜨면 닫히지 못해 실패한다)
+    // 저장을 풀면 폐기 확인·대기 안내 없이 닫힌다 (거절·취소 대역이 걸려 있다: 뜨면 닫히지 못해 실패한다). 앱이 종료되면 main을 읽을 수 없으므로 풀기 직전에 한 번 더 본다
+    const beforeRelease = await state(app);
+    assert.equal(beforeRelease.creates + beforeRelease.reissues + beforeRelease.ais, 0, '불필요한 create/reissue/AI 진입 0 (풀기 직전)');
     await setStrict(app);
     await release(app);
     await awaitClosed(app, life);
@@ -389,6 +392,9 @@ test('실제 timeout: [계속 기다리기] 동안은 잠금이 유지되고, [�
     await waitUntil('XZ가 저장되지 않았다', async () => (await read('001.md')).toString('utf8') === withBody(' X Z'));
     assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X Z')));
     await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 15_000 });
+    const preClose = await state(app);
+    assert.equal(preClose.creates + preClose.reissues + preClose.ais, 0, '불필요한 create/reissue/AI 진입 0 (닫기 전)');
+    assert.deepEqual(await readdir(join(dir, 'chapters')), Object.keys(files), '화 파일 수·이름 불변');
     await setStrict(app);
     await closeWithoutAsking(app, life);
     await reopen(dir, 'A첫째 본문 X Z', withBody(' X Z'));
@@ -427,8 +433,13 @@ test('겹침: 취소한 시도의 저장이 아직 붙잡힌 채 새 닫기 시�
     assert.equal(await editor(page).getAttribute('contenteditable'), 'false', '옛 시도의 늦은 finally가 새 시도의 잠금을 풀지 않았다');
     assert.equal((await state(app)).windows, 1);
     assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X')), '재저장 전에는 시도 1의 X만 디스크에 있다');
+    const preClose = await state(app);
+    assert.equal(preClose.creates + preClose.reissues + preClose.ais, 0, '불필요한 create/reissue/AI 진입 0 (닫기 전)');
+    // 시도 2의 재저장이 붙잡힌 지금은 진행 중인 임시 파일이 있다 (정상): 그것만 빼고 화 파일은 그대로이고, 닫힌 뒤에는 임시 파일도 남지 않는다
+    assert.deepEqual((await readdir(join(dir, 'chapters'))).filter((f) => !f.endsWith('.tmp')), Object.keys(files), '화 파일 수·이름 불변 (진행 중 임시 파일 제외)');
     await release(app);
     await awaitClosed(app, life);
+    assert.deepEqual(await readdir(join(dir, 'chapters')), Object.keys(files), '닫힌 뒤 화 파일 수·이름 불변, 임시 파일 0');
     assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X Z')), '새 시도의 저장이 XZ를 정확히 남겼다');
     await reopen(dir, 'A첫째 본문 X Z', withBody(' X Z'));
     assert.deepEqual(await read('002.md'), Buffer.from(B2));
