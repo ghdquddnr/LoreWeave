@@ -160,8 +160,38 @@ test('닫기의 선행 저장 동안 편집이 잠겨 Y는 수락되지 않고, 
     assert.equal(await closeButton(page, 'A첫째').count(), 1, '저장 중에는 탭이 그대로다');
     assert.deepEqual(await read('001.md'), Buffer.from(A1), '저장이 디스크에 닿기 전이다');
     // 붙잡힌 동안 추가 입력 Y를 실제 에디터로 시도: 수락되지 않는다 (유실이 아니라 미수락: 화면에 들어오지 않았다)
+    // 입력 시도 경로: (1) 잠긴 실제 본문에 사용자처럼 pointer click (DOM의 contenteditable·PM transaction은 건드리지 않는다) → (2) 키 입력.
+    // 키 이벤트의 실제 target과 click 지점의 요소를 따로 기록한다: 잠금 때문에 본문이 focus를 못 받으면 키는 다른 요소(닫기 버튼 등)로 갈 수 있다 — 그 경우 "Y 미수락"의 범위는 click이 본문을 향했다는 증거 + 본문에 글자가 들어오지 않았다는 관측으로 한정된다
+    await page.evaluate(() => {
+      const w = window as unknown as { keyTargets: { key: string; tag: string; inEditor: boolean }[] };
+      w.keyTargets = [];
+      document.addEventListener(
+        'keydown',
+        (e) => {
+          const t = e.target as HTMLElement;
+          w.keyTargets.push({ key: e.key, tag: t.tagName, inEditor: !!t.closest?.('.ProseMirror') });
+        },
+        true,
+      );
+    });
+    const box = (await editor(page).boundingBox())!;
+    const point = { x: box.x + Math.min(box.width / 2, 40), y: box.y + Math.min(box.height / 2, 12) };
+    const clickTarget = await page.evaluate(({ x, y }) => {
+      const el = document.elementFromPoint(x, y);
+      return { tag: el?.tagName ?? null, inEditor: !!el?.closest('.ProseMirror') };
+    }, point);
+    await editor(page).click({ position: { x: Math.min(box.width / 2, 40), y: Math.min(box.height / 2, 12) } });
     await page.keyboard.press('Control+End');
     await page.keyboard.type(' Y');
+    const keyTargets = await page.evaluate(() => (window as unknown as { keyTargets: { key: string; tag: string; inEditor: boolean }[] }).keyTargets);
+    const after = await page.evaluate(() => {
+      const a = document.activeElement as HTMLElement | null;
+      return { tag: a?.tagName ?? null, inEditor: !!a?.closest('.ProseMirror'), editable: document.querySelector('.ProseMirror')?.getAttribute('contenteditable') };
+    });
+    console.error('TAB_CLOSE_Y_ATTEMPT', JSON.stringify({ clickTarget, active: after, keys: keyTargets.length, keyTargetsInEditor: keyTargets.filter((k) => k.inEditor).length, keyTags: [...new Set(keyTargets.map((k) => k.tag))] }));
+    assert.equal(clickTarget.inEditor, true, 'pointer click 지점은 실제 에디터 본문이다');
+    assert.equal(after.editable, 'false', 'click·입력 시도 뒤에도 에디터는 잠겨 있다');
+    assert.ok(keyTargets.length >= 3, '입력 시도 키가 실제로 전달됐다');
     assert.equal(await editor(page).getByText('A첫째 본문 X Y', { exact: true }).count(), 0, 'Y는 수락되지 않았다');
     assert.equal(await editor(page).getByText('A첫째 본문 X', { exact: true }).count(), 1, '잠그기 전에 받은 X는 그대로다');
 
@@ -172,13 +202,16 @@ test('닫기의 선행 저장 동안 편집이 잠겨 Y는 수락되지 않고, 
     assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X')), 'X만 원래 id·BOM·CRLF로 정확히 저장됐다');
     // 이웃 B는 편집 가능하다 (잠금이 새 에디터에 남지 않는다)
     await waitUntil('이웃 B 편집 잠금이 풀리지 않았다', async () => (await editor(page).getAttribute('contenteditable')) === 'true');
+    assert.deepEqual(await read('002.md'), Buffer.from(B2), 'B를 편집하기 전에 B 디스크는 원래 그대로다');
     await editor(page).click();
     await page.keyboard.press('Control+End');
     await page.keyboard.type(' B편집');
     await editor(page).getByText('B둘째 본문 B편집', { exact: true }).waitFor();
-    // A를 다시 열면 X가 있고, 다른 화는 불변이다
+    // 잠금 중 Y가 들어오지 않았던 것과 대조: 해제 뒤 B에는 실제 입력이 수락됐다
+    // A를 다시 열면 X가 있고(화 이동의 저장이 B 편집을 B에만 쓴다), 다른 화는 불변이다
     await list(page).getByRole('button', { name: 'A첫째' }).click();
     await editor(page).getByText('A첫째 본문 X', { exact: true }).waitFor();
+    assert.deepEqual(await read('002.md'), Buffer.from(B2.replace('B둘째 본문', 'B둘째 본문 B편집')), 'B에는 의도한 편집만 저장됐다');
     assert.equal(await editor(page).getAttribute('contenteditable'), 'true');
     assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X')));
     assert.deepEqual(await read('003.md'), Buffer.from(C3), '다른 화 불변');
@@ -252,7 +285,7 @@ test('닫기 저장이 붙잡힌 동안 [열기]가 겹쳐도(폴더 선택 취�
   const { app, page, read, dialogs } = await start('tcls-overlap');
   try {
     await closeWithHeldSave(app, page);
-    // 폴더 선택 창은 취소로 답한다 (project:choose는 나가지 않는다)
+    // 폴더 선택 창은 취소로 답한다 (project:choose 처리기는 진입해 창을 열고 null로 돌아온다: 새 프로젝트는 열리지 않는다). 창 호출 수(pickCalls)로 겹침이 실제 실행됐음을 본다
     await app.evaluate(({ dialog }) => {
       (globalThis as unknown as { pickCalls: number }).pickCalls = 0;
       dialog.showOpenDialog = (async () => {
@@ -268,6 +301,7 @@ test('닫기 저장이 붙잡힌 동안 [열기]가 겹쳐도(폴더 선택 취�
     await waitUntil('겹친 조작이 끝나지 않았다', async () => !(await page.getByRole('button', { name: '열기', exact: true }).isDisabled()));
     await waitUntil('이웃 B가 영구 잠겼다', async () => (await editor(page).getAttribute('contenteditable')) === 'true');
     const end = await state(app);
+    assert.equal(await app.evaluate(() => (globalThis as unknown as { pickCalls: number }).pickCalls), 1, '겹친 [열기]가 실제로 실행되어 폴더 창을 한 번 열었다 (취소)');
     assert.equal(end.writes, 1, 'X 저장은 한 번 (겹친 조작이 다시 쓰지 않는다)');
     assert.equal(end.creates + end.reissues + end.ais, 0);
     assert.deepEqual(dialogs.asked, [], '묻지 않는다');
