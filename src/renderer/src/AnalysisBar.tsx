@@ -6,7 +6,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { AnalysisState, AnalyzeProgress, CheckOutcome, CheckPlan } from '../../preload/api.ts';
+import { MODEL_CHANGED, type AnalysisState, type AnalyzeProgress, type CheckOutcome, type CheckPlan } from '../../preload/api.ts';
 import { ErrorNote } from './ErrorNote.tsx';
 import { modalKeyDown, useModalFocus } from './useModal.ts';
 import { type FriendlyError, friendlyError } from './userError.ts';
@@ -50,6 +50,8 @@ interface ConfirmDialog {
   plan: Plan;
   /** 지금 설정된 모델 이름 */
   model: string;
+  /** 승인한 모델의 ID (label이 아니라 설정 값). 분석 요청에 실어 main이 지금 설정과 비교한다 */
+  modelId: string;
   /** 처음 필요한 실행이라 같은 창에서 전송 동의도 받는다 */
   needsConsent: boolean;
   /** 이 계획이 속한 화 (null: 프로젝트 범위) */
@@ -164,7 +166,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     }
   };
 
-  const execute = async (kind: 'analysis' | 'check', work: () => Promise<Result>, unsavedText: string) => {
+  const execute = async (kind: 'analysis' | 'check', work: () => Promise<Result>, unsavedText: string, onError?: (e: unknown) => void) => {
     const myRun = ++runId.current;
     activeRun.current = myRun;
     setCancelNote(null);
@@ -183,6 +185,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       setResult(await sending);
     } catch (e) {
       setError(friendlyError(e));
+      onError?.(e);
     } finally {
       unlock();
       if (activeRun.current === myRun) activeRun.current = null;
@@ -192,8 +195,16 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     }
   };
 
-  const analyze = (files: string[], unsavedText: string) =>
-    execute('analysis', async () => ({ kind: 'analysis', progress: await api.ai.analyze(files, projectToken) }), unsavedText);
+  const analyze = (files: string[], modelId: string, owner: string | null, unsavedText: string) => {
+    const mine = requestSeq.current;
+    return execute('analysis', async () => ({ kind: 'analysis', progress: await api.ai.analyze(files, projectToken, modelId) }), unsavedText, (e) => {
+      // 승인한 모델과 지금 설정이 달라 main이 보내지 않았다: 같은 대상에 대해 새 계획·새 모델 표시의 확인을 다시 받는다 (자동으로 다시 보내지 않고 이전 승인도 쓰지 않는다).
+      // 그 사이 프로젝트가 바뀌었으면(요청 번호) 새 프로젝트에 다시 시도를 만들지 않는다
+      if (mine !== requestSeq.current || !(e instanceof Error) || !e.message.includes(MODEL_CHANGED)) return;
+      planOwner.current = owner;
+      setRetry(() => () => startAnalysis(files, owner));
+    });
+  };
   const check = (target: string, unsavedText: string) =>
     execute('check', async () => ({ kind: 'check', outcome: await api.ai.runCheck(target, projectToken) }), unsavedText);
 
@@ -213,7 +224,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       const plan = await build();
       if (mine !== requestSeq.current) return;
       const model = status.models.find((m) => m.id === status.model)?.label ?? status.model;
-      setDialog({ plan, model, needsConsent: !consentRef.current, owner });
+      setDialog({ plan, model, modelId: status.model, needsConsent: !consentRef.current, owner });
     } catch (e) {
       if (mine === requestSeq.current) {
         setError(friendlyError(e));
@@ -278,15 +289,15 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       const [fresh, status] = await Promise.all([replan(d.plan), api.ai.status()]);
       if (mine !== requestSeq.current) return;
       const model = status.models.find((m) => m.id === status.model)?.label ?? status.model;
-      if (!samePlan(d.plan, fresh) || model !== d.model) {
+      if (!samePlan(d.plan, fresh) || status.model !== d.modelId) {
         // 확인 뒤 원고나 모델이 달라졌다: 보내지 않고 새 값으로 다시 확인받는다
         setError(null);
         setNotice('확인한 뒤 원고 내용이나 모델이 달라져 범위와 비용을 다시 확인합니다. 아직 아무것도 보내지 않았습니다.');
-        setDialog({ plan: fresh, model, needsConsent: false, owner: d.owner });
+        setDialog({ plan: fresh, model, modelId: status.model, needsConsent: false, owner: d.owner });
         return;
       }
       // 같은 값이 확인됐다: 요청을 보내는 순간까지 잠금을 유지하고(execute가 보낸 직후 푼다) 실행한다
-      if (d.plan.kind === 'analysis') await analyze(d.plan.files, unsavedMessage(d.plan));
+      if (d.plan.kind === 'analysis') await analyze(d.plan.files, d.modelId, d.owner, unsavedMessage(d.plan));
       else await check(d.plan.file, unsavedMessage(d.plan));
     } catch (e) {
       // 확인 뒤의 어떤 단계가 실패해도 조용히 닫지 않는다: 사용자용 안내와 기술 상세, 다시 시도. (프로젝트가 바뀐 뒤의 늦은 오류는 보이지 않는다)

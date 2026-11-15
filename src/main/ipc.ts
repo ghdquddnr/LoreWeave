@@ -6,7 +6,7 @@ import { basename, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { MODELS } from '../core/ai/models.ts';
 import { CHAPTERS_DIR } from '../core/project/chapters.ts';
-import { CHANNELS, STALE_PROJECT, type AiStatus, type ProjectOpened } from '../preload/api.ts';
+import { CHANNELS, MODEL_CHANGED, STALE_PROJECT, type AiStatus, type ProjectOpened } from '../preload/api.ts';
 import { createOpenAiClient, toAiError } from './ai-client.ts';
 import { MIN_CONFIDENCE } from '../core/ai/detection.ts';
 import { AiStore } from './ai-db.ts';
@@ -486,6 +486,8 @@ export function registerIpc(): void {
     sender: Electron.WebContents,
     token: number,
     work: (o: Parameters<typeof analyzeChapters>[1]) => Promise<T>,
+    /** 확인 창에서 승인한 모델 ID. null이면 확인하지 않는다 (검사 경로는 이번에 바꾸지 않았다) */
+    approvedModel: string | null = null,
   ): Promise<T> => {
     const path = requireProject(token);
     if (analyzing) throw new Error('이미 분석 중입니다');
@@ -494,6 +496,8 @@ export function registerIpc(): void {
     analyzing = controller;
     try {
       const settings = await readSettings(userData());
+      // 승인한 모델과 지금 설정이 다르면 아무것도 보내지 않는다 (설정을 되돌리지도 않는다: 사용자가 다시 확인한다)
+      if (approvedModel !== null && settings.aiModel !== approvedModel) throw new Error(MODEL_CHANGED);
       if (!settings.aiSendConsent) throw new Error('원고 전송에 동의해야 분석할 수 있습니다');
       const key = await loadApiKey(userData());
       if (!key) throw new Error('API 키가 없습니다. 설정에서 키를 넣으세요.');
@@ -521,7 +525,11 @@ export function registerIpc(): void {
       if (analyzing === controller) analyzing = null;
     }
   };
-  ipcMain.handle(CHANNELS.aiAnalyze, (event, files: string[], token: number) => runAi(event.sender, token, (o) => analyzeChapters(files, o)));
+  ipcMain.handle(CHANNELS.aiAnalyze, (event, files: string[], token: number, model: unknown) => {
+    // 승인한 모델 ID가 없으면 현재 설정으로 대신하지 않고 거절한다
+    if (typeof model !== 'string' || !model) return Promise.reject(new Error(MODEL_CHANGED));
+    return runAi(event.sender, token, (o) => analyzeChapters(files, o), model);
+  });
   ipcMain.handle(CHANNELS.aiPlanCheck, async (_e, file: string, token: number) => {
     const path = requireProject(token);
     // 계획을 기다리는 사이 다른 프로젝트(같은 폴더 다시 열기 포함)를 열면 이 저장소는 닫혔을 수 있다: 옛 계획이나 닫힌 저장소의 오류 대신 STALE_PROJECT로 끝낸다 (aiAnalysisStatus와 같다)

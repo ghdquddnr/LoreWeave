@@ -30,6 +30,8 @@ export interface ProjectOpened {
 }
 
 /** 요청한 프로젝트가 지금 열린 프로젝트가 아닐 때 main이 돌려주는 오류 문구 */
+/** 분석 실행 확인에서 승인한 모델이 지금 설정과 다르거나 승인한 모델이 함께 오지 않아 보내지 않았다 */
+export const MODEL_CHANGED = '확인한 모델과 지금 설정된 모델이 달라 분석하지 않았습니다. 아직 아무것도 보내지 않았습니다. 다시 확인하세요';
 export const STALE_PROJECT = '원고 폴더가 바뀌어 이 요청을 처리하지 않았습니다';
 
 export interface AiStatus {
@@ -121,7 +123,7 @@ export interface LoreweaveApi {
      */
     estimate(files: string[], token: number): Promise<{ chars: number; costUsd: number }>;
     /** 화들을 차례로 분석한다. 진행 상황은 onProgress로 온다 */
-    analyze(files: string[], token: number): Promise<AnalyzeProgress>;
+    analyze(files: string[], token: number, model: string): Promise<AnalyzeProgress>;
     cancel(): Promise<void>;
     onProgress(listener: (progress: AnalyzeProgress) => void): () => void;
     /** 저장된 분석 결과 */
