@@ -37,15 +37,16 @@ interface G {
   ais: number;
   /** native 폐기 확인 기록 (문구·버튼). 거절만 답한다 */
   discards: { message: string; buttons: string[] }[];
-  /** 폐기 확인이 아닌 native 안내(저장 대기 등) 수: 계속 기다리기로 답한다 */
+  /** 폐기 확인이 아닌 native 안내(저장 대기 등) 수: 기본은 계속 기다리기로 답하고, strictWait이면 [닫기 취소]로 답해 닫기를 막는다 */
   waits: number;
+  strictWait: boolean;
   release?: () => void;
 }
 const hook = (app: ElectronApplication, target: string) =>
   app.evaluate(
     ({ ipcMain, dialog }, target) => {
       const g = globalThis as unknown as G;
-      Object.assign(g, { armed: false, held: false, failRename: false, opens: 0, renames: 0, writes: 0, creates: 0, reissues: 0, ais: 0, discards: [], waits: 0 });
+      Object.assign(g, { armed: false, held: false, failRename: false, opens: 0, renames: 0, writes: 0, creates: 0, reissues: 0, ais: 0, discards: [], waits: 0, strictWait: false });
       // 이 함수는 앱 안에서 실행된다: 이름 붙은 도우미 함수를 두지 않는다
       const fsp = process.getBuiltinModule('fs/promises');
       const open = fsp.open;
@@ -91,7 +92,7 @@ const hook = (app: ElectronApplication, target: string) =>
           return Promise.resolve({ response: 1, checkboxChecked: false }); // [닫지 않기]: 폐기 거절
         }
         g.waits++;
-        return Promise.resolve({ response: 0, checkboxChecked: false }); // 저장 대기 안내: 계속 기다리기 (실제 창을 띄우지 않는다)
+        return Promise.resolve({ response: g.strictWait ? 1 : 0, checkboxChecked: false }); // 저장 대기 안내: 계속 기다리기 (strictWait이면 [닫기 취소]: 정상 닫기 판정에서 안내가 뜨면 닫기가 막혀 검사가 실패한다)
       }) as typeof dialog.showMessageBox;
       void prev;
     },
@@ -195,6 +196,35 @@ async function tryY(page: Page) {
   return info;
 }
 
+/**
+ * 정상 복구 뒤의 닫기 판정: launch.ts의 정리용 closeWindow(폐기 확인을 자동 수락한다)를 쓰지 않는다.
+ * 거절 전용 native 대역을 그대로 둔 채 실제 BrowserWindow.close를 요청하고, 제한된 시간 안에 앱이 종료되는지로 판정한다.
+ * 이 닫기에서 폐기 확인이 뜨면 대역이 거절하고(저장 대기 안내는 strictWait로 [닫기 취소]) 창이 남아 한도 뒤 검사가 실패한다 — 자동 폐기 수락으로 통과하지 않는다.
+ * 앱이 종료되면 main을 읽을 수 없으므로 "추가 확인 0"은 앱이 종료됐다는 사실(확인이 떴다면 거절되어 닫히지 못했을 것)로 입증한다.
+ */
+async function closeWithoutAsking(app: ElectronApplication, life: { appClosed: boolean }) {
+  const before = await state(app);
+  await app.evaluate(() => void ((globalThis as unknown as G).strictWait = true));
+  if (process.env.LW_FORCE_UNSAVED_CLOSE) {
+    // 감도 확인용 대역 (환경변수 LW_FORCE_UNSAVED_CLOSE=1일 때만 켜지고 평소에는 꺼져 있다. 켜면 이 검사가 실패해야 한다): renderer의 저장 완료 답을 "저장하지 못한 변경" 알림으로 바꿔 추가 폐기 확인 경로를 강제한다
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeAllListeners('app:reply-close');
+      ipcMain.on('app:reply-close', (e, _proceed: boolean, attempt: number) => {
+        console.error('FORCED_UNSAVED_CLOSE', attempt);
+        ipcMain.emit('app:close-unsaved', e, attempt);
+      });
+    });
+  }
+  void app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close()).catch(() => undefined); // 앱이 종료되면 응답이 끊긴다
+  const deadline = Date.now() + 20_000;
+  while (!life.appClosed && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25));
+  if (!life.appClosed) {
+    const after = await state(app).catch(() => null);
+    console.error('WINDOW_CLEAN_CLOSE_STUCK', JSON.stringify({ before: { discards: before.discards.length, waits: before.waits }, after: after && { discards: after.discards.length, waits: after.waits, windows: after.windows } }));
+  }
+  assert.equal(life.appClosed, true, '정상 복구 뒤 실제 창 닫기로 앱이 종료되어야 한다 (추가 폐기 확인·저장 대기 안내가 뜨면 거절되어 닫히지 못한다)');
+}
+
 /** 새 격리 앱으로 같은 폴더를 열어, 디스크 Buffer와 에디터 본문을 확인한다 */
 async function reopen(dir: string, expectedBody: string, expectedDisk: string) {
   const { app, page } = await launch(await tempDir('wcii-reopen-ud'));
@@ -258,9 +288,8 @@ test('창 닫기의 선행 저장 중 받아들인 입력: 닫히면 수락한 �
       await waitUntil('최종 본문이 저장되지 않았다', async () => (await read('001.md')).toString('utf8') === withBody(finalSuffix));
       assert.deepEqual(await read('001.md'), Buffer.from(withBody(finalSuffix)), '최종 본문이 원래 id·BOM·CRLF로 정확히 저장됐다');
       await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 15_000 });
-      // 정상 닫기: 묻지 않고 창이 닫힌다 (앱 종료 증거)
-      await closeWindow(app);
-      assert.equal(life.appClosed, true, '정상 닫기 뒤 앱이 종료됐다');
+      // 정상 닫기: 묻지 않고 창이 닫힌다 (앱 종료 증거. 정리용 자동 수락 closeWindow를 쓰지 않는다)
+      await closeWithoutAsking(app, life);
       await reopen(dir, `A첫째 본문${finalSuffix}`, withBody(finalSuffix));
     }
     assert.deepEqual(await read('002.md'), Buffer.from(B2));
@@ -307,9 +336,8 @@ test('창 닫기의 선행 저장이 쓰기 실패로 끝나고 폐기를 거절
     await waitUntil('최종 본문이 저장되지 않았다', async () => (await read('001.md')).toString('utf8') === withBody(finalSuffix));
     assert.deepEqual(await read('001.md'), Buffer.from(withBody(finalSuffix)), '최종 본문이 원래 id·BOM·CRLF로 정확히 저장됐다');
     await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 15_000 });
-    assert.equal((await state(app)).discards.length, 1, '복구 뒤 추가 폐기 확인 0');
-    await closeWindow(app);
-    assert.equal(life.appClosed, true, '정상 닫기 뒤 앱이 종료됐다');
+    assert.equal((await state(app)).discards.length, 1, '복구 뒤 추가 폐기 확인 0 (닫기 전)');
+    await closeWithoutAsking(app, life);
     await reopen(dir, `A첫째 본문${finalSuffix}`, withBody(finalSuffix));
     assert.deepEqual(await read('002.md'), Buffer.from(B2));
     assert.deepEqual(await read('003.md'), Buffer.from(C3));
