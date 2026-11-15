@@ -1,14 +1,17 @@
 // 검사 비용 계획 IPC(ai:plan-check)의 프로젝트 소유권: 계획을 기다리는 사이 다른 프로젝트(같은 폴더 다시 열기 포함)를 열면 옛 계획이나 닫힌 AI 저장소의 오류를 돌려주지 않고 STALE_PROJECT로 끝나는지 본다.
 // 장벽: 격리 userData의 settings.json 읽기(readSettings, handler가 계획 전에 기다린다) 반환을 붙잡는다. 실제 등록된 main handler가 계획을 처리하고 대역은 없다.
-// 합성 원고(BOM + CRLF + frontmatter)와 합성 AI DB fixture(빈 ai.db)만 쓴다. 실제 API·키·실원고는 쓰지 않는다. 계획은 읽기이므로 원고 바이트와 ai.db 호출 기록이 그대로인지 함께 본다.
+// 합성 원고(BOM + CRLF + frontmatter)와 합성 AI DB fixture(빈 ai.db)만 쓴다. 실제 API·키·실원고는 쓰지 않는다. 계획은 읽기이므로 첫 테스트는 실행한 A의 합성 파일 두 개(001.md, 002.md)의 바이트가 그대로인지 함께 본다 (ai.db 호출 기록은 보지 않는다).
+// 격리: hooks/main-isolated-userdata-entry.cjs가 제품 main을 불러오기 전에 이 테스트의 독점 새 userData를 강제하고 증거를 남긴다 (아래 setup이 그 증거를 확인한다).
 
 import assert from 'node:assert/strict';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
 import { AiStore } from '../../src/main/ai-db.ts';
 import { closeWindow, currentTokenFn, launch, stubFolderDialog, tempDir } from './launch.ts';
+
+const ENTRY = join(__dirname, 'hooks', 'main-isolated-userdata-entry.cjs');
 
 const STALE = /원고 폴더가 바뀌어/;
 const doc = (id: string, title: string, text: string) => `﻿---\r\nid: ${id}\r\ntitle: ${title}\r\n---\r\n${text}\r\n`;
@@ -67,10 +70,14 @@ async function setup(withAiDb = true) {
   const A = await project('plan-A', withAiDb);
   const B = await project('plan-B', true);
   const userData = await tempDir('plan-userdata');
-  const { app, page } = await launch(userData);
-  // 격리 증거: 앱의 userData가 방금 만든 빈 임시 폴더다 (기본 프로필이 아니다)
-  assert.equal(await app.evaluate(({ app: a }) => a.getPath('userData')), userData);
-  await install(app, join(userData, 'settings.json'));
+  const { app, page } = await launch(userData, { LW_TEST_USERDATA: userData }, ENTRY);
+  // 격리 증거: 시작 파일이 제품 main보다 먼저, 비어 있던 이 userData를 강제하고 기록했다. 앱의 userData도 같다 (기본 프로필이 아니다)
+  const evidence = JSON.parse(await readFile(join(userData, '.isolated-entry-evidence.json'), 'utf8')) as { stage: string; userData: string; entriesBefore: string[] };
+  assert.equal(evidence.stage, 'before-product-main');
+  assert.deepEqual(evidence.entriesBefore, []);
+  assert.equal(evidence.userData, await app.evaluate(({ app: a }) => a.getPath('userData')));
+  assert.equal((await realpath(userData)).toLowerCase(), evidence.userData.toLowerCase());
+  await install(app, join(evidence.userData, 'settings.json'));
   await stubFolderDialog(app, A);
   await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
   await chapter(page, 'Two').waitFor();
