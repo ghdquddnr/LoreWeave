@@ -792,6 +792,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
           </header>
           <SearchPanel
             key={projectGen}
+            projectToken={project.token}
             ref={search}
             active={searching}
             onActiveChange={setSearching}

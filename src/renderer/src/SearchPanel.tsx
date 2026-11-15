@@ -13,6 +13,8 @@ export interface SearchPanelHandle {
 }
 
 interface Props {
+  /** 이 검색창이 속한 프로젝트의 token (ProjectOpened.token). 검색 요청에 실어, 프로젝트가 바뀐 뒤의 옛 요청을 main이 거절하게 한다 */
+  projectToken: number;
   /** 검색 직전에 현재 화의 저장 안 된 변경을 저장한다 (결과가 화면과 같도록). false면 저장하지 못한 것이다 (편집기가 없으면 undefined) */
   beforeSearch(): Promise<boolean | void>;
   onOpen(hit: SearchHit, match: SearchHit['matches'][number]): void;
@@ -27,7 +29,7 @@ const NOT_SAVED = 'not-saved';
 const NOT_SAVED_NOTE = '저장하지 못해 검색하지 않았습니다. 저장 문제(저장 상태 표시)를 해결한 뒤 다시 검색하세요. 입력한 글은 그대로입니다.';
 
 export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchPanel(
-  { beforeSearch, onOpen, onResultShown, onActiveChange, active },
+  { projectToken, beforeSearch, onOpen, onResultShown, onActiveChange, active },
   ref,
 ) {
   const input = useRef<HTMLInputElement>(null);
@@ -62,6 +64,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
     const q = query;
     if (!q.trim()) return clear();
     const mine = ++seq.current;
+    const token = projectToken; // 검색을 시작한 때의 프로젝트 (저장을 기다리는 사이 바뀌면 main이 거절한다)
     inflight.current = true;
     setBusy(true);
     setError(null);
@@ -74,7 +77,7 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
       if (saved === false && mine === seq.current) throw new Error(NOT_SAVED);
       if (mine !== seq.current) return; // 저장을 기다리는 사이 취소됐거나 새 요청이 생겼다: 검색 요청을 보내지 않는다
       searched = true;
-      const found = await window.loreweave.chapters.search(q);
+      const found = await window.loreweave.chapters.search(q, token);
       if (mine !== seq.current) return;
       setResult({ ...found, query: q });
       onResultShown?.();

@@ -82,7 +82,8 @@ export interface LoreweaveApi {
     write(file: string, text: string, expectedHash: string | null, token: number): Promise<WriteResult>;
     create(token: number): Promise<{ file: string } & ChapterContent>;
     /** 원고 전체 검색. 색인이 준비될 때까지 기다린다 */
-    search(query: string): Promise<SearchResult>;
+    /** token: 검색을 시작한 화면의 프로젝트 token (ProjectOpened.token). 지금 열린 프로젝트가 아니면(초기 색인을 기다리는 사이 바뀐 경우 포함) STALE_PROJECT로 거절한다 */
+    search(query: string, token: number): Promise<SearchResult>;
     /**
      * frontmatter id를 새로 발급한다 (중복 id 해결). 새 화 목록을 돌려준다.
      * 발급은 디스크에 성공했지만 뒤이은 목록 조회가 실패하면 list는 null이고 listError에 이유가 있다 (발급 실패가 아니다: 다시 발급하지 않는다)

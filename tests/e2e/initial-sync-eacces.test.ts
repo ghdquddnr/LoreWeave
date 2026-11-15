@@ -10,7 +10,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+import { closeWindow, launch, searchExpr, stubFolderDialog, tempDir } from './launch.ts';
 
 const doc = (id: string, title: string, text: string) => `﻿---\r\nid: ${id}\r\ntitle: ${title}\r\n---\r\n${text}\r\n`;
 const ONE = doc('one', 'One', 'Alpha oneword');
@@ -21,7 +21,7 @@ const THREE_NEW = doc('three', 'Three', 'Gamma newthreeword');
 const editor = (page: Page) => page.locator('.ProseMirror');
 const chapter = (page: Page, title: string) => page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: title });
 const searchApi = (page: Page, q: string) =>
-  page.evaluate(`window.loreweave.chapters.search(${JSON.stringify(q)}).then((r) => ({ ok: true, total: r.total }), (e) => ({ ok: false, message: e.message }))`) as Promise<
+  page.evaluate(`${searchExpr(JSON.stringify(q))}.then((r) => ({ ok: true, total: r.total }), (e) => ({ ok: false, message: e.message }))`) as Promise<
     { ok: true; total: number } | { ok: false; message: string }
   >;
 /** 화면의 원고 검색 입력으로 검색하고, 화면에 보이는 결과(건수 요약 또는 오류 문구)를 돌려준다 */

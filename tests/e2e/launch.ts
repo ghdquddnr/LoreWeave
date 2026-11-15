@@ -256,3 +256,10 @@ export async function killApp(app: ElectronApplication, opts: Partial<CleanupOpt
   const result = await terminateApp(app, opts);
   if (!result.exited || !result.connectionClosed) throw new Error(`killApp: pid=${result.pid} 종료 확인=${result.exited ? '예' : '아니오'}, 연결 닫기=${result.connectionClosed ? '예' : '아니오'}: ${result.notes.join('; ')}`);
 }
+
+/**
+ * 렌더러 안에서 지금 열린 프로젝트의 token(화 목록 요청이 거절되지 않는 token)을 알아낸 뒤 그 token으로 chapters.search(query)를 호출하는 식 (page.evaluate용 문자열).
+ * 검색 요청이 프로젝트 token을 요구하므로, 앱 화면을 거치지 않고 검색 IPC를 직접 부르는 테스트가 쓴다
+ */
+export const currentTokenFn = `async () => { for (let t = 1; t < 400; t++) { try { await window.loreweave.chapters.list(t); return t; } catch {} } return -1; }`;
+export const searchExpr = (queryJson: string): string => `(async () => { const t = await (${currentTokenFn})(); return window.loreweave.chapters.search(${queryJson}, t); })()`;

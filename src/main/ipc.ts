@@ -535,9 +535,12 @@ export function registerIpc(): void {
     if (!store || !finding) throw new Error('무시를 취소할 검사 결과가 없습니다');
     store.undismiss(file, finding.category, finding.key);
   });
-  ipcMain.handle(CHANNELS.chaptersSearch, async (_e, query: string) => {
-    requireRoot();
+  ipcMain.handle(CHANNELS.chaptersSearch, async (_e, query: string, token: number) => {
+    // 검색을 시작한 화면의 프로젝트(token)가 지금 열린 프로젝트일 때만 받는다. token이 없거나 옛 것이면 현재 프로젝트로 보지 않는다
+    requireProject(token);
     await indexReady;
+    // 초기 색인을 기다리는 사이 다른 프로젝트(같은 폴더를 다시 연 것 포함)를 열었으면, 전역 index는 이제 새 프로젝트의 것이다: 그 색인으로 검색하거나 그 오류를 돌려주지 않는다
+    if (!stillOpen(token)) throw new Error(STALE_PROJECT);
     if (!index) throw new Error(`검색 색인을 만들 수 없습니다: ${indexError ?? '알 수 없는 이유'}`);
     // 색인이 중간에 실패했거나 갱신에 실패했다면 빠졌거나 오래된 화가 있을 수 있다: 그 색인으로 "없음" 등 정상 결과를 답하지 않는다. 편집·저장은 영향이 없고, 폴더를 다시 열면 다시 맞춘다
     if (indexBroken) throw new Error(`검색 색인을 갱신하지 못해 결과를 믿을 수 없습니다 (${indexBroken}). 원고는 그대로입니다. 폴더를 다시 열면 색인을 다시 맞춥니다.`);

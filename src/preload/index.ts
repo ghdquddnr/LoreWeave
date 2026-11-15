@@ -21,7 +21,7 @@ const api: LoreweaveApi = {
     read: (file, token) => ipcRenderer.invoke(CHANNELS.chapterRead, file, token),
     write: (file, text, expectedHash, token) => ipcRenderer.invoke(CHANNELS.chapterWrite, file, text, expectedHash, token),
     create: (token) => ipcRenderer.invoke(CHANNELS.chapterCreate, token),
-    search: (query) => ipcRenderer.invoke(CHANNELS.chaptersSearch, query),
+    search: (query, token) => ipcRenderer.invoke(CHANNELS.chaptersSearch, query, token),
     reissueId: (file, token) => ipcRenderer.invoke(CHANNELS.chapterReissueId, file, token),
     onChangedOutside(listener) {
       const handler = (_e: Electron.IpcRendererEvent, change: { file: string; hash: string | null }) => listener(change);
