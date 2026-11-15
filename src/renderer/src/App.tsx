@@ -425,22 +425,36 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       }
       const owner = document.activeElement;
       keepFocus.current = null;
-      if (!(await leave()) || !isCurrent(gen)) return;
-      const moved = document.activeElement;
-      if (moved && moved !== owner && moved !== document.body && moved.isConnected && moved instanceof HTMLElement) keepFocus.current = moved;
-      const list = tabsRef.current;
-      const at = list.indexOf(target);
-      const neighbor = list[at + 1] ?? list[at - 1] ?? null;
-      setTabs((t) => t.filter((f) => f !== target));
-      if (fileRef.current !== target) {
-        keepFocus.current = null;
-        return;
-      }
-      setJump(null);
-      setFile(neighbor);
-      if (neighbor === null) {
-        setSave({ status: { kind: 'saved' }, changesOnReopen: null });
-        setNotice(null);
+      // 마지막 저장 전에 먼저 잠근다 (chooseFolder·lockedAction과 같은 깊이 계수): 저장하는 동안 받은 입력이 정상 저장 뒤에도 "변경 버림" 확인을 부르지 않게 한다.
+      // 잠그기 전에 받은 입력은 아래 leave()가 저장한다. 잠금은 모든 반환 경로에서 finally가 한 번만 돌려준다
+      lockEditor();
+      let replaced = false;
+      try {
+        if (!(await leave())) return;
+        if (!isCurrent(gen)) {
+          replaced = true; // 프로젝트가 바뀌어 새 에디터가 대신한다
+          return;
+        }
+        const moved = document.activeElement;
+        if (moved && moved !== owner && moved !== document.body && moved.isConnected && moved instanceof HTMLElement) keepFocus.current = moved;
+        const list = tabsRef.current;
+        const at = list.indexOf(target);
+        const neighbor = list[at + 1] ?? list[at - 1] ?? null;
+        setTabs((t) => t.filter((f) => f !== target));
+        if (fileRef.current !== target) {
+          replaced = true; // 저장하는 사이 사용자가 다른 화로 옮겼다
+          keepFocus.current = null;
+          return;
+        }
+        replaced = true;
+        setJump(null);
+        setFile(neighbor);
+        if (neighbor === null) {
+          setSave({ status: { kind: 'saved' }, changesOnReopen: null });
+          setNotice(null);
+        }
+      } finally {
+        unlockEditor(replaced);
       }
     });
 
