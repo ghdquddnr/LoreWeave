@@ -46,7 +46,8 @@ Possible continuity error
 개발 실행: `corepack pnpm install` → `corepack pnpm dev`.
 
 **Windows x64 폴더형 실행본 만들기 (미서명, 설치 프로그램 아님):** `corepack pnpm package:win` — 빌드 뒤 이미 설치된 Electron 44 런타임을 복사해 **저장소 밖 임시 폴더**(`…\Temp\LoreWeave-win-x64-<고유값>`; `--out <새 폴더>`로 지정)에 실행 폴더를 만들고 위치를 출력합니다. 그 폴더째 복사해 `electron.exe`를 실행하면 개발 서버·pnpm 없이 뜹니다 (실행 때 인터넷 불필요, 빌드 준비 때는 `pnpm install`의 Electron 다운로드 필요). 출력 위치는 **실제 경로**로 검사해(junction/symlink 별칭 포함) 저장소·입력의 안·상위·같음, 링크, 비어 있지 않은 폴더를 거절합니다. 복사 전에 입력(Electron 런타임·빌드 산출물·`openai`)을 **엄격 허용 목록**으로 검사해, 목록에 없는 파일(원고·로그·키 등이 섞여 있을 때)이 하나라도 있으면 아무것도 복사하지 않고 실패합니다.
-- 한계: 서명하지 않아 Windows SmartScreen 경고가 뜰 수 있고(직접 확인하지 못했습니다), exe 이름·실행 파일 아이콘은 `electron.exe` 그대로입니다(창 아이콘은 `resources/app-icon.ico`). asar를 쓰지 않습니다. 이 폴더는 Git·릴리스에 올리지 않습니다. 설계: [docs/WINDOWS-PREVIEW-PLAN.md](docs/WINDOWS-PREVIEW-PLAN.md), 후속 계획(이름·아이콘·production 시작, 계획만 있음): [docs/WINDOWS-BRANDED-PREVIEW-PLAN.md](docs/WINDOWS-BRANDED-PREVIEW-PLAN.md).
+- 한계: 서명하지 않아 Windows SmartScreen 경고가 뜰 수 있고(직접 확인하지 못했습니다), exe 이름·실행 파일 아이콘은 `electron.exe` 그대로입니다(창 아이콘은 `resources/app-icon.ico`). asar를 쓰지 않습니다. 이 폴더는 Git·릴리스에 올리지 않습니다. 설계: [docs/WINDOWS-PREVIEW-PLAN.md](docs/WINDOWS-PREVIEW-PLAN.md), 후속 계획 문서(production 시작 경계 PR-1은 구현됨, 이름·아이콘·메타데이터 PR-2는 아직 계획만 있음): [docs/WINDOWS-BRANDED-PREVIEW-PLAN.md](docs/WINDOWS-BRANDED-PREVIEW-PLAN.md).
+- 실행본은 환경에 `ELECTRON_RENDERER_URL`(개발 서버 주소)이 있어도 그 서버를 읽지 않고 빌드된 화면을 엽니다 (개발 서버는 `electron-vite dev`처럼 `electron .`로 실행한 개발 흐름에서만 씁니다). 실행 파일 이름·아이콘·메타데이터를 `LoreWeave`로 바꾸는 작업(PR-2)은 아직 구현되지 않았고 [계획](docs/WINDOWS-BRANDED-PREVIEW-PLAN.md)만 있습니다.
 - **격리해서 시험하세요:** 실행본의 기본 설정·키 위치는 개발 때와 같을 수 있으므로 `electron.exe --user-data-dir=<빈 폴더>`로 실행하고, 원고는 **새로 만든 시험용 원고 폴더**만 여세요. 원고 색인·AI 결과(`.loreweave/index.db`, `.loreweave/ai.db`)는 userData가 아니라 **열어 본 원고 폴더 안**에 생기므로 실제 작품 폴더를 시험에 쓰지 마세요. 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
 
 ## 원칙

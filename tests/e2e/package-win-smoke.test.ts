@@ -9,6 +9,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -26,9 +27,10 @@ const rgb = (hex: string) => {
 };
 
 /** 실행본을 electron.exe로 직접 띄운다 (앱 경로 인자 없음, cwd는 저장소 밖) */
-async function launchPackaged(exe: string, userData: string): Promise<{ app: ElectronApplication; page: Page }> {
+async function launchPackaged(exe: string, userData: string, inheritedEnv: Record<string, string> = {}): Promise<{ app: ElectronApplication; page: Page }> {
   const env = { ...(process.env as Record<string, string>) };
-  delete env['ELECTRON_RENDERER_URL']; // 개발 서버 경로를 쓰지 않는다
+  delete env['ELECTRON_RENDERER_URL']; // 기본: 개발 서버 변수 없음 (상속 시나리오는 아래 별도 검사가 inheritedEnv로 설정한다)
+  Object.assign(env, inheritedEnv);
   const app = await _electron.launch({
     executablePath: exe,
     args: [`--user-data-dir=${userData}`, '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1'],
@@ -81,12 +83,17 @@ const aiCalls = (app: ElectronApplication) => app.evaluate(() => (globalThis as 
 const editor = (page: Page) => page.locator('.ProseMirror');
 const chapterButton = (page: Page, title: string) => page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: title });
 
+/** 첫 검사가 만든 실행본 (두 번째 검사가 같은 실행본을 쓴다: 다시 패키징하지 않는다) */
+const packaged: { out: string; exe: string } = { out: '', exe: '' };
+
 test('패키지 실행본(electron.exe 직접 실행, 개발 경로 없음): 환영→폴더 열기→입력→저장→닫기→재열기→검색, 4테마, 로컬 글꼴·고지, 보안 설정, 외부 요청 0 관측', { timeout: 300_000 }, async () => {
   // 1) 패키징: 저장소 밖의 새 폴더에 만든다
   const out = join(tmpdir(), `LoreWeave-win-x64-smoke-${Date.now().toString(36)}`);
   const packaging = execFileSync(process.execPath, ['--import', 'tsx', 'scripts/package-win.ts', '--out', out], { cwd: process.cwd(), encoding: 'utf8' });
   console.error('PACKAGE_WIN_OUTPUT', JSON.stringify({ out, summary: packaging.split('\n').filter((l) => l.includes('파일') || l.includes('위치')) }));
   const exe = join(out, 'electron.exe');
+  packaged.out = out;
+  packaged.exe = exe;
   const resourcesApp = join(out, 'resources', 'app');
   assert.ok((await stat(exe)).isFile());
   assert.equal(out.startsWith(process.cwd()), false, '출력은 저장소 밖이다');
@@ -207,5 +214,50 @@ test('패키지 실행본(electron.exe 직접 실행, 개발 경로 없음): 환
     console.error('PACKAGE_WIN_SMOKE_CAPTURES', captures);
   } finally {
     await closeWindow(second.app);
+  }
+});
+
+test('실행본은 상속된 ELECTRON_RENDERER_URL이 있어도 그 서버를 읽지 않고 file: renderer로 정상 부팅한다 (production 시작 경계)', { timeout: 200_000 }, async () => {
+  assert.ok(packaged.exe, '첫 검사가 실행본을 만들어 두어야 한다');
+  // 합성 loopback 서버: 앱 실행 전부터 준비·기록한다 (127.0.0.1만, 실제 외부 URL 없음). 요청이 오면 기록하고 식별 가능한 HTML을 돌려준다
+  const requests: string[] = [];
+  const server = createServer((req, res) => {
+    requests.push(`${req.method} ${req.url}`);
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end('<!doctype html><title>SYNTHETIC DEV SERVER</title><body>SYNTHETIC DEV SERVER</body>');
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as { port: number }).port;
+  const url = `http://127.0.0.1:${port}/index.html`;
+  const probe = await fetch(url);
+  assert.equal(probe.status, 200, '서버 준비 장벽: 앱 실행 전에 서버가 응답한다');
+  requests.length = 0; // 준비 확인 요청은 세지 않는다
+  const userData = await tempDir('pkgwin-guard-userdata');
+  const project = await tempDir('pkgwin-guard-project');
+  await mkdir(join(project, 'chapters'));
+  await writeFile(join(project, 'chapters', '001.md'), ONE);
+  const { app, page } = await launchPackaged(packaged.exe, userData, { ELECTRON_RENDERER_URL: url });
+  try {
+    const facts = await app.evaluate(({ app: electronApp }) => ({ defaultApp: process.defaultApp, isPackaged: electronApp.isPackaged, envUrl: process.env['ELECTRON_RENDERER_URL'] ?? null }));
+    console.error('PRODUCTION_GUARD_FACTS', JSON.stringify(facts));
+    assert.equal(facts.envUrl, url, '실행본 프로세스가 개발 서버 변수를 실제로 상속했다');
+    await page.waitForLoadState('load');
+    console.error('PRODUCTION_GUARD_LOADED', JSON.stringify({ url: page.url(), requests: [...requests] }));
+    // 창·renderer 준비 완료를 기준으로 본다: 환영 화면이 보이면 renderer가 부팅을 마쳤다
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).waitFor();
+    const loaded = page.url();
+    console.error('PRODUCTION_GUARD_URL', JSON.stringify({ loaded, requests }));
+    assert.match(loaded, /^file:.*renderer[\/]index\.html$/i, `file: renderer가 열렸다: ${loaded}`);
+    assert.equal(await page.getByText('SYNTHETIC DEV SERVER').count(), 0, '합성 서버의 페이지가 아니다');
+    assert.deepEqual(requests, [], '상속된 개발 서버 주소로 요청이 0이다');
+    // 앱이 정상 동작한다: 새 합성 프로젝트를 열어 본문이 보인다
+    await stubFolderDialog(app, project);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await chapterButton(page, '첫째 화').click();
+    await editor(page).getByText('포장 검사 본문 하나', { exact: true }).waitFor();
+    assert.deepEqual(requests, [], '이후에도 요청 0');
+  } finally {
+    await closeWindow(app);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
