@@ -108,6 +108,10 @@ test('조합 중 자동저장 타이머는 미확정 글자를 쓰지 않고, �
     await cdp.send('Input.imeSetComposition', { text: '값', selectionStart: 1, selectionEnd: 1 });
     const t1 = await timers(page);
     await until('두 번째 조합 중 타이머 발화', async () => (await timers(page)).f1500 > t1.f1500);
+    // 전제: 타이머가 발화할 때까지 두 번째 조합이 끝나지 않았다. 조합이 먼저 끝났다면(예: 창 포커스 이탈로 Chromium이 조합을 확정) 자동저장이 쓰는 것은 정상이므로
+    // 아래 "저장하지 않았다" 단언의 실패를 제품 결함으로 읽지 않도록 전제 위반을 먼저 드러낸다 (첫 주기의 `mid.ends === 0` 단언과 같은 전제)
+    const mid2 = await timers(page);
+    assert.equal(mid2.ends, t1.ends, `두 번째 조합이 타이머 발화 전에 끝났다 (이 검사의 전제가 깨졌다: 조합 종료 뒤의 자동저장은 정상 동작): ${JSON.stringify({ t1, mid2 })}`);
     assert.equal((await count(app)).entered, base.entered + 1, '두 번째 조합 중에도 저장하지 않았다');
     assert.ok((await readFile(path, 'utf8')).includes('값') === false, '조합 중 글자가 디스크에 없다');
     await cdp.send('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 }); // 조합 취소
