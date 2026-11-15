@@ -37,8 +37,11 @@ async function createWindow(): Promise<void> {
     if (url !== win.webContents.getURL()) event.preventDefault();
   });
 
+  // 개발 서버(electron-vite dev)는 Electron을 기본 앱으로 명시 실행한 개발 흐름(`electron .`)에서만 읽는다: 그때 process.defaultApp이 true다.
+  // 폴더형 실행본(electron.exe를 앱 경로 인자 없이 실행, resources/app)은 defaultApp이 undefined라서, 환경에서 ELECTRON_RENDERER_URL을 상속받아도 외부 개발 서버를 읽지 않고 빌드된 renderer를 연다.
+  // (isPackaged나 실행 파일 이름에 기대지 않는다: 폴더형 실행본에서 isPackaged가 false로 관측됐다. 이 값은 새 우회 스위치가 아니라 Electron이 알려 주는 실행 형태다)
   const devUrl = process.env['ELECTRON_RENDERER_URL'];
-  if (!app.isPackaged && devUrl) void win.loadURL(devUrl);
+  if (process.defaultApp === true && !app.isPackaged && devUrl) void win.loadURL(devUrl);
   else void win.loadFile(join(__dirname, '../renderer/index.html'));
 }
 
