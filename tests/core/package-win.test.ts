@@ -147,3 +147,62 @@ test('검증: 링크가 남아 있으면 복사본이 독립적이지 않다고 
   symlinkSync(outside, join(out, 'resources', 'app', 'node_modules', 'linked'), 'junction');
   rejects(() => verify(out), /링크가 있다/);
 });
+
+// ---- PR #219 보완: 엄격 허용 목록(예기치 않은 파일 거절, 사전 검사) / junction·symlink 별칭을 통한 출력 보호 우회 ----
+
+test('엄격 허용 목록: 설치 런타임·빌드 산출물·SDK 안의 예기치 않은 파일(원고·로그·키·실험물)은 복사하지 않고 거절하며, 거절하면 출력 폴더를 만들지 않는다', () => {
+  const cases: [string, string][] = [
+    ['Electron 런타임 폴더의 원고', 'node_modules/electron/dist/private-manuscript.md'],
+    ['main 산출물의 실행 로그', 'out/main/private-run.log'],
+    ['preload 산출물의 소스맵', 'out/preload/index.js.map'],
+    ['renderer 산출물의 메모', 'out/renderer/assets/notes.md'],
+    ['renderer 최상위의 임의 파일', 'out/renderer/private-run.log'],
+    ['SDK 폴더의 원고', 'node_modules/.pnpm/openai@7.43.0/node_modules/openai/private-manuscript.md'],
+    ['SDK 폴더의 키 파일', 'node_modules/.pnpm/openai@7.43.0/node_modules/openai/src/.env'],
+    ['Electron locales의 비 pak 파일', 'node_modules/electron/dist/locales/secret.txt'],
+  ];
+  for (const [label, rel] of cases) {
+    const f = fixture();
+    put(join(f.root, ...rel.split('/')), 'SYNTHETIC_PRIVATE_CONTENT');
+    const out = join(tmp('leak'), 'out');
+    rejects(() => build(f.layout, out), /예기치 않은 파일/);
+    assert.equal(existsSync(out), false, `${label}: 거절하면 출력 폴더를 만들지 않는다 (민감 파일을 먼저 복사해 두지 않는다)`);
+  }
+  // 이미 있는 빈 출력 폴더도 거절 뒤 비어 있다
+  const f = fixture();
+  put(join(f.root, 'out', 'main', 'private-run.log'), 'SYNTHETIC_PRIVATE_CONTENT');
+  const empty = tmp('leak-empty');
+  rejects(() => build(f.layout, empty), /예기치 않은 파일/);
+  assert.deepEqual(readdirSync(empty), [], '거절 뒤에도 빈 출력 폴더는 비어 있다');
+  // 정상 산출물에는 허용 목록 밖 파일이 없다
+  const ok = fixture();
+  const out = join(tmp('allow'), 'out');
+  build(ok.layout, out);
+  assert.equal(existsSync(join(out, 'resources', 'app', 'out', 'main', 'private-run.log')), false);
+});
+
+test('출력 보호는 실제 경로로 본다: junction 별칭으로 저장소/입력 안·상위·같음을 우회할 수 없고, 출력 자체가 링크여도 거절하며, 정상 외부 새 폴더만 받는다 (아무것도 만들지 않는다)', () => {
+  // 1) 저장소를 가리키는 외부 junction 별칭 아래의 새 출력
+  const f = fixture();
+  const alias = join(f.base, 'repo-alias');
+  symlinkSync(f.root, alias, 'junction');
+  rejects(() => checkOutput(join(alias, 'packaged-output'), f.layout), /입력\/저장소|저장소 안|링크/);
+  rejects(() => build(f.layout, join(alias, 'packaged-output')), /입력\/저장소|저장소 안|링크/);
+  assert.equal(existsSync(join(f.root, 'packaged-output')), false, '별칭을 통해 실제 저장소 안에 아무것도 만들지 않았다');
+  // 2) 별칭 자체를 출력으로
+  rejects(() => checkOutput(alias, f.layout), /입력\/저장소|저장소 안|링크|상위/);
+  // 3) 기존의 빈 외부 폴더를 가리키는 junction을 출력으로: 출력 자체가 링크라 거절하고 대상은 비어 있다
+  const external = tmp('ext-empty');
+  const link = join(tmp('linkdir'), 'out-link');
+  symlinkSync(external, link, 'junction');
+  rejects(() => checkOutput(link, f.layout), /링크/);
+  rejects(() => build(f.layout, link), /링크/);
+  assert.deepEqual(readdirSync(external), [], '링크 대상 폴더에 아무것도 만들지 않았다');
+  // 4) 저장소 안의 폴더를 가리키는 junction을 출력으로
+  const inner = join(f.root, 'docs');
+  const innerLink = join(tmp('linkdir2'), 'docs-link');
+  symlinkSync(inner, innerLink, 'junction');
+  rejects(() => checkOutput(innerLink, f.layout), /입력\/저장소|저장소 안|링크/);
+  // 5) 정상: 저장소 밖의 새 폴더는 받는다
+  assert.doesNotThrow(() => checkOutput(join(tmp('fine'), 'new-output'), f.layout));
+});

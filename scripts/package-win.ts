@@ -59,15 +59,44 @@ export function checkInputs({ root, electronDist }: Layout): { name: string; ver
   return { name: pkg.name!, version: pkg.version!, main: pkg.main!, electronVersion: installed };
 }
 
-/** 출력 위치를 검사한다: 위험한 위치·비어 있지 않은 폴더는 거절한다 (아무것도 만들거나 지우지 않는다) */
+/** 링크(symlink/junction)를 따르지 않고 항목이 있는지 본다 (끊어진 링크도 있는 것으로 본다) */
+const lexists = (p: string): boolean => {
+  try {
+    lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** 실제 경로: 있으면 realpath, 없으면 가장 가까운 존재하는 상위의 realpath에 남은 이름을 붙인다 (상위의 junction/symlink 별칭을 풀어 본다) */
+export function realResolve(p: string): string {
+  let cur = resolve(p);
+  const rest: string[] = [];
+  while (!lexists(cur)) {
+    const parent = dirname(cur);
+    if (parent === cur) break;
+    rest.unshift(basename(cur));
+    cur = parent;
+  }
+  return join(realpathSync.native(cur), ...rest);
+}
+
+/** 출력 위치를 검사한다: 위험한 위치·비어 있지 않은 폴더·링크는 거절한다 (아무것도 만들거나 지우지 않는다). 문자열 경로와 실제 경로를 모두 본다 */
 export function checkOutput(out: string, { root, electronDist }: Layout): string {
   if (!isAbsolute(out)) fail(`출력 경로는 절대 경로여야 한다: ${out}`);
   const target = resolve(out);
   if (dirname(target) === target) fail(`출력이 드라이브/파일시스템 루트다: ${target}`);
+  if (lexists(target) && lstatSync(target).isSymbolicLink()) fail(`출력 자체가 링크(symlink/junction)다 (실제 위치를 알 수 없어 거절한다): ${target}`);
+  const real = realResolve(target);
+  if (dirname(real) === real) fail(`출력의 실제 경로가 드라이브/파일시스템 루트다: ${real}`);
   const protectedPaths = [root, electronDist, join(root, 'out'), join(root, 'node_modules'), join(root, 'resources'), join(root, 'src'), join(root, 'docs'), join(root, 'spikes'), join(root, 'tests'), join(root, 'scripts')];
   for (const p of protectedPaths) {
-    if (isInside(target, p)) fail(`출력이 입력/저장소 안이다 (${p}): ${target}`);
-    if (isInside(p, target)) fail(`출력이 입력/저장소의 상위 폴더이거나 같다 (${p}): ${target}`);
+    const realP = existsSync(p) ? realpathSync.native(p) : resolve(p);
+    for (const [a, b, shown] of [[target, p, p], [real, realP, `${p} → ${realP}`]] as const) {
+      if (isInside(a, b)) fail(`출력이 입력/저장소 안이다 (${shown}): ${a}`);
+      if (isInside(b, a)) fail(`출력이 입력/저장소의 상위 폴더이거나 같다 (${shown}): ${a}`);
+    }
   }
   if (existsSync(target)) {
     if (!statSync(target).isDirectory()) fail(`출력이 이미 있고 폴더가 아니다: ${target}`);
@@ -79,6 +108,66 @@ export function checkOutput(out: string, { root, electronDist }: Layout): string
 }
 
 export const defaultOutput = (): string => join(tmpdir(), `LoreWeave-win-x64-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`);
+
+/**
+ * 엄격 허용 목록 (복사 전에 입력 트리를 사전 검사한다). 목록에 없는 파일이 하나라도 있으면 복사하지 않고 실패한다 — 불명확한 입력을 배포하지 않는다.
+ * 경로는 검사 대상 폴더 기준 상대 경로(슬래시)다. 폴더 자체는 규칙 대상이 아니고 파일만 본다.
+ */
+export const RULES = {
+  /** 설치된 Electron 44.9.3 win32-x64 dist의 실제 구성 (debug.log는 부산물이라 명시 제외) */
+  electron: [
+    /^(chrome_100_percent\.pak|chrome_200_percent\.pak|d3dcompiler_47\.dll|dxcompiler\.dll|dxil\.dll|electron\.exe|ffmpeg\.dll|icudtl\.dat|LICENSE|LICENSES\.chromium\.html|resources\.pak|snapshot_blob\.bin|v8_context_snapshot\.bin|version|vk_swiftshader\.dll|vk_swiftshader_icd\.json|vulkan-1\.dll)$/,
+    /^locales\/[\w-]+\.pak$/,
+    /^resources\/default_app\.asar$/,
+  ],
+  main: [/^index\.js$/],
+  preload: [/^index\.js$/],
+  /** 해시가 붙은 번들·글꼴·브랜드 자원 */
+  renderer: [/^index\.html$/, /^assets\/[\w.-]+\.(js|css|woff2|svg|png)$/],
+  /** openai SDK(실제 디렉터리): 코드·타입·소스맵·패키지 메타·문서/고지만. 임의 .md/.txt/.log/.env/.db는 허용하지 않는다 */
+  openai: [
+    /\.(js|mjs|cjs|ts|mts|cts|map)$/,
+    /(^|\/)(package|tsconfig)\.json$/,
+    /(^|\/)(README|CHANGELOG|LICENSE)(\.md)?$/,
+    /(^|\/)api\.md$/,
+    /(^|\/)\.keep$/,
+  ],
+} as const;
+
+/** dir 아래의 모든 파일이 규칙 중 하나와 맞는지 본다. 링크는 허용하지 않고, skip에 있는 이름은 명시 제외한다. 어긋난 것을 모아 돌려준다 */
+export function scanAllowed(dir: string, rules: readonly RegExp[], skip: readonly string[] = []): string[] {
+  const unexpected: string[] = [];
+  const walk = (cur: string, rel: string): void => {
+    for (const name of readdirSync(cur)) {
+      const p = join(cur, name);
+      const r = rel === '' ? name : `${rel}/${name}`;
+      if (skip.includes(r)) continue;
+      const st = lstatSync(p);
+      if (st.isSymbolicLink()) unexpected.push(`${r} (링크)`);
+      else if (st.isDirectory()) walk(p, r);
+      else if (!rules.some((re) => re.test(r))) unexpected.push(r);
+    }
+  };
+  walk(dir, '');
+  return unexpected;
+}
+
+/** 복사 전 사전 검사: 허용 목록 밖의 파일이 있으면 실패한다 (아무것도 만들지 않는다) */
+export function preflight({ root, electronDist }: Layout): void {
+  const problems: string[] = [];
+  const check = (label: string, dir: string, rules: readonly RegExp[], skip: readonly string[] = []) => {
+    for (const u of scanAllowed(dir, rules, skip)) problems.push(`${label}: ${u}`);
+  };
+  check('Electron 런타임', electronDist, RULES.electron, ['debug.log']);
+  check('out/main', join(root, 'out', 'main'), RULES.main);
+  check('out/preload', join(root, 'out', 'preload'), RULES.preload);
+  check('out/renderer', join(root, 'out', 'renderer'), RULES.renderer);
+  check('node_modules/openai', realpathSync(join(root, 'node_modules', 'openai')), RULES.openai);
+  if (problems.length > 0) {
+    const shown = problems.slice(0, 20).map((p) => `  - ${p}`).join('\n');
+    fail(`허용 목록에 없는 예기치 않은 파일이 있어 복사하지 않는다 (${problems.length}개; 원고·로그·키·실험물이 배포되지 않게 거절한다):\n${shown}${problems.length > 20 ? '\n  …' : ''}`);
+  }
+}
 
 /** 산출물에 있으면 안 되는 이름 (허용 목록으로 만들지만 한 번 더 확인한다) */
 const FORBIDDEN = [/^\.env/i, /^spikes$/i, /^m5-work$/i, /^\.loreweave$/i, /^ai\.db$/i, /^index\.db$/i, /^openai-key\.bin$/i, /^settings\.json$/i, /^\.claude$/i, /^\.git$/i, /^debug\.log$/i, /^tests$/i, /^docs$/i];
@@ -94,6 +183,7 @@ export interface Result {
 export function build(layout: Layout, out: string): Result {
   const info = checkInputs(layout);
   const target = checkOutput(out, layout);
+  preflight(layout); // 복사 전에 입력 트리 전체를 검사한다: 거절하면 출력 폴더를 만들지 않는다
   const { root, electronDist } = layout;
   if (!existsSync(target)) mkdirSync(target); // 상위 폴더는 만들지 않는다
   // 1) Electron 런타임: 고지(LICENSE, LICENSES.chromium.html)를 포함해 그대로 복사하고, 개발 부산물(debug.log)만 뺀다
