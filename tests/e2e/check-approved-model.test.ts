@@ -152,3 +152,35 @@ test('정상: 같은 모델이면 승인한 모델 A로 검사 요청이 나간�
     await cleanup(app, page);
   }
 });
+
+const nav = (page: Page, title: string) => page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: title, exact: true });
+
+for (const [name, path] of [
+  ['Two → One', ['One']],
+  ['Two → One → Two', ['One', 'Two']],
+] as const) {
+  test(`검사 요청 대기 중 화 이동(${name}) 뒤 늦은 MODEL_CHANGED 거절은 이동한 화에 이전 화의 [다시 시도]·확인 창을 만들지 않고, 요청도 0이다`, { timeout: 120_000 }, async () => {
+    const { dir, app, page, B } = await setup();
+    try {
+      const before = await bytes(dir);
+      await holdAnalyze(app);
+      await page.getByRole('button', { name: '이 화 검사', exact: true }).click(); // Two의 검사
+      await dialog(page).locator('button.primary').click();
+      await until('실제 검사 handler가 붙잡히지 않았다', async () => (await gs(app)).held);
+      for (const title of path) {
+        await nav(page, title).click();
+        await page.locator('.ProseMirror').getByText(title === 'One' ? '민수는 스무 살이었다.' : '민수는 학교에 갔다.').waitFor();
+      }
+      await page.evaluate((m) => window.loreweave.ai.setModel(m), B);
+      await releaseHold(app);
+      await until('늦은 거절이 오지 않았다', async () => (await page.getByRole('alert').count()) > 0);
+      await page.waitForTimeout(300);
+      assert.equal(responses().length, 0, '요청이 없다');
+      assert.equal(await page.getByRole('button', { name: '다시 시도', exact: true }).count(), 0, '이전 선택의 [다시 시도]가 없다');
+      assert.equal(await dialog(page).count(), 0, '확인 창이 없다');
+      assert.deepEqual(await bytes(dir), before, '원고 바이트는 그대로다');
+    } finally {
+      await cleanup(app, page);
+    }
+  });
+}
