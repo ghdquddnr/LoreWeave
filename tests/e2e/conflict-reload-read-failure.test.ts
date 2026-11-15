@@ -52,6 +52,12 @@ const hook = (app: ElectronApplication) =>
           g.held = false;
           throw new Error("EACCES: permission denied, open 'C:/Users/synthetic/chapters/001.md' (synthetic, reload read)");
         }
+        if (g.postReads === 2) {
+          // 명시 [다시 시도]의 읽기도 한 번 붙잡았다가 정상으로 통과시킨다 (읽는 중 상태줄 관측용)
+          g.held = true;
+          await new Promise<void>((resolve) => (g.release = resolve));
+          g.held = false;
+        }
       }
       return read(...args);
     });
@@ -83,6 +89,7 @@ const editor = (page: Page) => page.locator('.ProseMirror');
 const list = (page: Page) => page.getByRole('navigation', { name: '화 목록' });
 const message = (page: Page) => page.locator('.editor-message');
 const retry = (page: Page) => page.locator('.editor-pane').getByRole('button', { name: '다시 시도' });
+const footerText = (page: Page) => page.locator('footer.statusbar').innerText();
 const frames = (page: Page) => page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
 /** 실제 키보드(Tab)로 에디터의 [다시 시도]에 포커스를 옮긴다 (한정된 횟수) */
 async function tabToRetry(page: Page) {
@@ -143,6 +150,12 @@ test('수락한 [디스크 내용 불러오기]의 읽기가 실패해도: 읽�
     const held = await state(app);
     console.error('CONFLICT_RELOAD_BARRIER', JSON.stringify({ ...held, asked: asked.length, status: await page.getByRole('status').allInnerTexts(), message: await message(page).allInnerTexts() }));
     assert.deepEqual(asked, [MESSAGE], '폐기 확인 문구와 횟수 (수락 1회)');
+    // 읽기는 HOLD로 고정돼 있다: 상태줄 렌더(React 상태 전달)를 기다린 뒤 본다 (main의 HOLD 도달과 renderer 재렌더 사이 경합을 피한다)
+    await page.locator('footer.statusbar').getByText('여는 중…').waitFor();
+    const readingFooter = await footerText(page);
+    assert.match(readingFooter, /여는 중…/, `읽기 대기 중 상태줄이 읽는 중이라고 말한다: ${readingFooter}`);
+    for (const wrong of ['저장됨', '저장 중', '저장 실패', '저장 대기']) assert.ok(!readingFooter.includes(wrong), `읽기 대기 중 상태줄에 쓰기 결과(${wrong})가 없다: ${readingFooter}`);
+    assert.equal(await page.getByRole('button', { name: '다시 저장' }).count() + (await page.getByRole('button', { name: '본문 복사' }).count()), 0, '읽기 대기 중 저장 복구 버튼이 없다');
     assert.equal(held.postReads, 1, '수락 뒤 001.md 읽기 1회가 장벽에 걸렸다');
     assert.equal(held.reads, conflict.reads + 1, '그 읽기는 수락이 만든 읽기 하나다');
     assert.equal(await editor(page).count(), 0, '읽는 동안 옛 에디터는 없다');
@@ -159,6 +172,11 @@ test('수락한 [디스크 내용 불러오기]의 읽기가 실패해도: 읽�
     for (const wrong of ['쓸 수 없습니다', '저장', '쓰기']) assert.ok(!text.includes(wrong), `읽기 실패를 쓰기·저장 실패(${wrong})로 설명하지 않는다`);
     assert.equal(await page.locator('.tech-detail').count(), 0, '기술 상세는 기본 접힘이다');
     assert.equal(await editor(page).count(), 0, '실패를 빈 원고 편집기로 열지 않는다');
+    await page.locator('footer.statusbar').getByText('열기 실패').waitFor();
+    const failedFooter = await footerText(page);
+    assert.match(failedFooter, /열기 실패/, `읽기 실패 중 상태줄이 열기 실패라고 말한다: ${failedFooter}`);
+    for (const wrong of ['저장됨', '저장 중', '저장 실패', '저장 대기', '입력은 이 화면에 남아']) assert.ok(!failedFooter.includes(wrong), `읽기 실패 중 상태줄에 쓰기 결과·입력 보존 주장(${wrong})이 없다: ${failedFooter}`);
+    assert.equal(await page.getByRole('button', { name: '다시 저장' }).count() + (await page.getByRole('button', { name: '본문 복사' }).count()), 0, '읽기 실패 중 잘못된 다시 저장·본문 복사 버튼이 없다');
     await retry(page).waitFor();
     assert.equal(await page.getByText('A 외부 본문').count(), 0, '아직 외부 본문을 보여주지 않는다 (읽기에 실패했다)');
     await frames(page);
@@ -173,6 +191,12 @@ test('수락한 [디스크 내용 불러오기]의 읽기가 실패해도: 읽�
     // 4) 실제 키보드로 명시 [다시 시도] → 같은 화의 원래 읽기로 복구 (재발급·재생성·쓰기로 우회하지 않는다)
     await tabToRetry(page);
     await page.keyboard.press('Enter');
+    await waitUntil('재시도 읽기를 붙잡지 못했다', async () => (await state(app)).held && (await state(app)).postReads === 2);
+    await page.locator('footer.statusbar').getByText('여는 중…').waitFor();
+    const retryFooter = await footerText(page);
+    assert.match(retryFooter, /여는 중…/, `재시도 읽기 대기 중 상태줄이 다시 읽는 중이라고 말한다: ${retryFooter}`);
+    for (const wrong of ['저장됨', '열기 실패']) assert.ok(!retryFooter.includes(wrong), `재시도 읽기 대기 중 상태줄에 ${wrong}가 없다: ${retryFooter}`);
+    await release(app);
     await editor(page).getByText('A 외부 본문', { exact: true }).waitFor();
     const recovered = await state(app);
     assert.equal(recovered.postReads, 2, '시도 1회 = 읽기 1회');
@@ -180,6 +204,11 @@ test('수락한 [디스크 내용 불러오기]의 읽기가 실패해도: 읽�
     assert.equal(await message(page).count(), 0);
     await list(page).getByRole('button', { name: 'A외부' }).waitFor();
     await page.getByRole('button', { name: '탭 닫기: A외부', exact: true }).waitFor();
+    const readyFooter = await footerText(page);
+    assert.match(readyFooter, /A외부/, `복구 뒤 상태줄 제목이 실제 외부 제목이다: ${readyFooter}`);
+    assert.match(readyFooter, /저장됨/, `복구 뒤 정상 저장 표시로 돌아온다: ${readyFooter}`);
+    for (const wrong of ['여는 중', '열기 실패']) assert.ok(!readyFooter.includes(wrong), `복구 뒤 상태줄에 ${wrong}가 없다: ${readyFooter}`);
+    console.error('READ_STATE_FOOTER', JSON.stringify({ reading: readingFooter, failed: failedFooter, retrying: retryFooter, ready: readyFooter }));
     assert.equal(await page.getByRole('button', { name: '내 것으로 덮어쓰기' }).count(), 0, '충돌 안내가 사라졌다');
     assert.deepEqual(await read('001.md'), Buffer.from(EXTERNAL), '복구 읽기도 디스크를 바꾸지 않았다');
 
