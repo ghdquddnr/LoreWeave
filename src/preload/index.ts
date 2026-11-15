@@ -47,7 +47,7 @@ const api: LoreweaveApi = {
     },
     analysis: (file, token) => ipcRenderer.invoke(CHANNELS.aiAnalysis, file, token),
     planCheck: (file, token) => ipcRenderer.invoke(CHANNELS.aiPlanCheck, file, token),
-    runCheck: (file, token) => ipcRenderer.invoke(CHANNELS.aiRunCheck, file, token),
+    runCheck: (file, token, model) => ipcRenderer.invoke(CHANNELS.aiRunCheck, file, token, model),
     checkResult: (file, token) => ipcRenderer.invoke(CHANNELS.aiCheckResult, file, token),
     dismiss: (file, ord, token) => ipcRenderer.invoke(CHANNELS.aiDismiss, file, ord, token),
     undismiss: (file, ord, token) => ipcRenderer.invoke(CHANNELS.aiUndismiss, file, ord, token),

@@ -53,7 +53,7 @@ test('검사: 앞 화를 먼저 분석하고, 결과·상태·무시를 main에�
     await page.getByRole('button', { name: '원고 폴더 열기' }).click();
     await page.locator('.ProseMirror').waitFor();
 
-    const noConsent = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1).then(() => '', (e: Error) => e.message));
+    const noConsent = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1, 'gpt-6-luna').then(() => '', (e: Error) => e.message));
     assert.match(noConsent, /원고 전송에 동의해야/);
     await page.evaluate(() => window.loreweave.ai.setKey('sk-check-test'));
     await page.evaluate(() => window.loreweave.ai.setConsent(true));
@@ -65,7 +65,7 @@ test('검사: 앞 화를 먼저 분석하고, 결과·상태·무시를 main에�
     assert.equal(plan.priors, 2);
     assert.equal(fake.requests.length, 0);
 
-    const outcome = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1));
+    const outcome = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1, 'gpt-6-luna'));
     assert.deepEqual({ checked: outcome.checked, findings: outcome.findings, stopped: outcome.stopped }, { checked: true, findings: 1, stopped: null });
     assert.equal(fake.requests.filter((r) => r.path.endsWith('/responses')).length, 4);
 
@@ -81,7 +81,7 @@ test('검사: 앞 화를 먼저 분석하고, 결과·상태·무시를 main에�
     await page.evaluate(() => window.loreweave.ai.dismiss('003.md', 0, 1));
     assert.equal((await page.evaluate(() => window.loreweave.ai.checkResult('003.md', 1)))!.findings[0]!.dismissed, true);
     // 다시 검사해도 숨는다 (분석은 다시 하지 않는다)
-    const again = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1));
+    const again = await page.evaluate(() => window.loreweave.ai.runCheck('003.md', 1, 'gpt-6-luna'));
     assert.equal(again.analysis, null);
     assert.equal(fake.requests.filter((r) => r.path.endsWith('/responses')).length, 5);
     assert.equal((await page.evaluate(() => window.loreweave.ai.checkResult('003.md', 1)))!.findings[0]!.dismissed, true);

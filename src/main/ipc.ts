@@ -486,7 +486,7 @@ export function registerIpc(): void {
     sender: Electron.WebContents,
     token: number,
     work: (o: Parameters<typeof analyzeChapters>[1]) => Promise<T>,
-    /** 확인 창에서 승인한 모델 ID. null이면 확인하지 않는다 (검사 경로는 이번에 바꾸지 않았다) */
+    /** 확인 창에서 승인한 모델 ID. null이면 확인하지 않는다 (분석·검사 모두 승인 ID를 보낸다) */
     approvedModel: string | null = null,
   ): Promise<T> => {
     const path = requireProject(token);
@@ -541,7 +541,11 @@ export function registerIpc(): void {
     }
     throw new Error(STALE_PROJECT);
   });
-  ipcMain.handle(CHANNELS.aiRunCheck, (event, file: string, token: number) => runAi(event.sender, token, (o) => checkChapter(file, o)));
+  ipcMain.handle(CHANNELS.aiRunCheck, (event, file: string, token: number, model: unknown) => {
+    // 승인한 모델 ID가 없으면 현재 설정으로 대신하지 않고 거절한다 (선행 분석 요청도 같은 모델로 보낸다)
+    if (typeof model !== 'string' || !model) return Promise.reject(new Error(MODEL_CHANGED));
+    return runAi(event.sender, token, (o) => checkChapter(file, o), model);
+  });
   ipcMain.handle(CHANNELS.aiCheckResult, (_e, file: string, token: number) => openAiStore(requireProject(token), false)?.check(file) ?? null);
   /** token: 무시를 누른 화면의 프로젝트. 다른 프로젝트가 열린 뒤의 요청은 거절한다 (ord는 그 화면의 검사 결과 번호라 새 프로젝트의 결과를 무시하게 된다) */
   ipcMain.handle(CHANNELS.aiDismiss, (_e, file: string, ord: number, token: number) => {
