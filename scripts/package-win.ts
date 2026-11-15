@@ -60,7 +60,7 @@ export function checkInputs({ root, electronDist }: Layout): { name: string; ver
 }
 
 /** 링크(symlink/junction)를 따르지 않고 항목이 있는지 본다 (끊어진 링크도 있는 것으로 본다) */
-const lexists = (p: string): boolean => {
+export const lexists = (p: string): boolean => {
   try {
     lstatSync(p);
     return true;
@@ -170,7 +170,7 @@ export function preflight({ root, electronDist }: Layout): void {
 }
 
 /** 산출물에 있으면 안 되는 이름 (허용 목록으로 만들지만 한 번 더 확인한다) */
-const FORBIDDEN = [/^\.env/i, /^spikes$/i, /^m5-work$/i, /^\.loreweave$/i, /^ai\.db$/i, /^index\.db$/i, /^openai-key\.bin$/i, /^settings\.json$/i, /^\.claude$/i, /^\.git$/i, /^debug\.log$/i, /^tests$/i, /^docs$/i];
+export const FORBIDDEN = [/^\.env/i, /^spikes$/i, /^m5-work$/i, /^\.loreweave$/i, /^ai\.db$/i, /^index\.db$/i, /^openai-key\.bin$/i, /^settings\.json$/i, /^\.claude$/i, /^\.git$/i, /^debug\.log$/i, /^tests$/i, /^docs$/i];
 
 export interface Result {
   out: string;
@@ -179,28 +179,37 @@ export interface Result {
   electronVersion: string;
 }
 
+/**
+ * 앱 파일을 appDir에 허용 목록만으로 구성한다 (asar 없음): package.json(name/version/main), out/{main,preload,renderer}, 앱 아이콘, 실제 openai SDK 복사본, 앱 고지.
+ * package:win(resources/app)과 package:win:branded(packager 입력 staging)가 같은 내용을 쓰도록 공유한다. 호출 전에 preflight로 입력 트리를 검사해야 한다.
+ */
+export function stageApp({ root }: Layout, info: { name: string; version: string; main: string }, appDir: string): void {
+  const app = appDir;
+  mkdirSync(app, { recursive: true });
+  writeFileSync(join(app, 'package.json'), `${JSON.stringify({ name: info.name, version: info.version, main: info.main }, null, 2)}
+`);
+  for (const dir of ['main', 'preload', 'renderer']) cpSync(join(root, 'out', dir), join(app, 'out', dir), { recursive: true, dereference: false });
+  mkdirSync(join(app, 'resources'), { recursive: true });
+  cpSync(join(root, 'resources', 'app-icon.ico'), join(app, 'resources', 'app-icon.ico'));
+  // openai SDK: pnpm 링크를 따라간 실제 파일로 복사한다 (복사본이 저장소를 가리키지 않게). 고지 파일도 그 안에 그대로 있다
+  const openaiReal = realpathSync(join(root, 'node_modules', 'openai'));
+  cpSync(openaiReal, join(app, 'node_modules', 'openai'), { recursive: true, dereference: true });
+  // 앱 고지
+  cpSync(join(root, 'LICENSE'), join(app, 'LICENSE'));
+  cpSync(join(root, 'THIRD_PARTY_NOTICES.md'), join(app, 'THIRD_PARTY_NOTICES.md'));
+}
+
 /** 출력 폴더를 만든다. 입력 검사와 출력 검사를 모두 통과해야 하고, 실패하면 새로 만든 것 외에는 아무것도 바꾸지 않는다 */
 export function build(layout: Layout, out: string): Result {
   const info = checkInputs(layout);
   const target = checkOutput(out, layout);
   preflight(layout); // 복사 전에 입력 트리 전체를 검사한다: 거절하면 출력 폴더를 만들지 않는다
-  const { root, electronDist } = layout;
+  const { electronDist } = layout;
   if (!existsSync(target)) mkdirSync(target); // 상위 폴더는 만들지 않는다
   // 1) Electron 런타임: 고지(LICENSE, LICENSES.chromium.html)를 포함해 그대로 복사하고, 개발 부산물(debug.log)만 뺀다
   cpSync(electronDist, target, { recursive: true, dereference: false, filter: (src) => basename(src) !== 'debug.log' });
   // 2) 앱: resources/app 에 허용 목록만 (asar 없음)
-  const app = join(target, 'resources', 'app');
-  mkdirSync(app, { recursive: true });
-  writeFileSync(join(app, 'package.json'), `${JSON.stringify({ name: info.name, version: info.version, main: info.main }, null, 2)}\n`);
-  for (const dir of ['main', 'preload', 'renderer']) cpSync(join(root, 'out', dir), join(app, 'out', dir), { recursive: true, dereference: false });
-  mkdirSync(join(app, 'resources'), { recursive: true });
-  cpSync(join(root, 'resources', 'app-icon.ico'), join(app, 'resources', 'app-icon.ico'));
-  // 3) openai SDK: pnpm 링크를 따라간 실제 파일로 복사한다 (복사본이 저장소를 가리키지 않게). 고지 파일도 그 안에 그대로 있다
-  const openaiReal = realpathSync(join(root, 'node_modules', 'openai'));
-  cpSync(openaiReal, join(app, 'node_modules', 'openai'), { recursive: true, dereference: true });
-  // 4) 앱 고지
-  cpSync(join(root, 'LICENSE'), join(app, 'LICENSE'));
-  cpSync(join(root, 'THIRD_PARTY_NOTICES.md'), join(app, 'THIRD_PARTY_NOTICES.md'));
+  stageApp(layout, info, join(target, 'resources', 'app'));
   const result = verify(target);
   return { ...result, out: target, electronVersion: info.electronVersion };
 }

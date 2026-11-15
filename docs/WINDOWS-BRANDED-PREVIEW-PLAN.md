@@ -1,6 +1,6 @@
 # Windows 실행파일 브랜드·아이콘·production 실행 경계 후속 계획
 
-상태: **PR-1(production 시작 경계)은 구현·검증됐다**(`process.defaultApp === true && !app.isPackaged && ELECTRON_RENDERER_URL`일 때만 개발 서버를 읽음; 폴더 실행본의 `process.defaultApp`은 undefined로 관측). **PR-2(실행파일 이름·ICO·메타데이터·packager)는 아직 구현되지 않았고 승인되지 않았다.** PR-2 도입의 두 선행 게이트(packager 호환·Electron zip 확보)는 2026-11-16에 읽기 전용으로 좁혔다(§4.1): zip은 로컬 캐시에 있고 해시가 공식 값과 같다, 호환은 "Electron 44를 인지한 흔적"까지만 확인했고 실행 증거는 없다. 권고는 **현행 경로 A 유지**이며, packager가 출력 경로를 재귀 삭제하는 호출이 소스에 남아 있다(§4.1). 감독이 **실험 한정 경계**(§4.2)를 정해 합성 격리 호환실험 1회를 수행했고 **합성 앱에서는 성공**했다. 이는 PR-2 도입 승인이 아니며 제품 패키징에는 아직 아무것도 적용하지 않았다. 아래는 **작성 당시(PR-1 구현 전)의 계획 원문**이다. 본문의 "현재 상태"·"구현 0" 서술은 그 당시 기록이며, **PR-1은 그 뒤 구현됐고 PR-2(이름·ICO·메타데이터·packager)만 아직 계획이다**. 계획 원문은 작성 당시 제품 코드·테스트·의존성·다운로드·빌드·패키징 실행 0이었고, PR-2는 감독의 검토·승인 전에는 시작하지 않는다.
+상태: **PR-1(production 시작 경계)은 구현·검증됐다**(`process.defaultApp === true && !app.isPackaged && ELECTRON_RENDERER_URL`일 때만 개발 서버를 읽음; 폴더 실행본의 `process.defaultApp`은 undefined로 관측). **PR-2는 선택형 명령 `package:win:branded`로 구현·검증됐다**(2026-11-16, 감독이 승인한 범위: 정확 `@electron/packager@20.3.0` devDependency, 이번 빌드가 새로 만든 독점 임시 루트 안에서만 packager의 삭제 호출 허용; §4.3). 기존 `package:win`(경로 A, `electron.exe` 유지)은 그대로 쓸 수 있다. 설치 프로그램·서명·자동 업데이트·배포는 없다. 아래 §4.1(읽기 전용 판정)·§4.2(합성 격리 실험)는 **그 시점(2026-11-16, 구현 전)의 판정·기록**이며, 그 안의 "실행 증거 없음"·"실험 승인 0"·"PR-2 미승인" 같은 서술은 당시 상태다. 아래는 **작성 당시(PR-1 구현 전)의 계획 원문**이다. 본문의 "현재 상태"·"구현 0"·"미승인" 서술은 그 당시 기록이며, **PR-1과 PR-2(선택형 명령)는 그 뒤 구현됐다**(§4.3). 계획 원문은 작성 당시 제품 코드·테스트·의존성·다운로드·빌드·패키징 실행 0이었다.
 앞선 계획 [WINDOWS-PREVIEW-PLAN.md](WINDOWS-PREVIEW-PLAN.md)의 A안(수동 폴더 배포)은 PR #219에서 **구현·검증됐다**(`corepack pnpm package:win`, 합성 Electron 자동 검증까지). 이 문서는 그 다음 단계다.
 근거는 저장소의 실제 파일과 공식 문서·레지스트리 메타데이터(읽기 전용 조회)뿐이며, 확인하지 못한 것은 "미확인"이다. 현재 실제 유출·원고 손상·환경변수 재현 결함은 관측하지 않았다.
 
@@ -73,7 +73,7 @@
 2. 새 devDependency와 lockfile 변경(전이 의존 포함)과 ~~빌드 때 Electron zip 다운로드~~가 필요하다는 점을 감독이 승인해야 한다 (이번 과제 범위 밖; "새 의존성·다운로드는 사전 질문"). *(2026-11-16: 로컬 캐시 zip이 있어 **Electron zip 다운로드는 필요 없다**. 필요한 승인은 packager 패키지와 전이 의존의 **npm 설치(패키지 다운로드)·lockfile 변경**이다. 전이 의존 트리의 크기·설치 스크립트 유무는 미확인.)*
 3. 위가 모두 확인되지 않으면 경로 A를 유지하고(이름·아이콘은 그대로) 이 목표를 보류한다. 새 도구가 불필요하면 추가하지 않는다.
 
-### 4.1 PR-2 선행 게이트 판정 (2026-11-16, 읽기 전용)
+### 4.1 PR-2 선행 게이트 판정 (2026-11-16, 읽기 전용) — *당시 판정(구현 전)*
 
 읽은 것: 정확 태그 [`electron/packager@v20.3.0`](https://github.com/electron/packager/tree/v20.3.0)의 `README.md`·`package.json`·`src/{packager,platform,download,unzip,common,types}.ts`, [packager 릴리스 노트](https://github.com/electron/packager/releases)(v20.0.4·v20.3.0), [`electron/get@v5.1.0`](https://github.com/electron/get/tree/v5.1.0)의 `src/{Cache,artifact-utils,index,utils}.ts`, npm 레지스트리 메타데이터(텍스트), [Electron v44.9.3 `SHASUMS256.txt`](https://github.com/electron/electron/releases/download/v44.9.3/SHASUMS256.txt)(텍스트). 로컬은 Electron 캐시 폴더의 파일명·크기·SHA-256과 설치된 `node_modules/electron/checksums.json`만 읽었다. **설치·다운로드한 zip/바이너리·빌드·패키징·캐시 수정 0**(zip은 읽어서 해시만 계산).
 
@@ -108,7 +108,7 @@
 
 **권고 (한 가지): 현행 경로 A 유지. 격리 실험은 지금 승인을 요청하지 않는다.** 게이트 2는 해소됐지만 게이트 1은 실행 증거 없이는 닫을 수 없고, 실행하려면 packager의 재귀 삭제 호출(위 1)이 우리 경계와 충돌하는 문제를 먼저 정해야 한다. 공식 명시 지원이 없다는 이유로 비호환이라고 단정하지 않는다. **감독이 먼저 별도로 결정할 것**: 실험(및 후속 PR-2)에서 허용할 출력 경계 — 예) 호출 전 출력 경로 사전 검사 범위, packager 전용 **독점 새 루트**(항상 비어 있는 새 폴더만 `out`으로 주고 그 안에서만 삭제 호출이 일어나게 함, 공용 `<tmp>/electron-packager`도 피하도록 `tmpdir` 처리) 등. 이 결정과 별도 실험 승인이 있기 전에는 실험을 하지 않는다. 이번 PR은 패치·대체 도구·실험으로 이 충돌을 해결하지 않는다. 그 결정 뒤 실험을 승인한다면 최소 조건(참고용 초안, 승인 아님): 저장소 밖 새 임시 폴더에 `@electron/packager@20.3.0`을 `--ignore-scripts`로 설치(저장소 `package.json`·lockfile·`node_modules` 변경 0), 합성 staging 앱, `electronVersion: '44.9.3'`·`electronZipDir`(해시 대조 통과 시)·**`asar: false` 명시**·새 독점 출력 루트, Electron dist와 캐시 zip의 해시 전후 불변 확인, exe `VersionInfo`·아이콘·고지 파일·기본 `userData` 관측. 성공하고 의존 트리를 수용할 수 있을 때만 §6 PR-2(정확 `20.3.0` devDependency·lockfile 범위, 로컬 캐시 zip(해시 대조 후), 새 출력만, 원본 Electron 불변, 허용 목록·realpath 보호·고지·SDK·`app.name`/`userData` 불변)의 실행 허용안을 별도로 올린다. 실패하거나 경계를 정하지 못하거나 의존 트리를 수용할 수 없으면 경로 A를 유지한다.
 
-### 4.2 합성 격리 호환실험 결과 (2026-11-16, 1회)
+### 4.2 합성 격리 호환실험 결과 (2026-11-16, 1회) — *당시 기록(구현 전)*
 
 **이 절은 PR-2 도입 승인이 아니다.** 저장소의 `package.json`·lockfile·`node_modules`·제품 코드·테스트는 바꾸지 않았고 경로 A가 현행이다.
 
@@ -147,6 +147,28 @@
 
 **남은 PR-2 승인 사항(이번에 승인된 것 없음)**: ① 정확 `@electron/packager@20.3.0` devDependency와 lockfile 변경(전이 49개, 설치 스크립트 0개, 25.8MB를 수용할지), ② 제품 `scripts/package-win.ts`에서 packager의 최종 경로 재귀 삭제(`initialize()`)를 허용 가능한 경계로 다룰 방법(독점 새 출력 루트·호출 직전 사전검사 등 — 이번 경계는 실험 한정 예외), ③ 출력 폴더 이름(`<name>-win32-x64`)과 현행 출력 이름의 정렬, ④ 실제 staging(`openai` 포함)에서 `prune`·허용 목록·비ASAR·`isPackaged` true의 영향 확인, ⑤ `win32metadata`(`CompanyName` 등)·`SquirrelAwareVersion` 문자열의 수용, ⑥ 다른 PC·CI의 zip 확보 방식, ⑦ 제품 기준 `app.name`/`userData` 불변 관측.
 
+### 4.3 구현 결과: 선택형 `package:win:branded` (2026-11-16)
+
+감독이 승인한 범위: 정확 `@electron/packager@20.3.0` devDependency와 그에 필요한 lock 변경, 독점 임시 루트 안 삭제 허용(일반 "재귀 삭제 0" 해제 아님), 이름·ICO·메타데이터 브랜드. 사용: `corepack pnpm package:win:branded [--out <새 폴더>] [--electron-zip-dir <공식 zip이 든 폴더>]`. 산출물은 `LoreWeave.exe`(실행파일을 바로 포함하는 폴더)이며 기존 `package:win`은 `electron.exe` 그대로다.
+
+**의존성**: `package.json` devDependency `"@electron/packager": "20.3.0"`(정확 버전), `pnpm add -D … --save-exact --ignore-scripts`로 설치(기존 Electron 재설치·다운로드 0). pnpm lock에 **새 패키지 39개**가 추가됐다(기존 187개 → 226개, 제거 0). **이전 임시 npm 실험(49개)과의 대조(로컬 기존 자료만 읽음)**: 49 = pnpm이 새로 추가한 39(이름·버전 모두 같음) + 저장소 lock에 이미 같은 버전이 있던 6(`@electron/get@5.1.0`, `debug@4.4.3`, `env-paths@3.0.0`, `ms@2.1.3`, `progress@2.0.3`, `sumchecker@3.0.1`) + pnpm lock이 저장소에 이미 있는 **더 낮은 버전**으로 해석한 4(`@electron-internal/extract-zip` npm 1.0.8 대 lock 1.0.6, `graceful-fs` 4.2.12 대 4.2.11, `semver` 7.8.6 대 7.8.5, `undici` 7.30.2 대 7.30.1; 모두 packager의 선언 범위를 만족). 낮은 버전으로 해석된 이유(저장소의 기존 해석 재사용인지 설치 정책 때문인지)는 확인하지 않았다. **설치 스크립트**: lock의 `requiresBuild` 부재만으로 단정하지 않고 설치된 39개 패키지의 `package.json`을 직접 읽었다(설치·실행 없음) — `preinstall`/`install`/`postinstall`을 가진 패키지 0개, `binding.gyp`/`gypfile` 0개. `prepare`/`prepack`/`prepublish`는 여러 패키지에 있으나 레지스트리 tarball 설치에서는 일반적으로 실행되지 않는 게시용 스크립트다(이 PC에서 실행하지 않았다). `bin`이 있는 패키지는 6개(`@electron/asar`, `@electron/osx-sign`, `@electron/packager`, `@electron/windows-sign`, `postject`, `which`; 설치 때 실행되지 않음). 이전 npm 실험의 49개 lock에도 `hasInstallScript` 항목이 없었다. 이 PC의 설치는 `--ignore-scripts`로 실행했으므로, "스크립트가 실행되지 않았다"(설치 옵션)와 "패키지에 설치 스크립트가 없다"(`package.json` 증거)를 구분한다. 런타임 앱 번들에는 들어가지 않는다(개발 전용).
+
+**흐름과 경계** (`scripts/package-win-branded.ts`, `scripts/package-win-packager-child.ts`, `scripts/rm-guard.ts`; `package:win`의 `stageApp`·허용 목록·`checkOutput`을 재사용)
+1. 임시 루트 **만들기 전** 검사: 입력(`checkInputs`), packager 정확 20.3.0 고정·설치 일치, 최종 출력(`package:win`과 같은 lexical+realpath·상위/하위 보호·링크 검사 + **이미 존재하면 거절** + **Electron zip 폴더 안·같음·상위·junction 별칭 경유 동등 경로 거절**: zip 폴더는 읽기만 하는 입력/캐시라 출력·임시 생성물이 들어가면 안 되며 최종 복사 직전에 다시 검사한다), 엄격 허용 목록 사전검사, Electron zip(없거나 `checksums.json` 해시와 다르거나 링크이거나 중앙 디렉터리에 경로 탈출·절대 경로·symlink 엔트리가 있으면 **다운로드로 폴백하지 않고 실패**). 거절하면 임시 루트도 최종 출력도 만들어지지 않는다(합성 입력 단위 검사로 확인).
+2. 이번 빌드가 `mkdtemp`로 새로 만든 **독점 임시 루트**(저장소 밖)에 `staging/temp/out/logs`를 만들고, `stageApp`(허용 목록: 번들 `out/{main,preload,renderer}`, ICO, 실제 `openai` SDK 복사본, 앱 `LICENSE`·`THIRD_PARTY_NOTICES.md`)으로 staging만 구성한다. 저장소 전체를 `dir`로 넘기지 않는다.
+3. 호출 직전 재검사: 루트·`out`·최종 경로의 실경로·별칭·비존재·링크(lstat)·`ReparsePoint`(PowerShell)·입력(저장소/Electron dist/zip 폴더/최종 출력/공용 `electron-packager` tmp)과 비중첩.
+4. packager는 **자식 프로세스**에서 한 번만 호출한다(`TEMP`/`TMP`=독점 루트의 `temp`, cwd=`temp`). import 전에 `fs.promises`/`fs`의 `rm`·`rmdir`·`unlink`(Sync 포함)를 감싸 모든 호출 대상을 `logs/rm-calls.jsonl`에 기록하고 **허용 하위트리(`out`·`temp`)의 엄밀한 안쪽이 아니거나 링크/별칭으로 밖으로 나가는 대상은 실행 전에 거절**한다. 이는 in-process 방어일 뿐 OS 샌드박스가 아니며 별도 프로세스·네이티브 삭제와 모든 경합(TOCTOU)을 막는다고 주장하지 않는다. 옵션: win32/x64, `electronVersion` 44.9.3, `electronZipDir`, `name`/`executableName` `LoreWeave`, `win32metadata`(`CompanyName`·`FileDescription`·`ProductName`·`InternalName` = `LoreWeave`, `OriginalFilename` = `LoreWeave.exe`), `appVersion` = `package.json` version, `appCopyright` = 저장소 `LICENSE`의 Copyright 줄, **`asar: false`·`prune: false`·`tmpdir: false`·`overwrite: false`**. packager가 남기는 `SquirrelAwareVersion: "1"`은 허용(설치 기능 신설 아님).
+5. 산출물 검증: 링크 0, 금지 이름 0, 필수 파일(`LICENSE`·`LICENSES.chromium.html`·앱 파일), `electron.exe`·`app.asar`·`default_app*` 없음, Electron 구성 파일 허용 목록, `resources/app`이 staging과 **파일 단위(크기·SHA-256)로 동일**(packager가 더하거나 빼거나 바꾸지 않음), `resources/app/package.json`의 `name/version/main`이 `package:win`과 동일, 실제 PE 리소스(resedit)의 문자열과 **ICO 6프레임 바이트 일치**. 통과한 것만 **존재하지 않는 최종 경로를 exclusive로 만들어**(`mkdir`, 경합이면 실패) 복사(`errorOnExist`)하고 다시 검증한다. 입력(zip·Electron dist·ICO) 해시가 전후 같아야 한다.
+6. 실패하거나 성공해도 독점 임시 루트와 증거(`logs/build.log`·`build.json`·`rm-calls.jsonl`·packager 자식 로그)를 **삭제하지 않는다**(자동 삭제·덮어쓰기·자동 재시도 0). 성공 시 루트에 staging/out 복사본이 남는다.
+
+**관측 (실제 1회 빌드, 이 PC·합성 자동화)**: 4,634파일/약 402.9MB(최종 출력), `LoreWeave.exe`, PE 문자열·ICO 6프레임 일치, packager가 부른 삭제 4건(최종 경로 `rm`, `default_app` `rm`, `default_app.asar` `rm`·`unlink`) 전부 허용 하위트리 안, 입력 해시 불변, 패키징 출력에 링크 0. 합성 smoke(`tests/e2e/package-win-branded-smoke.test.ts`): 새 합성 프로젝트와 새 절대 `--user-data-dir`로 **제품 main 실행 전**에 `--inspect-brk`로 멈춰 실제 `app.getPath('userData')`·argv를 확인한 뒤 재개(불일치는 재개하지 않고 종료하는 음성 검사 포함), `app.getName()` = `loreweave`(package:win과 같은 identity), `app.isPackaged` = `true`, `process.defaultApp` undefined, 편집→저장→닫기→재열기→검색, 원고 Buffer·이웃 파일 보존, 상속된 `ELECTRON_RENDERER_URL` loopback 수신 0·file: 부팅. `isPackaged`를 쓰는 곳은 `src/main/index.ts`의 production 시작 가드 한 곳뿐이며(그 가드는 true일 때 개발 서버를 읽지 않는 쪽), 다른 분기는 없다.
+
+**기본 `userData` 불변**: `app.name`/`productName`/`app.setName`/기본 경로 정책은 바꾸지 않았고 `resources/app/package.json`의 identity가 `package:win`과 같다. 실제 기본 프로필을 열지 않았으므로 "기본 경로가 그대로"는 **동일 identity에서의 추론**이다(실제 관측 아님).
+
+**이력 보존**: ① npm 실행 시도는 2회였고 성공한 설치는 1회였다(§4.2의 첫 시도는 내 설정 오류로 install 전에 종료). runner 재실행은 감독의 "실패 시 중단" 지시를 벗어난 것이며 사후에 승인된 실행으로 바꾸지 않는다. ② 첫 `dev1` 실행의 실제 설정/프로필 수정시각 갱신과 프로젝트·색인·원고 영향 미확인은 그대로다. ③ 이 구현 중의 최초 실패(원시 로그 보존): `pnpm`에 `--`를 넘긴 인자 오류(exit 1, 부작용 없음), packager 자식 프로세스의 최상위 `await` 변환 오류(packager 호출 전, `out` 비어 있음), 문법 오류(실행 전), 합성 smoke에서 `NODE_OPTIONS=--require` 장벽이 이름을 바꾼 실행파일에서 적용되지 않음(음성 검사가 시간 초과), 종료가 inspector 연결 때문에 끝나지 않던 것과 DevTools 포트 개방 지연 — 앞의 둘과 마지막 둘은 내 변경의 결함, `NODE_OPTIONS` 비적용은 환경 제약으로 분류했고 장벽을 `--inspect-brk`로 바꿨다. 수정 뒤의 관련 회귀검사는 이 실패를 지우지 않고 필요에 따라 다시 실행했다.
+
+**한계/미확인**: Electron 내부 동작에 기대는 부분(`--inspect-brk` 정지 지점의 `require('electron')`)은 문서화된 API가 아니라 버전이 바뀌면 장벽이 깨질 수 있다(그 경우 통과시키지 않고 실패). 장벽은 제품 main 실행 경계까지이며 Electron/Chromium 자체 초기화는 막지 못한다. 다른 PC·CI에서는 같은 공식 zip(`electron-v<버전>-win32-x64.zip`)을 사용자가 미리 준비해야 하며(자동 확보 기능 없음) 이 PC의 캐시 위치(`%LOCALAPPDATA%\electron\Cache\<해시>`)에 의존한다. OS 탐색기·작업표시줄 아이콘 표시, SmartScreen/서명, 다른 PC 실행, 외부 네트워크 전체 0(관측은 JS 수준 요청과 Chromium 해석 차단 설정 범위), 수동 GUI·실제 IME는 확인하지 않았다. 독점 임시 루트가 성공 뒤에도 남는다(수동 정리).
+
 ## 5. production 시작 경계 (후속 수용기준 제안)
 
 - **문제**: 현재 판정은 `!app.isPackaged && ELECTRON_RENDERER_URL`이다. 이름을 바꿔도 `isPackaged`가 true가 된다는 보장이 없고(§3), smoke는 환경변수를 지운 경우만 본다.
@@ -168,6 +190,8 @@
 5. 전체 E2E·96장 캡처·IME campaign은 하지 않는다. 최소 묶음: 단위 + 패키지 smoke + 기존 저장/충돌/닫기 관련 최소 검사.
 
 ## 7. 남은 결정과 미확인
+
+- **갱신(2026-11-16, 구현 후)**: 아래 "결정 필요"·"미확인" 목록은 구현 전 기록이며 §4.3의 구현 결과가 우선한다. 남은 것: 다른 PC·CI의 Electron zip 확보 방식, OS 아이콘 표시·SmartScreen·다른 PC 실행, 서명·설치 프로그램·배포(미승인), 독점 임시 루트의 정리 방식.
 
 - 결정 필요: (1) 구현을 PR-1/PR-2로 나눌지와 순서, (2) 경로 B를 위한 새 devDependency·lockfile 변경 승인과, 그에 앞서 **packager의 출력 경로 재귀 삭제 호출과 "삭제 0" 경계의 충돌을 제품 쪽에서 어떻게 다룰지(허용 범위·출력 경로 사전 검사·독점 새 루트 등) 감독이 결정**하는 것(실험은 §4.2의 한정 예외로 1회 수행·성공; 제품 승인 아님. Electron zip 다운로드는 로컬 캐시로 불필요해졌다), (3) *(해소)* 원본 ICO 위치·동일성은 확인 완료(§2) — 구현 PR은 빌드 검증에서 `resources/app-icon.ico`의 SHA-256을 위 값과 재대조할지만 정하면 된다, (4) production 가드 방식(§5 a/b/c), (5) `productName`/`name`/`userData`는 건드리지 않는다는 원칙의 확인.
 - 미확인: `@electron/packager` 20.3.0의 Electron 44.9.3 **명시 지원(없음)**과 **제품 staging에서의** 실행 결과(합성 앱 1회 성공은 §4.2, 제품은 미실행), ~~전이 의존 트리·설치 스크립트~~(해소: 49개·스크립트 0·25.8MB — 수용 여부는 승인 사항), `asar`의 문서·구현 불일치 중 `asar: false` 명시 시 합성 앱에서는 비ASAR 레이아웃이 나옴(해소: 합성 앱 한정; 제품 staging은 미확인), `initialize()` 이후 단계의 잔여물(해소: 합성 실행에서 잔여물 0), `CompanyName` 기본값의 실제 동작, 고지 파일 보존, 다른 PC·CI의 Electron zip 확보, `app.isPackaged` 판정 방식과 이름 변경의 영향(합성 앱에서 `LoreWeave.exe`는 `isPackaged` true로 관측, 제품 main은 미실행), 기본 `userData`의 실제 값(identity `loreweave`에서 유도한 추론만, 실제 프로필 관측 0), OS 아이콘 표시·SmartScreen·다른 PC 실행. (해소: `win32metadata` 필드·기본값, `resedit`가 쓰이는 경로의 소스 근거, 제공 원본 ICO와의 동일성, 이 PC의 Electron 44.9.3 zip 확보와 해시 일치.)
