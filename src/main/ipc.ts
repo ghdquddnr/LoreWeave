@@ -466,7 +466,14 @@ export function registerIpc(): void {
   });
   ipcMain.handle(CHANNELS.aiEstimate, async (_e, files: string[], token: number) => {
     const path = requireProject(token);
-    return estimate(path, files, (await readSettings(userData())).aiModel);
+    // 기다리는 사이 다른 프로젝트(같은 폴더 다시 열기 포함)를 열었으면 옛 예상이나 옛 읽기 오류 대신 STALE_PROJECT로 끝낸다 (aiPlanCheck·aiAnalysisStatus와 같다)
+    try {
+      const result = await estimate(path, files, (await readSettings(userData())).aiModel);
+      if (stillOpen(token)) return result;
+    } catch (e) {
+      if (stillOpen(token)) throw e;
+    }
+    throw new Error(STALE_PROJECT);
   });
   ipcMain.handle(CHANNELS.aiAnalysis, (_e, file: string, token: number) => openAiStore(requireProject(token), false)?.analysis(file) ?? null);
   ipcMain.handle(CHANNELS.aiCancel, () => analyzing?.abort());
