@@ -43,7 +43,7 @@ Possible continuity error
 
 → [M1 결과](docs/M1-REPORT.md), [M2 결과](docs/M2-REPORT.md), [M3 결과](docs/M3-REPORT.md), [M4 결과](docs/M4-REPORT.md), 이후 [M5](docs/M5-REPORT.md)~[M10](docs/M10-REPORT.md) 결과
 
-개발 실행: `corepack pnpm install` → `corepack pnpm dev`. 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
+개발 실행: `corepack pnpm install` → `corepack pnpm dev`. Windows 실행본(설치 파일 아님) 계획: [docs/WINDOWS-PREVIEW-PLAN.md](docs/WINDOWS-PREVIEW-PLAN.md) (계획만 있고 구현은 아직 없습니다). 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
 
 ## 원칙
 
