@@ -290,6 +290,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     // 동의 저장·저장·재계산을 기다리는 동안에도 새 실행을 시작하지 못하게 starting으로 막고, 그 사이 프로젝트가 바뀌면(request 번호) 보내지 않는다.
     // 또 이 구간의 새 입력이 승인한 범위·비용을 우회하지 못하게 입력을 잠근다: 마지막 저장 → 재계산 → 요청을 보내는 순간까지 (이미 받아들인 입력은 저장·재계산에 반영되고, 실패·취소·프로젝트 전환·요청 전송 뒤에는 풀린다)
     const mine = requestSeq.current;
+    const epoch = selectionEpoch.current; // 승인한 때의 화 선택
     setDialog(null);
     setStarting(true);
     setRetry(null);
@@ -306,6 +307,9 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       if (mine !== requestSeq.current) return;
       const model = status.models.find((m) => m.id === status.model)?.label ?? status.model;
       if (!samePlan(d.plan, fresh) || status.model !== d.modelId) {
+        // 현재 화 대상(owner)인데 재확인을 기다리는 사이 화를 옮겼다면(돌아왔어도) 이전 화의 확인 창을 지금 화면에 다시 열지 않는다. 아무것도 보내지 않았고 입력은 아래 finally에서 풀린다.
+        // (프로젝트 범위 owner=null은 화 이동과 무관하다. 값이 같아 그대로 보내는 경우는 이 분기가 아니라 바꾸지 않았다)
+        if (d.owner !== null && epoch !== selectionEpoch.current) return;
         // 확인 뒤 원고나 모델이 달라졌다: 보내지 않고 새 값으로 다시 확인받는다
         setError(null);
         setNotice('확인한 뒤 원고 내용이나 모델이 달라져 범위와 비용을 다시 확인합니다. 아직 아무것도 보내지 않았습니다.');
@@ -319,6 +323,8 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       // 확인 뒤의 어떤 단계가 실패해도 조용히 닫지 않는다: 사용자용 안내와 기술 상세, 다시 시도. (프로젝트가 바뀐 뒤의 늦은 오류는 보이지 않는다)
       if (mine === requestSeq.current) {
         setError(friendlyError(e));
+        // 준비 중 화를 옮겼다면(돌아왔어도) 이전 화 대상의 다시 시도는 만들지 않는다 (오류 안내는 그대로)
+        if (d.owner !== null && epoch !== selectionEpoch.current) return;
         planOwner.current = d.owner;
         setRetry(() => () => (d.plan.kind === 'analysis' ? startAnalysis(d.plan.files, d.owner) : startCheck(d.plan.file)));
       }
