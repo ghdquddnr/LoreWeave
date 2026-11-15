@@ -46,8 +46,10 @@ function setup() {
 
   const handlers: Record<string, CloseHandler[]> = {};
   const sent: number[] = [];
+  /** main이 renderer에 알린 닫기 취소(시도 번호) */
+  const cancelled: number[] = [];
   let destroyed = false;
-  const webContents = { id: 'own', send: (_channel: string, attempt: number) => void sent.push(attempt) };
+  const webContents = { id: 'own', send: (channel: string, attempt: number) => void (channel === 'closeCancelled' ? cancelled : sent).push(attempt) };
   const win = {
     webContents,
     isDestroyed: () => destroyed,
@@ -71,7 +73,7 @@ function setup() {
   const unsaved = (attempt: number, from: unknown = webContents) => {
     for (const fn of listeners.get('closeUnsaved') ?? []) (fn as unknown as (e: { sender: unknown }, attempt: number) => void)({ sender: from }, attempt);
   };
-  return { win, sent, dialogs, reply, unsaved, destroyed: () => destroyed, replyListeners: () => (listeners.get('replyClose') ?? []).length };
+  return { win, sent, cancelled, dialogs, reply, unsaved, destroyed: () => destroyed, replyListeners: () => (listeners.get('replyClose') ?? []).length };
 }
 const flush = () => new Promise<void>((r) => setImmediate(r));
 
@@ -140,6 +142,7 @@ test('닫기 취소: 시도가 끝나고, 늦은 응답과 옛 타이머는 이�
   await flush();
   t.dialogs[0]!.resolve(1); // 닫기 취소
   await flush();
+  assert.deepEqual(t.cancelled, [1], '취소한 시도(1)만 renderer에 알린다 (저장 응답을 기다리는 renderer가 그 시도의 편집 잠금을 돌려준다)');
   t.reply(true, 1); // 취소한 시도의 늦은 저장 완료
   assert.equal(t.destroyed(), false, '취소된 시도는 늦은 저장 완료로도 닫히지 않는다');
   mock.timers.tick(60_000);
@@ -267,4 +270,36 @@ test('renderer가 알림 뒤 응답하지 않아도 확인창은 main이 소유�
   t.reply(false, 2);
   assert.equal(t.dialogs[1]!.aborted, true);
   assert.equal(t.destroyed(), false);
+});
+
+test('취소 통지: 계속 기다리기·저장 완료·폐기 거절·옛 시도의 늦은 응답은 알리지 않고, 안내를 띄우지 못해 끝난 시도와 다음 취소는 각 시도 번호로만 알린다', async () => {
+  const t = setup();
+  t.win.close();
+  mock.timers.tick(10_000);
+  await flush();
+  t.dialogs[0]!.resolve(0); // 계속 기다리기: 시도는 이어진다
+  await flush();
+  assert.deepEqual(t.cancelled, [], '계속 기다리기는 취소가 아니다');
+  mock.timers.tick(10_000);
+  await flush();
+  t.dialogs[1]!.reject(new Error('안내를 띄우지 못했다')); // 안내 실패: 시도가 끝난다
+  await flush();
+  assert.deepEqual(t.cancelled, [1], '안내를 띄우지 못해 끝난 시도도 알린다 (닫지 않는다)');
+  assert.equal(t.destroyed(), false);
+  t.reply(true, 1); // 끝난 시도의 늦은 응답은 닫지도, 다시 알리지도 않는다
+  assert.equal(t.destroyed(), false);
+  assert.deepEqual(t.cancelled, [1]);
+  // 다음 시도: 저장 완료·폐기 거절은 취소 통지를 만들지 않는다
+  t.win.close();
+  t.unsaved(2);
+  await flush();
+  t.dialogs[2]!.resolve(1); // 폐기 거절(닫지 않기): renderer는 이미 저장 응답을 마쳤다
+  await flush();
+  assert.deepEqual(t.cancelled, [1], '폐기 거절은 취소 통지가 아니다');
+  t.win.close(); // 새 시도 3: 대기 안내에서 취소
+  mock.timers.tick(10_000);
+  await flush();
+  t.dialogs[3]!.resolve(1);
+  await flush();
+  assert.deepEqual(t.cancelled, [1, 3], '각 시도 번호로만 알린다');
 });

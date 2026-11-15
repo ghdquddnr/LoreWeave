@@ -332,11 +332,32 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   }, []);
 
   /** 창 닫기: 저장을 마쳤으면 닫아도 된다고 답한다. 저장하지 못한 변경이 남았으면 renderer는 묻지 않고 main에 알린다 (폐기 확인은 main이 같은 닫기 시도에 하나만 띄운다) */
-  const closeAfterSave = useCallback(async (attempt: number): Promise<void> => {
-    const clean = (await editor.current?.flush()) ?? true;
-    if (clean) api.app.replyClose(true, attempt);
-    else api.app.unsavedClose(attempt);
+  /**
+   * 창 닫기 시도가 건 편집 잠금 (시도 번호별 소유). 저장하는 동안 받은 입력이 정상 저장 뒤에도 폐기 확인을 부르지 않게 잠그되(탭 닫기·폴더 전환과 같은 깊이 계수),
+   * 같은 시도의 잠금을 한 번만 돌려준다: 저장 응답이 끝났을 때(finally)나 main이 그 시도의 취소를 알렸을 때 중 먼저 오는 쪽이 돌려주고, 나중 쪽은 아무것도 하지 않는다.
+   * 그래서 취소한 시도의 늦은 finally가 새 시도나 다른 조작의 잠금을 풀지 못하고, 저장이 오래 걸려도 [닫기 취소] 뒤에는 편집이 바로 돌아온다
+   */
+  const closeLocks = useRef(new Set<number>());
+  const releaseCloseLock = useCallback((attempt: number) => {
+    if (closeLocks.current.delete(attempt)) unlockEditor(false);
   }, []);
+  const closeAfterSave = useCallback(
+    async (attempt: number): Promise<void> => {
+      // 마지막 저장 전에 먼저 잠근다: 잠그기 전에 받은 입력은 아래 flush가 저장한다
+      if (!closeLocks.current.has(attempt)) {
+        closeLocks.current.add(attempt);
+        lockEditor();
+      }
+      try {
+        const clean = (await editor.current?.flush()) ?? true;
+        if (clean) api.app.replyClose(true, attempt);
+        else api.app.unsavedClose(attempt);
+      } finally {
+        releaseCloseLock(attempt);
+      }
+    },
+    [releaseCloseLock],
+  );
 
   useEffect(() => {
     const onBlur = () => void editor.current?.flush();
@@ -367,15 +388,17 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     window.addEventListener('blur', onBlur);
     window.addEventListener('keydown', onKey);
     const off = api.app.onBeforeClose((attempt) => void closeAfterSave(attempt));
+    const offCancelled = api.app.onCloseCancelled((attempt) => releaseCloseLock(attempt));
     // 다른 프로그램이 화를 바꾸면 분석 상태(분석 뒤 바뀜)도 다시 읽는다
     const offOutside = api.chapters.onChangedOutside(() => refreshAi());
     return () => {
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('keydown', onKey);
       off();
+      offCancelled();
       offOutside();
     };
-  }, [leave, closeAfterSave, refreshAi]);
+  }, [leave, closeAfterSave, releaseCloseLock, refreshAi]);
 
   /**
    * 원고 조작을 실행한다. 조작은 시작할 때의 프로젝트 세대(gen)를 받고, 각 await 뒤에 isCurrent(gen)로 확인한 뒤에만 화면을 바꾼다.

@@ -1,9 +1,9 @@
-// 실제 창 닫기(BrowserWindow.close → beforeClose → App.closeAfterSave)의 선행 저장을 실제 디스크 쓰기 경계에서 붙잡은 동안,
-// 에디터가 받아들인 추가 입력 Y가 닫기 완료 또는 폐기 거절 뒤에도 유실되지 않는다. closeAfterSave에는 편집 잠금이 없으므로 Y가 수락되는지부터 관측한다
-// (탭 닫기의 PR #209 잠금 정책을 창 닫기로 자동 확대하지 않는다: 이 검사는 현재 정책을 있는 그대로 고정한다).
-// 폐기 확인은 main의 native dialog.showMessageBox 대역이 문구·버튼·횟수를 기록하고 [닫지 않기](거절)로만 답한다 (자동 수락 0). renderer의 window.confirm과 다르다.
-// (close-save-timeout은 느린 응답·취소·재시도, close-confirm-overlap은 timeout/폐기 확인 중첩, save-inflight-input은 일반 저장·화 이동, save-failure-refusal의 close는 Ctrl+S가 시작한 저장 뒤의 닫기다 —
-//  창 닫기가 *시작한* 선행 저장 중의 새 입력은 다루지 않는다.)
+// 실제 창 닫기(BrowserWindow.close → beforeClose → App.closeAfterSave)의 선행 저장 동안에는 에디터가 잠긴다 (탭 닫기·폴더 전환과 같은 lockEditor 깊이 계수, 시도 번호별 소유).
+// 닫는 중 받으려던 입력 Y는 수락되지 않고(유실이 아니라 미수락), 잠그기 전에 받은 X만 원래 id·BOM·CRLF로 저장되며, 정상 저장 뒤에는 폐기 확인·대기 안내 없이 실제로 닫힌다.
+// 저장이 실제 디스크 쓰기 실패로 끝나고 native 폐기 확인을 거절하면 창·X·디스크가 남고 잠금이 풀려 추가 입력 Z를 받는다. main의 10초 timeout [닫기 취소] 뒤에는 저장 HOLD가 아직 풀리지 않았어도 편집이 돌아오며,
+// 취소한 시도의 늦은 저장 완료는 창을 닫지 않고 새 입력을 저장 완료로 오인시키지 않고, 그 시도의 늦은 finally는 다음 닫기 시도의 잠금을 풀지 않는다.
+// (PR #210은 잠금이 없던 이전 정책에서 닫는 중 받은 Y가 정상 저장 뒤에도 폐기 확인을 부르던 관측을 고정했다: 그 정책 변경을 이 검사가 대신한다. 일반 저장 중 입력 수락 정책은 save-inflight-input이 본다.)
+// 폐기 확인·대기 안내는 main의 native dialog.showMessageBox 대역이다: 정상 닫기 판정에 launch.ts의 정리용 closeWindow(폐기 자동 수락)를 쓰지 않고, 거절 대역을 유지한 채 실제 창 닫기로 앱이 종료되는지 본다.
 // 실제 앱(Electron + Playwright). 장벽·주입은 main의 디스크 호출이다: A/001.md 임시 파일을 연 직후 선행 저장을 붙잡고, 실패 경우에는 풀기 전에 rename을 EPERM으로 만든다.
 // 합성 원고(BOM + CRLF + frontmatter)·격리 userData. 합성 자동화이며 수동 GUI·실제 OS IME가 아니다. 유료·외부 호출 없음.
 
@@ -40,13 +40,16 @@ interface G {
   /** 폐기 확인이 아닌 native 안내(저장 대기 등) 수: 기본은 계속 기다리기로 답하고, strictWait이면 [닫기 취소]로 답해 닫기를 막는다 */
   waits: number;
   strictWait: boolean;
+  /** manualWait이면 저장 대기 안내를 테스트가 고른 선택으로만 닫는다 (resolvers에 쌓는다) */
+  manualWait: boolean;
+  waitResolvers: ((response: number) => void)[];
   release?: () => void;
 }
 const hook = (app: ElectronApplication, target: string) =>
   app.evaluate(
     ({ ipcMain, dialog }, target) => {
       const g = globalThis as unknown as G;
-      Object.assign(g, { armed: false, held: false, failRename: false, opens: 0, renames: 0, writes: 0, creates: 0, reissues: 0, ais: 0, discards: [], waits: 0, strictWait: false });
+      Object.assign(g, { armed: false, held: false, failRename: false, opens: 0, renames: 0, writes: 0, creates: 0, reissues: 0, ais: 0, discards: [], waits: 0, strictWait: false, manualWait: false, waitResolvers: [] });
       // 이 함수는 앱 안에서 실행된다: 이름 붙은 도우미 함수를 두지 않는다
       const fsp = process.getBuiltinModule('fs/promises');
       const open = fsp.open;
@@ -92,6 +95,7 @@ const hook = (app: ElectronApplication, target: string) =>
           return Promise.resolve({ response: 1, checkboxChecked: false }); // [닫지 않기]: 폐기 거절
         }
         g.waits++;
+        if (g.manualWait) return new Promise((resolve) => g.waitResolvers.push((response: number) => resolve({ response, checkboxChecked: false })));
         return Promise.resolve({ response: g.strictWait ? 1 : 0, checkboxChecked: false }); // 저장 대기 안내: 계속 기다리기 (strictWait이면 [닫기 취소]: 정상 닫기 판정에서 안내가 뜨면 닫기가 막혀 검사가 실패한다)
       }) as typeof dialog.showMessageBox;
       void prev;
@@ -111,8 +115,19 @@ const state = (app: ElectronApplication) =>
       ais: g.ais,
       discards: g.discards,
       waits: g.waits,
+      waitPending: g.waitResolvers.length,
       windows: BrowserWindow.getAllWindows().length,
     };
+  });
+const setManualWait = (app: ElectronApplication) => app.evaluate(() => void ((globalThis as unknown as G).manualWait = true));
+const setStrict = (app: ElectronApplication) => app.evaluate(() => void ((globalThis as unknown as G).strictWait = true));
+/** 대기 중인 저장 대기 안내 하나를 고른 선택으로 닫는다 (0: 계속 기다리기, 1: 닫기 취소) */
+const answerWait = (app: ElectronApplication, response: number) => app.evaluate((_e, r) => void (globalThis as unknown as G).waitResolvers.shift()?.(r), response);
+/** main의 정확히 10000ms 타이머만 300ms로 앞당긴다 (close-save-timeout과 같은 방식: 실제 timeout 경로가 발화한다) */
+const shrinkTimeout = (app: ElectronApplication) =>
+  app.evaluate(() => {
+    const real = globalThis.setTimeout;
+    globalThis.setTimeout = ((fn: () => void, delay?: number, ...rest: unknown[]) => real(fn, delay === 10000 ? 300 : delay, ...rest)) as unknown as typeof setTimeout;
   });
 const arm = (app: ElectronApplication) => app.evaluate(() => void ((globalThis as unknown as G).armed = true));
 const setFail = (app: ElectronApplication, on: boolean) => app.evaluate((_e, v) => void ((globalThis as unknown as G).failRename = v), on);
@@ -238,60 +253,89 @@ async function reopen(dir: string, expectedBody: string, expectedDisk: string) {
   }
 }
 
-test('창 닫기의 선행 저장 중 받아들인 입력: 닫히면 수락한 입력이 모두 디스크에 있고, 폐기 확인이면 거절 뒤 창·입력·디스크가 안전하며, 이후 저장·닫기·새 앱 재열기에서 정확히 남는다', { timeout: 180_000 }, async () => {
-  const { app, page, dir, read, life } = await start('wcii-ok');
+/** 이미 시작한 창 닫기가 끝나 앱이 종료되기를 기다린다 (한도 20초). 폐기 확인·대기 안내가 뜨면 대역이 거절·취소하므로 창이 남아 실패한다 */
+async function awaitClosed(app: ElectronApplication, life: { appClosed: boolean }) {
+  const deadline = Date.now() + 20_000;
+  while (!life.appClosed && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25));
+  if (!life.appClosed) console.error('WINDOW_CLOSE_STUCK', JSON.stringify(await state(app).catch(() => null)));
+  assert.equal(life.appClosed, true, '실제 창 닫기로 앱이 종료되어야 한다 (폐기 확인·대기 안내는 거절·취소되므로 뜨면 닫히지 못한다)');
+}
+
+test('창 닫기의 선행 저장 동안 편집이 잠겨 Y는 수락되지 않고, 잠그기 전의 X만 정확히 저장되며, 폐기 확인·대기 안내 없이 실제로 닫히고 새 앱 재열기에서 X가 있다', { timeout: 180_000 }, async () => {
+  const { app, page, dir, read, life } = await start('wcls-ok');
   try {
     const held = await closeWithHeldSave(app, page);
-    console.error('WINDOW_CLOSE_BARRIER', JSON.stringify({ ...held, discards: held.discards.length }));
+    const editable = await editor(page).getAttribute('contenteditable');
+    console.error('WINDOW_CLOSE_LOCK_BARRIER', JSON.stringify({ ...held, discards: held.discards.length, contenteditable: editable }));
     assert.equal(held.opens, 1);
-    assert.equal(held.writes, 1, '창 닫기의 선행 flush chapter:write 1회 (이 쓰기의 주인은 코드 읽기+관측으로 판단: 편집 잠금이 없다)');
+    assert.equal(held.writes, 1, '창 닫기의 선행 flush chapter:write 1회');
+    assert.equal(editable, 'false', '닫기의 저장 동안 편집 잠금 (자동저장이 아니라 닫기 조작이 건 잠금)');
     assert.equal(held.windows, 1, '저장 중에는 창이 그대로다');
     assert.equal(held.discards.length + held.waits, 0, '붙잡힌 동안 native 안내 0');
+    assert.equal(held.creates + held.reissues + held.ais, 0, '불필요한 create/reissue/AI 진입 0 (붙잡힌 시점)');
     assert.deepEqual(await read('001.md'), Buffer.from(A1), '저장이 디스크에 닿기 전이다');
     assert.deepEqual(await read('002.md'), Buffer.from(B2));
     assert.deepEqual(await read('003.md'), Buffer.from(C3));
+    // 실제 본문 click + 키로 Y 시도: 수락되지 않는다 (유실이 아니라 미수락). 키 target이 본문이 아니면 그 한계는 로그(keyTags)와 PR 본문에 있다
     const y = await tryY(page);
-    const ySuffix = y.accepted ? ' X Y' : ' X';
+    assert.equal(y.accepted, false, 'Y는 수락되지 않았다');
+    assert.equal(y.editable, 'false');
+    assert.equal(await editor(page).getByText('A첫째 본문 X', { exact: true }).count(), 1, '잠그기 전에 받은 X는 그대로다');
     assert.deepEqual(await read('001.md'), Buffer.from(A1), 'Y 시도 뒤에도 첫 저장은 아직 디스크에 닿지 않았다');
 
+    // 저장을 풀면 폐기 확인·대기 안내 없이 닫힌다 (거절·취소 대역이 걸려 있다: 뜨면 닫히지 못해 실패한다). 앱이 종료되면 main을 읽을 수 없으므로 풀기 직전에 한 번 더 본다
+    const beforeRelease = await state(app);
+    assert.equal(beforeRelease.creates + beforeRelease.reissues + beforeRelease.ais, 0, '불필요한 create/reissue/AI 진입 0 (풀기 직전)');
+    await setStrict(app);
     await release(app);
-    await waitUntil('닫기 처리가 끝나지 않았다', async () => life.appClosed || (await state(app)).discards.length >= 1);
+    await awaitClosed(app, life);
+    assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X')), 'X만 원래 id·BOM·CRLF로 정확히 저장됐다');
+    assert.deepEqual(await read('002.md'), Buffer.from(B2), '이웃 B 불변');
+    assert.deepEqual(await read('003.md'), Buffer.from(C3), '다른 화 불변');
+    assert.deepEqual(await readdir(join(dir, 'chapters')), Object.keys(files), '화 파일 수·이름 불변');
+    await reopen(dir, 'A첫째 본문 X', withBody(' X'));
+  } finally {
+    await release(app).catch(() => {});
+    await closeWindow(app);
+  }
+});
 
-    if (life.appClosed) {
-      // 묻지 않고 닫혔다: 수락한 입력 전체가 디스크에 있어야 한다
-      assert.deepEqual(await read('001.md'), Buffer.from(withBody(ySuffix)), '닫혔다면 수락한 입력 전체가 디스크에 있다');
-      await reopen(dir, `A첫째 본문${ySuffix}`, withBody(ySuffix));
-    } else {
-      const asked = await state(app);
-      console.error('WINDOW_CLOSE_DECISION', JSON.stringify({ discards: asked.discards, waits: asked.waits, windows: asked.windows, writes: asked.writes, opens: asked.opens, renames: asked.renames, yAccepted: y.accepted }));
-      assert.deepEqual(asked.discards, [{ message: CONFIRM, buttons: DISCARD_BUTTONS }], 'native 폐기 확인 1회 (문구·버튼; 거절만 답했다)');
-      assert.equal(asked.waits, 0);
-      assert.equal(asked.creates + asked.reissues + asked.ais, 0, '불필요한 create/reissue/AI 진입 0');
-      assert.deepEqual((await statusSeen(page)).filter((t) => t.includes('저장됨')), [], '첫 저장(X)의 응답이 수락한 전체의 저장 완료로 보이면 안 된다');
-      assert.equal(asked.windows, 1, '폐기를 거절했으므로 창이 남는다');
-      assert.equal(life.appClosed, false);
-      assert.equal(await editor(page).getByText(`A첫째 본문${ySuffix}`, { exact: true }).count(), 1, '수락한 입력은 화면에 남는다');
-      assert.equal(await editor(page).getAttribute('contenteditable'), 'true');
-      const mid = (await read('001.md')).toString('utf8');
-      console.error('WINDOW_CLOSE_DISK_AFTER_REFUSE', JSON.stringify(mid));
-      assert.ok(mid === withBody(' X') || mid === withBody(ySuffix), '디스크에는 첫 저장 X(또는 이미 이어 저장된 전체)만 있다');
-      assert.deepEqual(await read('002.md'), Buffer.from(B2), '이웃 B 불변');
-      assert.deepEqual(await read('003.md'), Buffer.from(C3), '다른 화 불변');
-
-      // 거절 뒤 추가 입력 Z, 명시적 Ctrl+S (자동저장과 구분하지 못한다: 명시 저장 단독 성공을 주장하지 않는다)
-      await editor(page).click();
-      await page.keyboard.press('Control+End');
-      await page.keyboard.type(' Z');
-      const finalSuffix = `${ySuffix} Z`;
-      await editor(page).getByText(`A첫째 본문${finalSuffix}`, { exact: true }).waitFor();
-      await page.keyboard.press('Control+s');
-      await waitUntil('최종 본문이 저장되지 않았다', async () => (await read('001.md')).toString('utf8') === withBody(finalSuffix));
-      assert.deepEqual(await read('001.md'), Buffer.from(withBody(finalSuffix)), '최종 본문이 원래 id·BOM·CRLF로 정확히 저장됐다');
-      await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 15_000 });
-      // 정상 닫기: 묻지 않고 창이 닫힌다 (앱 종료 증거. 정리용 자동 수락 closeWindow를 쓰지 않는다)
-      await closeWithoutAsking(app, life);
-      await reopen(dir, `A첫째 본문${finalSuffix}`, withBody(finalSuffix));
-    }
+test('창 닫기의 선행 저장이 쓰기 실패로 끝나고 폐기를 거절하면: 창·X·디스크 보존, 편집 잠금 해제, 추가 입력 Z 수락, 복구 저장·실제 닫기·새 앱 재열기에서 XZ가 정확히 남는다', { timeout: 180_000 }, async () => {
+  const { app, page, dir, read, life } = await start('wcls-fail');
+  try {
+    const held = await closeWithHeldSave(app, page);
+    assert.equal(held.writes, 1);
+    assert.equal(await editor(page).getAttribute('contenteditable'), 'false', '붙잡힌 동안 편집 잠금');
+    await setFail(app, true);
+    await release(app);
+    await waitUntil('native 폐기 확인이 뜨지 않았다', async () => (await state(app)).discards.length >= 1);
+    const asked = await state(app);
+    console.error('WINDOW_CLOSE_FAIL_DECISION', JSON.stringify({ discards: asked.discards, waits: asked.waits, windows: asked.windows, renames: asked.renames }));
+    assert.deepEqual(asked.discards, [{ message: CONFIRM, buttons: DISCARD_BUTTONS }], 'native 폐기 확인 1회 (거절만 답했다)');
+    assert.ok(asked.renames >= 1, 'rename 실패가 주입되지 않았다');
+    assert.equal(asked.creates + asked.reissues + asked.ais, 0, '불필요한 create/reissue/AI 진입 0');
+    assert.equal(asked.windows, 1, '폐기를 거절했으므로 창이 남는다');
+    assert.equal(life.appClosed, false);
+    await waitUntil('편집 잠금이 풀리지 않았다', async () => (await editor(page).getAttribute('contenteditable')) === 'true');
+    assert.deepEqual((await statusSeen(page)).filter((t) => t.includes('저장됨')), [], '실패한 저장이 "저장됨"으로 보이면 안 된다');
+    assert.equal(await editor(page).getByText('A첫째 본문 X', { exact: true }).count(), 1, 'X는 화면에 남는다');
+    assert.deepEqual(await read('001.md'), Buffer.from(A1), '실패한 저장은 디스크를 바꾸지 않는다');
+    assert.deepEqual(await read('002.md'), Buffer.from(B2));
+    assert.deepEqual(await read('003.md'), Buffer.from(C3));
+    // 실제 입력 Z 수락
+    await editor(page).click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.type(' Z');
+    await editor(page).getByText('A첫째 본문 X Z', { exact: true }).waitFor();
+    // 실패 해제 후 저장 (Ctrl+S와 5초 자동 재시도를 구분하지 못한다)
+    await setFail(app, false);
+    await page.keyboard.press('Control+s');
+    await waitUntil('XZ가 저장되지 않았다', async () => (await read('001.md')).toString('utf8') === withBody(' X Z'));
+    assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X Z')), 'XZ가 원래 id·BOM·CRLF로 정확히 저장됐다');
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 15_000 });
+    assert.equal((await state(app)).discards.length, 1, '복구 뒤 추가 폐기 확인 0 (닫기 전)');
+    await closeWithoutAsking(app, life);
+    await reopen(dir, 'A첫째 본문 X Z', withBody(' X Z'));
     assert.deepEqual(await read('002.md'), Buffer.from(B2));
     assert.deepEqual(await read('003.md'), Buffer.from(C3));
     assert.deepEqual(await readdir(join(dir, 'chapters')), Object.keys(files), '화 파일 수·이름 불변');
@@ -301,47 +345,105 @@ test('창 닫기의 선행 저장 중 받아들인 입력: 닫히면 수락한 �
   }
 });
 
-test('창 닫기의 선행 저장이 쓰기 실패로 끝나고 폐기를 거절하면: 창·입력·디스크 보존, 편집 가능, 추가 입력 Z 수락, 복구 저장·닫기·새 앱 재열기에서 정확히 남는다', { timeout: 180_000 }, async () => {
-  const { app, page, dir, read, life } = await start('wcii-fail');
+test('실제 timeout: [계속 기다리기] 동안은 잠금이 유지되고, [닫기 취소] 뒤에는 저장 HOLD가 풀리지 않아도 편집이 돌아오며, 늦은 저장 완료는 창을 닫지 않고 새 입력을 저장 완료로 보이지 않는다', { timeout: 180_000 }, async () => {
+  const { app, page, dir, read, life } = await start('wcls-timeout');
   try {
+    await shrinkTimeout(app);
+    await setManualWait(app);
     const held = await closeWithHeldSave(app, page);
     assert.equal(held.writes, 1);
-    const y = await tryY(page);
-    const ySuffix = y.accepted ? ' X Y' : ' X';
-    await setFail(app, true);
-    await release(app);
-    await waitUntil('native 폐기 확인이 뜨지 않았다', async () => (await state(app)).discards.length >= 1);
-    const asked = await state(app);
-    console.error('WINDOW_CLOSE_FAIL_DECISION', JSON.stringify({ discards: asked.discards, waits: asked.waits, windows: asked.windows, renames: asked.renames, yAccepted: y.accepted }));
-    assert.deepEqual(asked.discards, [{ message: CONFIRM, buttons: DISCARD_BUTTONS }], 'native 폐기 확인 1회 (거절만 답했다)');
-    assert.ok(asked.renames >= 1, 'rename 실패가 주입되지 않았다');
-    assert.equal(asked.creates + asked.reissues + asked.ais, 0, '불필요한 create/reissue/AI 진입 0');
-    assert.equal(asked.windows, 1, '폐기를 거절했으므로 창이 남는다');
-    assert.equal(life.appClosed, false);
-    assert.deepEqual((await statusSeen(page)).filter((t) => t.includes('저장됨')), [], '실패한 저장이 "저장됨"으로 보이면 안 된다');
-    assert.equal(await editor(page).getByText(`A첫째 본문${ySuffix}`, { exact: true }).count(), 1, '수락한 입력은 화면에 남는다');
-    assert.equal(await editor(page).getAttribute('contenteditable'), 'true', '편집 가능');
-    assert.deepEqual(await read('001.md'), Buffer.from(A1), '실패한 저장은 디스크를 바꾸지 않는다');
-    assert.deepEqual(await read('002.md'), Buffer.from(B2));
-    assert.deepEqual(await read('003.md'), Buffer.from(C3));
-    // 추가 입력 Z 수락
+    await waitUntil('저장 대기 안내가 뜨지 않았다', async () => (await state(app)).waitPending >= 1);
+    assert.equal(await editor(page).getAttribute('contenteditable'), 'false', '안내가 떠 있는 동안 잠금');
+    // [계속 기다리기]: 같은 시도를 이어 간다. 저장이 아직 붙잡혀 있으니 잠금이 유지된다
+    await answerWait(app, 0);
+    await waitUntil('다시 묻지 않았다', async () => (await state(app)).waits >= 2 && (await state(app)).waitPending >= 1);
+    assert.equal((await state(app)).held, true);
+    assert.equal(await editor(page).getAttribute('contenteditable'), 'false', '[계속 기다리기] 동안 잠금 유지');
+    // [닫기 취소]: 저장 HOLD를 풀지 않은 채 편집이 돌아온다
+    await answerWait(app, 1);
+    await waitUntil('[닫기 취소] 뒤에도 편집이 돌아오지 않았다', async () => (await editor(page).getAttribute('contenteditable')) === 'true');
+    const cancelled = await state(app);
+    console.error('WINDOW_CLOSE_CANCEL_BARRIER', JSON.stringify({ held: cancelled.held, windows: cancelled.windows, waits: cancelled.waits, writes: cancelled.writes }));
+    assert.equal(cancelled.held, true, '저장은 아직 붙잡혀 있다 (HOLD를 풀기 전에 편집이 돌아왔다)');
+    assert.equal(cancelled.windows, 1);
+    // 취소 뒤 실제 입력 Z 수락
+    await page.evaluate(() => {
+      const w = window as unknown as { statusSeen: string[] };
+      w.statusSeen = [];
+      new MutationObserver(() => {
+        for (const el of document.querySelectorAll('[role="status"]')) w.statusSeen.push((el as HTMLElement).innerText);
+      }).observe(document.body, { subtree: true, childList: true, characterData: true });
+    });
     await editor(page).click();
     await page.keyboard.press('Control+End');
     await page.keyboard.type(' Z');
-    const finalSuffix = `${ySuffix} Z`;
-    await editor(page).getByText(`A첫째 본문${finalSuffix}`, { exact: true }).waitFor();
-    // 실패 해제 후 저장 (Ctrl+S와 5초 자동 재시도를 구분하지 못한다)
-    await setFail(app, false);
+    await editor(page).getByText('A첫째 본문 X Z', { exact: true }).waitFor();
+    // 늦은 저장 완료(X): 창을 닫지 않고, 새 입력 Z를 저장 완료로 보이지 않으며, 폐기 확인도 만들지 않는다 (취소한 시도의 늦은 응답은 main이 무시한다)
+    await release(app);
+    await waitUntil('X가 저장되지 않았다', async () => (await read('001.md')).toString('utf8') === withBody(' X'));
+    assert.deepEqual((await statusSeen(page)).filter((t) => t.includes('저장됨')), [], '늦은 저장 완료가 Z까지 저장됐다고 보이면 안 된다');
+    const late = await state(app);
+    assert.equal(late.windows, 1, '늦은 저장 완료가 창을 닫지 않았다');
+    assert.equal(late.discards.length, 0, '취소한 시도의 늦은 응답은 폐기 확인을 만들지 않는다');
+    assert.equal(await editor(page).getAttribute('contenteditable'), 'true');
+    assert.equal(await editor(page).getByText('A첫째 본문 X Z', { exact: true }).count(), 1);
+    // 후속 저장: Z까지 정확히 보존
     await page.keyboard.press('Control+s');
-    await waitUntil('최종 본문이 저장되지 않았다', async () => (await read('001.md')).toString('utf8') === withBody(finalSuffix));
-    assert.deepEqual(await read('001.md'), Buffer.from(withBody(finalSuffix)), '최종 본문이 원래 id·BOM·CRLF로 정확히 저장됐다');
+    await waitUntil('XZ가 저장되지 않았다', async () => (await read('001.md')).toString('utf8') === withBody(' X Z'));
+    assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X Z')));
     await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 15_000 });
-    assert.equal((await state(app)).discards.length, 1, '복구 뒤 추가 폐기 확인 0 (닫기 전)');
+    const preClose = await state(app);
+    assert.equal(preClose.creates + preClose.reissues + preClose.ais, 0, '불필요한 create/reissue/AI 진입 0 (닫기 전)');
+    assert.deepEqual(await readdir(join(dir, 'chapters')), Object.keys(files), '화 파일 수·이름 불변');
+    await setStrict(app);
     await closeWithoutAsking(app, life);
-    await reopen(dir, `A첫째 본문${finalSuffix}`, withBody(finalSuffix));
+    await reopen(dir, 'A첫째 본문 X Z', withBody(' X Z'));
     assert.deepEqual(await read('002.md'), Buffer.from(B2));
     assert.deepEqual(await read('003.md'), Buffer.from(C3));
-    assert.deepEqual(await readdir(join(dir, 'chapters')), Object.keys(files), '화 파일 수·이름 불변');
+  } finally {
+    await release(app).catch(() => {});
+    await closeWindow(app);
+  }
+});
+
+test('겹침: 취소한 시도의 저장이 아직 붙잡힌 채 새 닫기 시도가 시작돼도, 옛 시도의 늦은 finally가 새 시도의 잠금을 풀지 않고, 새 시도의 저장이 끝나면 닫힌다', { timeout: 180_000 }, async () => {
+  const { app, page, dir, read, life } = await start('wcls-overlap');
+  try {
+    await shrinkTimeout(app);
+    await setManualWait(app);
+    await closeWithHeldSave(app, page);
+    await waitUntil('저장 대기 안내가 뜨지 않았다', async () => (await state(app)).waitPending >= 1);
+    await answerWait(app, 1); // [닫기 취소]: 시도 1 끝
+    await waitUntil('편집이 돌아오지 않았다', async () => (await editor(page).getAttribute('contenteditable')) === 'true');
+    await editor(page).click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.type(' Z');
+    await editor(page).getByText('A첫째 본문 X Z', { exact: true }).waitFor();
+    // 새 닫기 시도 2: 저장 HOLD는 그대로(시도 1의 flush가 아직 끝나지 않았다). 시도 2의 재저장도 붙잡아 둔다
+    await arm(app);
+    await app.evaluate(({ BrowserWindow }) => void BrowserWindow.getAllWindows()[0]?.close());
+    await waitUntil('새 시도가 편집을 잠그지 않았다', async () => (await editor(page).getAttribute('contenteditable')) === 'false');
+    // 시도 1의 저장을 풀면: 시도 1의 flush가 끝나(늦은 finally) 시도 2의 재저장(XZ)이 붙잡힌다. 그동안 새 시도의 잠금은 유지돼야 한다
+    await setStrict(app);
+    await release(app);
+    await waitUntil('시도 2의 재저장이 붙잡히지 않았다', async () => {
+      const s = await state(app);
+      return s.held && s.opens >= 2;
+    });
+    assert.equal(await editor(page).getAttribute('contenteditable'), 'false', '옛 시도의 늦은 finally가 새 시도의 잠금을 풀지 않았다');
+    assert.equal((await state(app)).windows, 1);
+    assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X')), '재저장 전에는 시도 1의 X만 디스크에 있다');
+    const preClose = await state(app);
+    assert.equal(preClose.creates + preClose.reissues + preClose.ais, 0, '불필요한 create/reissue/AI 진입 0 (닫기 전)');
+    // 시도 2의 재저장이 붙잡힌 지금은 진행 중인 임시 파일이 있다 (정상): 그것만 빼고 화 파일은 그대로이고, 닫힌 뒤에는 임시 파일도 남지 않는다
+    assert.deepEqual((await readdir(join(dir, 'chapters'))).filter((f) => !f.endsWith('.tmp')), Object.keys(files), '화 파일 수·이름 불변 (진행 중 임시 파일 제외)');
+    await release(app);
+    await awaitClosed(app, life);
+    assert.deepEqual(await readdir(join(dir, 'chapters')), Object.keys(files), '닫힌 뒤 화 파일 수·이름 불변, 임시 파일 0');
+    assert.deepEqual(await read('001.md'), Buffer.from(withBody(' X Z')), '새 시도의 저장이 XZ를 정확히 남겼다');
+    await reopen(dir, 'A첫째 본문 X Z', withBody(' X Z'));
+    assert.deepEqual(await read('002.md'), Buffer.from(B2));
+    assert.deepEqual(await read('003.md'), Buffer.from(C3));
   } finally {
     await release(app).catch(() => {});
     await closeWindow(app);

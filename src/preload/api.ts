@@ -142,6 +142,8 @@ export interface LoreweaveApi {
     replyClose(proceed: boolean, attempt: number): void;
     /** 저장하지 못한 변경이 남았다고 main에 알린다. 폐기 확인은 main이 같은 닫기 시도에 대해 하나만 띄운다 (renderer는 확인을 묻지 않는다) */
     unsavedClose(attempt: number): void;
+    /** main이 이 닫기 시도를 사용자가 취소했거나 안내를 띄우지 못해 끝냈다고 알린다 (저장 응답을 기다리는 중이어도 renderer는 그 시도가 건 편집 잠금을 돌려준다) */
+    onCloseCancelled(listener: (attempt: number) => void): () => void;
   };
 }
 
@@ -179,6 +181,7 @@ export const CHANNELS = {
   beforeClose: 'app:before-close',
   replyClose: 'app:reply-close',
   closeUnsaved: 'app:close-unsaved',
+  closeCancelled: 'app:close-cancelled',
 } as const;
 
 declare global {
