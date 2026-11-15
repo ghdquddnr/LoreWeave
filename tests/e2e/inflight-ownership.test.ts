@@ -8,7 +8,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+import { closeWindow, launch, searchExpr, stubFolderDialog, tempDir } from './launch.ts';
 
 async function project(prefix: string, files: Record<string, string>): Promise<string> {
   const dir = await tempDir(prefix);
@@ -68,7 +68,7 @@ async function open(app: ElectronApplication, page: Page, dir: string, first = f
 }
 /** 지금 프로젝트의 색인으로 찾은 줄 수 */
 const searchTotal = (page: Page, query: string) =>
-  page.evaluate(`window.loreweave.chapters.search(${JSON.stringify(query)}).then((r) => r.total)`) as Promise<number>;
+  page.evaluate(`${searchExpr(JSON.stringify(query))}.then((r) => r.total)`) as Promise<number>;
 /** 열린 화(깨끗한 상태)를 바깥에서 바꾸면 감시가 알려 다시 불러온다 */
 async function assertOutsideNotice(page: Page, dir: string, file: string, text: string, shown: string) {
   await writeFile(join(dir, 'chapters', file), text);

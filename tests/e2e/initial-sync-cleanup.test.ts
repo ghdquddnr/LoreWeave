@@ -12,7 +12,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+import { closeWindow, launch, searchExpr, stubFolderDialog, tempDir } from './launch.ts';
 
 const doc = (id: string, title: string, text: string) => `﻿---\r\nid: ${id}\r\ntitle: ${title}\r\n---\r\n${text}\r\n`;
 const ONE = doc('one', 'One', 'Alpha oneword');
@@ -21,7 +21,7 @@ const TWO_NEW = doc('two', 'Two', 'Beta newtwoword');
 
 const editor = (page: Page) => page.locator('.ProseMirror');
 const chapter = (page: Page, title: string) => page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: title });
-const search = (page: Page, q: string) => page.evaluate(`window.loreweave.chapters.search(${JSON.stringify(q)}).then((r) => r.total)`) as Promise<number>;
+const search = (page: Page, q: string) => page.evaluate(`${searchExpr(JSON.stringify(q))}.then((r) => r.total)`) as Promise<number>;
 
 type G = { armed: boolean; held: boolean; returned: number; reads: number; stats: number; release?: () => void };
 async function install(app: ElectronApplication, path001: string, path002: string) {

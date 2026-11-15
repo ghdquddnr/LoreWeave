@@ -11,7 +11,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+import { closeWindow, launch, searchExpr, stubFolderDialog, tempDir } from './launch.ts';
 
 const doc = (id: string, title: string, text: string) => `﻿---\r\nid: ${id}\r\ntitle: ${title}\r\n---\r\n${text}\r\n`;
 const ONE = doc('one', 'One', 'Alpha originalword');
@@ -20,7 +20,7 @@ const EXTERNAL = doc('one', 'One', 'Alpha externalword');
 const editor = (page: Page) => page.locator('.ProseMirror');
 const chapter = (page: Page, title: string) => page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: title });
 const searchApi = (page: Page, q: string) =>
-  page.evaluate(`window.loreweave.chapters.search(${JSON.stringify(q)}).then((r) => ({ ok: true, total: r.total }), (e) => ({ ok: false, message: e.message }))`) as Promise<
+  page.evaluate(`${searchExpr(JSON.stringify(q))}.then((r) => ({ ok: true, total: r.total }), (e) => ({ ok: false, message: e.message }))`) as Promise<
     { ok: true; total: number } | { ok: false; message: string }
   >;
 

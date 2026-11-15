@@ -10,7 +10,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+import { closeWindow, launch, searchExpr, stubFolderDialog, tempDir } from './launch.ts';
 
 const doc = (id: string, title: string, text: string) => `﻿---\r\nid: ${id}\r\ntitle: ${title}\r\n---\r\n${text}\r\n`;
 
@@ -22,7 +22,7 @@ async function project(prefix: string, files: Record<string, string>): Promise<s
 }
 const editor = (page: Page) => page.locator('.ProseMirror');
 const chapter = (page: Page, title: string) => page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: title });
-const search = (page: Page, q: string) => page.evaluate(`window.loreweave.chapters.search(${JSON.stringify(q)}).then((r) => r.total)`) as Promise<number>;
+const search = (page: Page, q: string) => page.evaluate(`${searchExpr(JSON.stringify(q))}.then((r) => r.total)`) as Promise<number>;
 
 type Slot = { armed: boolean; held: boolean; reads: number; stats: number; returned: number; release?: () => void };
 type G = { a: Slot; b: Slot; pathA: string; pathB: string; writeDone: number };
