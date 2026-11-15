@@ -258,7 +258,16 @@ export async function runPreparedCheck(
   let failedFirst: string | null = null;
   await Promise.all(
     Array.from({ length: Math.min(BATCH_CONCURRENCY, queue.length) }, async () => {
-      for (let next = queue.shift(); next && failedFirst === null && !o.signal.aborted; next = queue.shift()) {
+      // 각 worker의 첫 묶음은 위의 시작 전 확인 직후라 다시 확인하지 않는다
+      for (let first = true; ; first = false) {
+        if (failedFirst !== null || o.signal.aborted || queue.length === 0) return;
+        // 새 묶음을 보내기 직전에 이 화와 앞 화가 아직 준비한 때와 같은지 다시 본다. 다르거나 없으면 남은 묶음을 모두 보내지 않는다.
+        // 파일을 읽는 동안(await) 다른 worker의 실패·취소가 생길 수 있어, 확인 뒤 전송 바로 앞에서 상태를 다시 본다.
+        // 이 확인과 전송 사이의 변경까지 막지는 못한다(TOCTOU): 그 경우는 저장 전 확인(CHANGED_DURING_CHECK)이 저장만 막는다
+        if (!first && (await changedFile(o.root, prepared).catch(() => CHANGED_DURING_CHECK))) failedFirst ??= CHANGED_DURING_CHECK;
+        if (failedFirst !== null || o.signal.aborted) return;
+        const next = queue.shift();
+        if (!next) return;
         const r = await detect(next[1]);
         results[next[0]] = r;
         if (typeof r === 'string') failedFirst ??= r;

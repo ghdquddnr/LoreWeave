@@ -514,3 +514,78 @@ test('버전: 원고가 그대로면 같은 검사가 정상 저장된다 (회�
   assert.equal(r.checked, true);
   assert.equal(r.findings, 1);
 });
+
+// ---- 나눠 보내는 도중 원고가 바뀌면 아직 보내지 않은 묶음을 보내지 않는다
+
+for (const [name, change, deleted] of [
+  ['검사하는 화를 수정', async () => {
+    const p = join(root, 'chapters', '003.md');
+    await writeFile(p, (await readFile(p, 'utf8')) + '\n덧붙인 줄\n');
+  }, null],
+  ['앞 화를 수정', async () => {
+    const p = join(root, 'chapters', '001.md');
+    await writeFile(p, (await readFile(p, 'utf8')).replace('둘 다 스무 살이었다.', '두 사람의 나이는 알 수 없었다.'));
+  }, null],
+  ['앞 화를 삭제', async () => rm(join(root, 'chapters', '001.md')), '001.md'],
+] as const) {
+  test(`나눠 검사 중 변경(${name}): 처음 두 묶음 뒤 새 묶음을 보내지 않고, 늦은 응답은 기록만 남기고 저장하지 않는다`, { timeout: 20_000 }, async () => {
+    // 먼저 5묶음 정상 검사를 저장해 둔다 (변경 때문에 멈춘 검사가 지우거나 바꾸지 않아야 한다)
+    const ok = deferredClient();
+    const firstRun = checkChapter('003.md', { ...options(ok.client as unknown as AiClient), batchSize: 1 });
+    for (let i = 0; i < 5; i++) {
+      await until(() => ok.pending.length > i);
+      ok.pending[i]!.resolve({ findings: [ageFinding] });
+    }
+    assert.equal((await firstRun).checked, true);
+    const before = store!.check('003.md')!;
+    const callsBefore = checkCalls().length;
+    const others = new Map<string, Buffer>();
+    for (const f of ['001.md', '002.md', '003.md']) if (f !== deleted) others.set(f, await readFile(join(root, 'chapters', f)));
+
+    const { client, pending } = deferredClient();
+    const run = checkChapter('003.md', { ...options(client as unknown as AiClient), batchSize: 1 });
+    await until(() => pending.length === 2);
+    await change();
+    // 이미 보낸 두 요청이 늦게 성공한다
+    pending[0]!.resolve({ findings: [ageFinding] });
+    pending[1]!.resolve({ findings: [] });
+    await new Promise((r) => setTimeout(r, 50));
+    const sentAfter = client.detects;
+    // 수정 전 코드가 새 묶음을 보냈다면 테스트가 멈추지 않게 풀어 준다
+    let released = 2;
+    const pump = setInterval(() => {
+      for (; released < pending.length; released++) pending[released]!.resolve({ findings: [] });
+    }, 2);
+    const outcome = await run.finally(() => clearInterval(pump));
+    assert.equal(sentAfter, 2, '새 묶음을 보냈습니다');
+    assert.equal(client.detects, 2);
+    assert.equal(client.maxInFlight, 2);
+    assert.equal(outcome.checked, false);
+    assert.equal(outcome.stopped, CHANGED_DURING_CHECK);
+    assert.deepEqual(store!.check('003.md'), before);
+    assert.equal(checkCalls().length, callsBefore + 2);
+    assert.ok(checkCalls().slice(callsBefore).every((c) => c.ok === 1 && c.cost_usd > 0));
+    // 의도한 변경 밖의 파일 바이트는 그대로다
+    for (const [f, bytes] of others) {
+      if (name.includes('수정') && ((name.startsWith('검사') && f === '003.md') || (name.startsWith('앞') && f === '001.md'))) continue;
+      assert.deepEqual(await readFile(join(root, 'chapters', f)), bytes, f);
+    }
+  });
+}
+
+test('나눠 검사 중 변경: 원고를 다시 확인하는 동안(await) 취소되면 확인이 통과해도 새 묶음을 보내지 않는다', { timeout: 20_000 }, async () => {
+  const { client, pending } = deferredClient();
+  const controller = new AbortController();
+  const run = checkChapter('003.md', { ...options(client as unknown as AiClient, controller.signal), batchSize: 1 });
+  await until(() => pending.length === 2);
+  pending[0]!.resolve({ findings: [] });
+  // 첫 묶음의 응답을 처리한 worker가 파일을 다시 읽는 동안 취소한다 (원고는 그대로다)
+  await new Promise((r) => setImmediate(r));
+  controller.abort();
+  pending[1]!.resolve({ findings: [] });
+  const outcome = await run;
+  assert.equal(client.detects, 2);
+  assert.equal(outcome.checked, false);
+  assert.equal(outcome.stopped, '취소했습니다');
+  assert.equal(store!.check('003.md'), null);
+});
