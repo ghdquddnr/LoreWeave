@@ -45,10 +45,10 @@ test('키 없이, 동의 없이는 분석하지 않고, AI를 쓰기 전에는 a
     const status = await page.evaluate(() => window.loreweave.ai.analysisStatus(1));
     const none = { '001.md': 'none', '002.md': 'none' };
     assert.deepEqual(status, { states: none, checkStates: none, issueCounts: {}, totalCostUsd: 0, recoveredFrom: null, consent: false });
-    const noConsent = await page.evaluate(() => window.loreweave.ai.analyze(['001.md'], 1).then(() => '', (e: Error) => e.message));
+    const noConsent = await page.evaluate(() => window.loreweave.ai.analyze(['001.md'], 1, 'gpt-6-luna').then(() => '', (e: Error) => e.message));
     assert.match(noConsent, /원고 전송에 동의해야/);
     await page.evaluate(() => window.loreweave.ai.setConsent(true));
-    const noKey = await page.evaluate(() => window.loreweave.ai.analyze(['001.md'], 1).then(() => '', (e: Error) => e.message));
+    const noKey = await page.evaluate(() => window.loreweave.ai.analyze(['001.md'], 1, 'gpt-6-luna').then(() => '', (e: Error) => e.message));
     assert.match(noKey, /API 키가 없습니다/);
     assert.equal((await readdir(join(project, '.loreweave'))).includes('ai.db'), false);
     assert.equal(fake.requests.length, 0);
@@ -77,7 +77,7 @@ test('분석: 키를 붙여 요청하고, 인용이 있는 사실만 저장하�
     const result = (await page.evaluate(async () => {
       const seen: number[] = [];
       const off = window.loreweave.ai.onProgress((p) => seen.push(p.done));
-      const final = await window.loreweave.ai.analyze(['001.md', '002.md'], 1);
+      const final = await window.loreweave.ai.analyze(['001.md', '002.md'], 1, 'gpt-6-luna');
       off();
       return { final, seen };
     })) as { final: AnalyzeProgress; seen: number[] };

@@ -38,7 +38,7 @@ const api: LoreweaveApi = {
     setConsent: (consent) => ipcRenderer.invoke(CHANNELS.aiSetConsent, consent),
     analysisStatus: (token) => ipcRenderer.invoke(CHANNELS.aiAnalysisStatus, token),
     estimate: (files, token) => ipcRenderer.invoke(CHANNELS.aiEstimate, files, token),
-    analyze: (files, token) => ipcRenderer.invoke(CHANNELS.aiAnalyze, files, token),
+    analyze: (files, token, model) => ipcRenderer.invoke(CHANNELS.aiAnalyze, files, token, model),
     cancel: () => ipcRenderer.invoke(CHANNELS.aiCancel),
     onProgress(listener) {
       const handler = (_e: Electron.IpcRendererEvent, progress: Parameters<typeof listener>[0]) => listener(progress);
