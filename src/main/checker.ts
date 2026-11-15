@@ -31,7 +31,7 @@ import { chapterFileNames, chapterHash } from './project-files.ts';
 
 export type CheckState = AnalysisState;
 
-/** 화마다 검사 상태: 없음 / 검사 뒤 그대로 / 검사 뒤 바뀜 (이 화나 근거로 넘긴 앞 화의 본문이 바뀜) */
+/** 화마다 검사 상태: 없음 / 검사 뒤 그대로 / 검사 뒤 바뀜 (이 화나 근거로 넘긴 앞 화의 본문이 바뀌거나, 앞 화·같은 번호 파일이 늘거나 줄어듦) */
 export async function checkStates(root: string, store: AiStore): Promise<Record<string, CheckState>> {
   const files = await chapterFileNames(root);
   const hashes = new Map(await Promise.all(files.map(async (f) => [f, await chapterHash(root, f)] as const)));
@@ -40,10 +40,26 @@ export async function checkStates(root: string, store: AiStore): Promise<Record<
   for (const file of files) {
     const c = checked.get(file);
     if (!c) states[file] = 'none';
+    else if (relatedSetDiffers(files, file, c.inputs)) states[file] = 'stale';
     else states[file] = [{ file, contentHash: c.contentHash }, ...c.inputs].every((i) => hashes.get(i.file) === i.contentHash) ? 'fresh' : 'stale';
   }
   return states;
 }
+
+/**
+ * 검사 문맥에 드는 파일의 지금 집합(번호가 이 화 이하인 파일 전부, 이 화 포함)이 검사한 때의 집합(이 화 + inputs)과 다르면 그 차이 나는 파일 이름.
+ * 새로 생긴 앞 화, 같은 번호의 다른 파일, 사라진 파일이 해당한다. 번호 없는 파일이나 뒤 화는 문맥이 아니다. 이름 집합으로 비교해 목록 순서는 상관없다
+ */
+export function relatedSetDifference(files: string[], file: string, inputs: { file: string }[]): string | null {
+  const n = chapterNumber(file);
+  if (n === null) return null;
+  const now = new Set(files.filter((f) => chapterNumber(f) !== null && chapterNumber(f)! <= n));
+  const then = new Set([file, ...inputs.map((i) => i.file)]);
+  for (const f of now) if (!then.has(f)) return f;
+  for (const f of then) if (!now.has(f)) return f;
+  return null;
+}
+const relatedSetDiffers = (files: string[], file: string, inputs: { file: string }[]) => relatedSetDifference(files, file, inputs) !== null;
 
 /** 검사할 화의 앞 화들 (화 순서). 번호가 없거나, 앞 화가 없거나, 번호가 겹치면 검사할 수 없다 */
 async function priorFiles(root: string, file: string): Promise<string[]> {
@@ -203,6 +219,9 @@ export const CHANGED_DURING_CHECK = '검사하는 동안 원고가 바뀌었거�
  * 외부 수정과 동시에 일어나는 경우까지 원자적으로 막지는 않는다. 확인하는 시점들 사이의 변경을 잡는다
  */
 export async function changedFile(root: string, prepared: Pick<PreparedCheck, 'file' | 'target' | 'inputs'>): Promise<string | null> {
+  // 파일 집합: 준비한 뒤 앞 화·같은 번호 파일이 생기거나 사라졌으면 해시가 모두 같아도 오래된 입력이다 (읽는 동안의 변경까지 막지는 못한다)
+  const setDiff = relatedSetDifference(await chapterFileNames(root), prepared.file, prepared.inputs);
+  if (setDiff) return setDiff;
   if ((await chapterHash(root, prepared.file)) !== prepared.target.hash) return prepared.file;
   for (const i of prepared.inputs) if ((await chapterHash(root, i.file)) !== i.contentHash) return i.file;
   return null;
