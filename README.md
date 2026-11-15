@@ -54,21 +54,25 @@ Possible continuity error
 
 설치 프로그램, 코드 서명, 자동 업데이트, 공개 배포는 제공하지 않고 검증하지도 않았습니다. 설치기는 도입을 유보했습니다([설치기 계획](docs/WINDOWS-INSTALLER-PREVIEW-PLAN.md)). SmartScreen 경고, OS의 exe 아이콘 표시, 다른 PC에서의 실행은 확인하지 못했습니다.
 
-**처음 시험하기 (PowerShell 예시, 형식만 소스로 확인했고 이 문서를 쓰며 실행하지는 않았습니다).** 아래 `C:\lw-test`는 저장소·실제 작품 폴더·실제 프로필 밖에 새로 정한 시험 루트의 예입니다.
+**처음 시험하기 (PowerShell 예시, 형식만 소스로 확인했고 이 문서를 쓰며 실행하지는 않았습니다).** `C:\lw-test`는 저장소·실제 작품 폴더·실제 프로필 밖에 **새로 만들** 시험 루트의 예입니다. 이미 있는 경로면 아무것도 쓰기 전에 중단하고, 앱 출력 폴더(`app`)는 빌더가 만들며, `userdata`와 `novel\chapters`는 루트 안에 따로 만듭니다. 빌드 명령은 저장소 폴더에서 실행하고, 빌드(A 또는 B)와 실행 파일은 **하나만** 고르세요.
 
 ```powershell
-# 1) 빌드 (새 폴더 경로를 --out으로; 이미 있는 비어 있지 않은 폴더나 저장소 안은 거절됩니다)
-corepack pnpm package:win --out C:\lw-test\app
-#    또는 LoreWeave.exe가 필요하면 (정확한 Electron zip이 미리 있어야 함, 아래 참고)
-corepack pnpm package:win:branded --out C:\lw-test\app
+$ErrorActionPreference = 'Stop'
+$root = 'C:\lw-test'                      # 새 경로로 바꿔도 됩니다. 상위 폴더는 미리 있어야 합니다
+if (Test-Path -LiteralPath $root) { throw "이미 있는 경로입니다. 다른 새 경로를 쓰세요: $root" }
+New-Item -ItemType Directory -Path $root | Out-Null
 
-# 2) 시험용 빈 userData와 합성 원고 폴더 만들기 (실제 원고를 쓰지 마세요)
-New-Item -ItemType Directory C:\lw-test\userdata, C:\lw-test\novel\chapters
-Set-Content C:\lw-test\novel\chapters\001.md "첫 줄입니다." -Encoding utf8
+# 1) 빌드: 둘 중 하나만. --out 폴더(app)는 빌더가 만들며, 비어 있지 않거나 저장소 안이면 거절합니다
+corepack pnpm package:win --out "$root\app";          $exe = 'electron.exe'
+# corepack pnpm package:win:branded --out "$root\app"; $exe = 'LoreWeave.exe'   # B: 정확한 Electron zip이 미리 있어야 함(아래)
+if ($LASTEXITCODE -ne 0) { throw "빌드가 실패했습니다 (종료 코드 $LASTEXITCODE)" }
 
-# 3) 실행 (실행 파일만 따로 복사하지 말고 빌드가 만든 폴더 전체를 그대로 두세요)
-& "C:\lw-test\app\electron.exe" --user-data-dir=C:\lw-test\userdata
-#    branded 빌드: & "C:\lw-test\app\LoreWeave.exe" --user-data-dir=C:\lw-test\userdata
+# 2) 루트 안에 빈 userData와 합성 원고 폴더를 따로 만든다 (실제 원고를 쓰지 마세요)
+New-Item -ItemType Directory -Path "$root\userdata", "$root\novel\chapters" | Out-Null
+Set-Content -LiteralPath "$root\novel\chapters\001.md" -Value '첫 줄입니다.' -Encoding utf8
+
+# 3) 실행: 빌드가 만든 app 폴더 전체를 그대로 두고 실행합니다
+& "$root\app\$exe" --user-data-dir="$root\userdata"
 ```
 
 앱에서 `C:\lw-test\novel` 폴더를 열면 `chapters\001.md`, `002.md` … 를 화로 읽습니다. 빌드가 끝나면 만든 위치와 실행 명령이 출력됩니다.
