@@ -86,6 +86,8 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
    * 현재 화 대상의 계획은 다른 화로 옮기면 버린다 (늦게 온 응답이 지금 화의 확인 창으로 열리지 않게). 이미 보낸 실행은 건드리지 않는다
    */
   const planOwner = useRef<string | null>(null);
+  /** 화를 선택할 때마다 늘어난다. 보낸 실행의 늦은 거절이 다시 시도를 만들 때, 요청을 시작한 선택이 그대로인지 가린다 (이동했다가 돌아온 경우도 다른 선택이다) */
+  const selectionEpoch = useRef(0);
   const planningRef = useRef(false);
   planningRef.current = planning;
   const consentRef = useRef(consent);
@@ -102,6 +104,9 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
     .map(([f]) => f);
 
   useEffect(() => api.ai.onProgress(setProgress), []);
+  useEffect(() => {
+    selectionEpoch.current++;
+  }, [file]);
   // 프로젝트가 바뀌면 이전 프로젝트의 계획·확인 창은 버린다 (늦게 온 계획이 새 프로젝트에서 열리지 않게)
   useEffect(() => {
     requestSeq.current++;
@@ -205,8 +210,17 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       setRetry(() => () => startAnalysis(files, owner));
     });
   };
-  const check = (target: string, unsavedText: string) =>
-    execute('check', async () => ({ kind: 'check', outcome: await api.ai.runCheck(target, projectToken) }), unsavedText);
+  const check = (target: string, modelId: string, unsavedText: string) => {
+    const mine = requestSeq.current;
+    const epoch = selectionEpoch.current; // 요청을 시작한 때의 화 선택
+    return execute('check', async () => ({ kind: 'check', outcome: await api.ai.runCheck(target, projectToken, modelId) }), unsavedText, (e) => {
+      // 승인한 모델과 지금 설정이 달라 main이 보내지 않았다: 같은 화의 새 검사 계획·새 모델 표시 확인을 다시 받는다.
+      // 그 사이 프로젝트가 바뀌었거나 화를 옮겼으면(돌아왔어도) 이전 선택의 다시 시도를 지금 화면에 만들지 않는다. 오류 안내는 execute가 이미 보인다
+      if (mine !== requestSeq.current || epoch !== selectionEpoch.current || !(e instanceof Error) || !e.message.includes(MODEL_CHANGED)) return;
+      planOwner.current = target;
+      setRetry(() => () => startCheck(target));
+    });
+  };
 
   /** 키를 확인하고, main이 계산한 계획(범위·비용 상한)을 받아 확인 창을 연다. 아무것도 보내지 않는다 */
   const begin = async (build: () => Promise<Plan>, owner: string | null = null) => {
@@ -298,7 +312,7 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
       }
       // 같은 값이 확인됐다: 요청을 보내는 순간까지 잠금을 유지하고(execute가 보낸 직후 푼다) 실행한다
       if (d.plan.kind === 'analysis') await analyze(d.plan.files, d.modelId, d.owner, unsavedMessage(d.plan));
-      else await check(d.plan.file, unsavedMessage(d.plan));
+      else await check(d.plan.file, d.modelId, unsavedMessage(d.plan));
     } catch (e) {
       // 확인 뒤의 어떤 단계가 실패해도 조용히 닫지 않는다: 사용자용 안내와 기술 상세, 다시 시도. (프로젝트가 바뀐 뒤의 늦은 오류는 보이지 않는다)
       if (mine === requestSeq.current) {
