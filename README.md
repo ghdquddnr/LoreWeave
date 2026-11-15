@@ -45,11 +45,43 @@ Possible continuity error
 
 개발 실행: `corepack pnpm install` → `corepack pnpm dev`.
 
-**Windows x64 폴더형 실행본 만들기 (미서명, 설치 프로그램 아님):** `corepack pnpm package:win` — 빌드 뒤 이미 설치된 Electron 44 런타임을 복사해 **저장소 밖 임시 폴더**(`…\Temp\LoreWeave-win-x64-<고유값>`; `--out <새 폴더>`로 지정)에 실행 폴더를 만들고 위치를 출력합니다. 그 폴더째 복사해 `electron.exe`를 실행하면 개발 서버·pnpm 없이 뜹니다 (실행 때 인터넷 불필요, 빌드 준비 때는 `pnpm install`의 Electron 다운로드 필요). 출력 위치는 **실제 경로**로 검사해(junction/symlink 별칭 포함) 저장소·입력의 안·상위·같음, 링크, 비어 있지 않은 폴더를 거절합니다. 복사 전에 입력(Electron 런타임·빌드 산출물·`openai`)을 **엄격 허용 목록**으로 검사해, 목록에 없는 파일(원고·로그·키 등이 섞여 있을 때)이 하나라도 있으면 아무것도 복사하지 않고 실패합니다.
-- 한계: 서명하지 않아 Windows SmartScreen 경고가 뜰 수 있고(직접 확인하지 못했습니다), exe 이름·실행 파일 아이콘은 이 명령(`package:win`)에서는 `electron.exe` 그대로입니다(바꾸려면 아래 선택형 `package:win:branded`; 창 아이콘은 `resources/app-icon.ico`). asar를 쓰지 않습니다. 이 폴더는 Git·릴리스에 올리지 않습니다. 설계: [docs/WINDOWS-PREVIEW-PLAN.md](docs/WINDOWS-PREVIEW-PLAN.md), 후속 계획 문서(production 시작 경계 PR-1은 구현됨, 이름·아이콘·메타데이터 PR-2는 아직 계획만 있음): [docs/WINDOWS-BRANDED-PREVIEW-PLAN.md](docs/WINDOWS-BRANDED-PREVIEW-PLAN.md).
-- 실행본은 환경에 `ELECTRON_RENDERER_URL`(개발 서버 주소)이 있어도 그 서버를 읽지 않고 빌드된 화면을 엽니다 (개발 서버는 `electron-vite dev`처럼 `electron .`로 실행한 개발 흐름에서만 씁니다). 실행 파일 이름·아이콘·메타데이터를 `LoreWeave`로 바꾸는 작업(PR-2)은 아직 구현되지 않았고 [계획](docs/WINDOWS-BRANDED-PREVIEW-PLAN.md)만 있습니다.
-- **브랜드 실행파일(선택):** `corepack pnpm package:win:branded [--out <새 폴더>]` — 실행파일 이름·아이콘·정보를 `LoreWeave.exe`로 만든 폴더 빌드입니다(기존 `package:win`은 그대로 `electron.exe`). 정확 `@electron/packager@20.3.0`(개발 전용 의존성)을 쓰며, **이미 받아 둔 공식 Electron zip**(`electron-v44.9.3-win32-x64.zip`, 기본 위치 `%LOCALAPPDATA%\electron\Cache\<해시>` 또는 `--electron-zip-dir`)을 **읽기만** 하고 다운로드하지 않습니다(없거나 해시가 설치된 electron의 `checksums.json`과 다르면 실패; 다른 PC·CI는 같은 zip을 미리 준비해야 합니다). 이번 빌드가 새로 만든 **독점 임시 루트**(저장소 밖) 안에서만 packager를 실행하고 packager의 삭제 호출도 그 안으로 한정해 기록·거절하며(OS 샌드박스 아님), 검증을 통과한 것만 새 최종 출력으로 복사합니다. 실패해도 임시 루트와 증거(`logs`)를 지우지 않고, 성공해도 임시 루트가 남으니 필요하면 직접 정리하세요. 서명·SmartScreen·OS 아이콘 표시·다른 PC 실행은 확인하지 않았습니다. 자세한 내용: [docs/WINDOWS-BRANDED-PREVIEW-PLAN.md](docs/WINDOWS-BRANDED-PREVIEW-PLAN.md) §4.3. 설치 프로그램은 아직 없고 계획만 있습니다: [docs/WINDOWS-INSTALLER-PREVIEW-PLAN.md](docs/WINDOWS-INSTALLER-PREVIEW-PLAN.md).
-- **격리해서 시험하세요:** 실행본의 기본 설정·키 위치는 개발 때와 같을 수 있으므로 `electron.exe --user-data-dir=<빈 폴더>`로 실행하고, 원고는 **새로 만든 시험용 원고 폴더**만 여세요. 원고 색인·AI 결과(`.loreweave/index.db`, `.loreweave/ai.db`)는 userData가 아니라 **열어 본 원고 폴더 안**에 생기므로 실제 작품 폴더를 시험에 쓰지 마세요. 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
+**Windows x64 폴더형 실행본 (미서명, 설치 프로그램 아님).** 두 가지 폴더 빌드가 구현되어 있고, 합성 자료로 자동 검증했습니다.
+
+| 명령 | 실행 파일 | 비고 |
+| --- | --- | --- |
+| `corepack pnpm package:win` | `electron.exe` | 기본. 이미 설치된 Electron 런타임을 복사. 이름·exe 아이콘은 Electron 그대로 |
+| `corepack pnpm package:win:branded` | `LoreWeave.exe` | 선택형. 이름·아이콘·정보를 `LoreWeave`로 바꾼 빌드 |
+
+설치 프로그램, 코드 서명, 자동 업데이트, 공개 배포는 제공하지 않고 검증하지도 않았습니다. 설치기는 도입을 유보했습니다([설치기 계획](docs/WINDOWS-INSTALLER-PREVIEW-PLAN.md)). SmartScreen 경고, OS의 exe 아이콘 표시, 다른 PC에서의 실행은 확인하지 못했습니다.
+
+**처음 시험하기 (PowerShell 예시, 형식만 소스로 확인했고 이 문서를 쓰며 실행하지는 않았습니다).** `C:\lw-test`는 저장소·실제 작품 폴더·실제 프로필 밖에 **새로 만들** 시험 루트의 예입니다. 이미 있는 경로면 아무것도 쓰기 전에 중단하고, 앱 출력 폴더(`app`)는 빌더가 만들며, `userdata`와 `novel\chapters`는 루트 안에 따로 만듭니다. 빌드 명령은 저장소 폴더에서 실행하고, 빌드(A 또는 B)와 실행 파일은 **하나만** 고르세요.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$root = 'C:\lw-test'                      # 새 경로로 바꿔도 됩니다. 상위 폴더는 미리 있어야 합니다
+if (Test-Path -LiteralPath $root) { throw "이미 있는 경로입니다. 다른 새 경로를 쓰세요: $root" }
+New-Item -ItemType Directory -Path $root | Out-Null
+
+# 1) 빌드: 둘 중 하나만. --out 폴더(app)는 빌더가 만들며, 비어 있지 않거나 저장소 안이면 거절합니다
+corepack pnpm package:win --out "$root\app";          $exe = 'electron.exe'
+# corepack pnpm package:win:branded --out "$root\app"; $exe = 'LoreWeave.exe'   # B: 정확한 Electron zip이 미리 있어야 함(아래)
+if ($LASTEXITCODE -ne 0) { throw "빌드가 실패했습니다 (종료 코드 $LASTEXITCODE)" }
+
+# 2) 루트 안에 빈 userData와 합성 원고 폴더를 따로 만든다 (실제 원고를 쓰지 마세요)
+New-Item -ItemType Directory -Path "$root\userdata", "$root\novel\chapters" | Out-Null
+Set-Content -LiteralPath "$root\novel\chapters\001.md" -Value '첫 줄입니다.' -Encoding utf8
+
+# 3) 실행: 빌드가 만든 app 폴더 전체를 그대로 두고 실행합니다
+& "$root\app\$exe" --user-data-dir="$root\userdata"
+```
+
+앱에서 `C:\lw-test\novel` 폴더를 열면 `chapters\001.md`, `002.md` … 를 화로 읽습니다. 빌드가 끝나면 만든 위치와 실행 명령이 출력됩니다.
+
+- **격리의 범위:** `--user-data-dir`는 앱 설정 위치만 옮깁니다. 원고 색인·AI 결과(`.loreweave/index.db`, `.loreweave/ai.db`)는 userData가 아니라 **연 원고 폴더 안**에 생기므로 실제 작품 폴더를 열지 마세요. API 키·일부 설정은 기본 위치를 공유할 수 있어 완전한 격리나 portable 동작은 보장하지 않습니다. 이 앱은 실행 중 네트워크를 쓰는 AI 기능이 있으므로 전체 네트워크 차단도 보장하지 않습니다.
+- **네트워크:** 빌드 준비에는 `pnpm install`(Electron 다운로드 포함)이 필요하고, 만들어진 실행본은 실행 자체에 개발 서버·pnpm·인터넷이 필요하지 않습니다(AI 기능만 사용자가 설정한 OpenAI 연결을 씁니다). 환경에 `ELECTRON_RENDERER_URL`이 있어도 실행본은 빌드된 화면을 엽니다.
+- **`package:win` 안전장치:** 출력 위치를 실제 경로로 검사해(junction/symlink 별칭 포함) 저장소·입력의 안·상위·같은 위치, 링크, 비어 있지 않은 폴더를 거절하고, 복사 전에 입력을 엄격 허용 목록으로 검사해 목록 밖 파일(원고·로그·키 등)이 있으면 아무것도 복사하지 않고 실패합니다. 기존 출력을 덮어쓰지 않습니다. 자세한 설계: [docs/WINDOWS-PREVIEW-PLAN.md](docs/WINDOWS-PREVIEW-PLAN.md).
+- **`package:win:branded` 전제:** 정확 `@electron/packager@20.3.0`(개발 전용)을 쓰며, **이미 받아 둔 공식 Electron zip**(`electron-v44.9.3-win32-x64.zip`)이 있어야 합니다. 기본 위치 `%LOCALAPPDATA%\electron\Cache\<해시>` 또는 `--electron-zip-dir <폴더>`를 **읽기만** 하고 다운로드·정리하지 않으며, 없거나 설치된 electron의 `checksums.json`과 해시가 다르면 실패합니다(다른 PC·CI는 같은 zip을 미리 준비). 출력 보호는 위와 같고, 작업은 저장소 밖의 독점 임시 루트에서만 하며(OS 샌드박스 아님) 실패해도 성공해도 그 임시 루트와 증거(`logs`)를 지우지 않으니 필요하면 직접 정리하세요. 자세한 내용: [docs/WINDOWS-BRANDED-PREVIEW-PLAN.md](docs/WINDOWS-BRANDED-PREVIEW-PLAN.md) §4.3.
+- 폴더는 Git·릴리스에 올리지 않습니다. asar를 쓰지 않습니다.
 
 ## 원칙
 
