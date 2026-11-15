@@ -47,10 +47,11 @@ A로 실행 가능성이 확인된 뒤, exe 이름·아이콘·메타데이터·
 | 포함 | `resources/app/out/main`, `out/preload`, `out/renderer` (renderer에 로컬 글꼴 woff2·브랜드 SVG·PNG 포함, 약 15MB) | `out/renderer/assets`, `src/renderer/src/fonts.css`는 `@fontsource` 파일을 번들로 가져옴 |
 | 포함 | `resources/app/resources/app-icon.ico` | `src/main/index.ts`: `join(__dirname, '../../resources/app-icon.ico')` = 앱 루트의 `resources/` |
 | 포함 | `resources/app/node_modules/openai` (실제 디렉터리로 복사, 약 31MB) | §5 |
-| 포함 | `THIRD_PARTY_NOTICES.md`, `LICENSE` (글꼴 OFL·MIT 고지) | `THIRD_PARTY_NOTICES.md` |
+| 포함 | 앱의 `THIRD_PARTY_NOTICES.md`, `LICENSE` (글꼴 OFL·앱 MIT 고지) | `THIRD_PARTY_NOTICES.md` |
+| 포함 | **복사한 Electron 런타임이 이미 갖고 있는 고지 파일을 지우지 않고 그대로 보존**: 설치된 `node_modules/electron/dist` 루트에 실제로 있는 `LICENSE`, `LICENSES.chromium.html` (이 두 파일만 확인했다). 앱의 MIT/글꼴 고지가 런타임·SDK 고지를 대체하지 않는다. `openai` 디렉터리를 복사할 때도 그 안의 라이선스 파일을 그대로 둔다 (법률 검토가 아니라 "원래 있던 고지를 빼지 않는다"는 규칙이다) | `node_modules/electron/dist` 목록 |
 | 제외 | `out/m5-work`, `out/*.log`, `out/*.txt` 등 `out/{main,preload,renderer}` 밖의 모든 것 | §2 |
 | 제외 | `.env`, `.env.*`, `spikes/`(원시 API 응답·`.cache`), `tests/`, `scripts/`, `docs/`(원하면 별도 문서만), `node_modules` 나머지 전부, `.git`, `.claude`·감독 훅·메모리·WATCHDOG 류 | `.gitignore`, `package.json` |
-| 제외 | 어떤 사용자 데이터도 넣지 않는다: 원고 폴더, 사용자 설정, `openai-key.bin`, 기존 `ai.db`, `.loreweave/index.db` | §6 |
+| 제외 | 어떤 사용자 데이터도 넣지 않는다: 원고 프로젝트 폴더와 그 안의 `.loreweave/index.db`·`.loreweave/ai.db`, `userData`의 `settings.json`·`openai-key.bin` | §6 |
 
 ## 5. 런타임 의존 처리 근거
 
@@ -63,8 +64,11 @@ A로 실행 가능성이 확인된 뒤, exe 이름·아이콘·메타데이터·
 ## 6. 경로·보안 설정 (현재 코드에서 유지해야 하는 것)
 
 - **보안**: `app.enableSandbox()`, `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true`, CSP `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'` (`src/main/index.ts`, `src/renderer/index.html`). 패키징은 이 값을 바꾸지 않는다. renderer는 외부 URL을 읽지 않으므로(`connect-src 'self'`) 글꼴은 로컬 woff2(`assetsInlineLimit: 0`, `electron.vite.config.ts`)여야 한다.
-- **데이터 경로**: 설정 `settings.json`, API 키 `openai-key.bin`(Electron `safeStorage`), AI 결과 `ai.db`는 `userData`에(`src/main/settings.ts`, `secrets.ts`, `ai-db.ts`), 원고 색인 `.loreweave/index.db`는 **원고 폴더 안**에(`src/main/index-db.ts`) 있다.
-- **주의(데이터 안전)**: 첫 실행본의 `package.json` `name`이 개발 때와 같으면 기본 `userData` 위치가 개발 환경과 **같을 수 있다**(앱 이름에서 파생되는 Electron 기본 동작; 이 계획에서 실제 값은 미확인). 그러면 검증 중 실행이 개발자의 실제 설정·키·AI DB를 건드릴 수 있다. 따라서 검증은 **항상 `--user-data-dir`로 격리**한다(기존 `tests/e2e/launch.ts`가 같은 방식을 이미 쓴다).
+- **데이터 경로(두 곳으로 나뉜다)**:
+  - `userData`: 설정 `settings.json`(`src/main/settings.ts`)과 API 키 `openai-key.bin`(Electron `safeStorage`, `src/main/secrets.ts`).
+  - **열린 원고 프로젝트 폴더 안 `<프로젝트>/.loreweave/`**: 원고 색인 `index.db`(`src/main/index-db.ts`: `INDEX_DIR = '.loreweave'`, `INDEX_FILE = 'index.db'`)와 AI 결과 `ai.db`(`src/main/ai-db.ts`: `AiStore.open(root)`가 `join(root, INDEX_DIR, AI_FILE)`을 연다, `AI_FILE = 'ai.db'`; `src/main/ipc.ts`의 `openAiStore(path, …)`도 열린 프로젝트의 `path/.loreweave/ai.db`를 본다). 즉 `ai.db`는 `userData`가 아니라 프로젝트 폴더에 있다.
+- **주의(데이터 안전)**: 첫 실행본의 `package.json` `name`이 개발 때와 같으면 기본 `userData` 위치가 개발 환경과 **같을 수 있다**(앱 이름에서 파생되는 Electron 기본 동작; 이 계획에서 실제 값은 미확인). 그러면 검증 중 실행이 개발자의 실제 **설정·키**(`settings.json`, `openai-key.bin`)를 건드릴 수 있다. 따라서 검증은 **항상 `--user-data-dir`로 격리**한다(기존 `tests/e2e/launch.ts`가 같은 방식을 이미 쓴다).
+- **격리는 두 가지가 모두 필요하다**: `--user-data-dir`(그리고 `name` 변경)은 **설정·키 경로만** 분리한다. 원고 색인과 AI DB는 프로젝트 폴더의 `.loreweave/`에 있으므로 userData 격리로는 보호되지 않는다. 검증은 (1) 별도 `userData`와 (2) **검증용으로 새로 만든 합성 원고 프로젝트 폴더**(실제 작품 폴더·기존 `.loreweave/ai.db`를 열지 않음)를 **둘 다** 써야 한다. 실제 프로젝트를 열면 그 프로젝트의 `index.db`/`ai.db`가 생성·변경될 수 있다.
 - `.env`와 `OPENAI_ADMIN_KEY`는 `scripts/`의 개발 도구용이며 앱 런타임 코드(`src/`)는 `.env`를 읽지 않는다 (`src/`에서 `process.env`는 `ELECTRON_RENDERER_URL` 하나뿐). 그래도 산출물에 `.env*`를 넣지 않는다.
 
 ## 7. 빌드 때와 실행 때의 네트워크
@@ -76,13 +80,13 @@ A로 실행 가능성이 확인된 뒤, exe 이름·아이콘·메타데이터·
 
 1. 한 명령(예: `corepack pnpm package:win`)으로 `build` 뒤 §4의 폴더를 만든다. 새 의존성 없음, 새 다운로드 없음(있으면 사전 질문).
 2. 산출물을 **개발 폴더와 무관한 깨끗한 폴더로 복사**해, 개발 서버·pnpm·`node_modules`(복사한 `openai` 제외) 없이 `electron.exe`가 뜬다 (복사본 검사).
-3. 격리 `--user-data-dir`와 합성 BOM+CRLF+frontmatter 원고로: 폴더 열기 → 입력 → 저장 → 닫기 → 재열기 → 검색이 동작하고 파일 바이트가 보존된다. 아이콘과 4테마 대표 화면을 확인한다. 실제 사용자 키·원고·기존 AI DB는 건드리지 않는다.
+3. 격리 `--user-data-dir`**와 별도의 합성 원고 프로젝트 폴더(둘 다 필수; 실제 프로젝트·기존 AI DB를 열지 않음)**에서 합성 BOM+CRLF+frontmatter 원고로: 폴더 열기 → 입력 → 저장 → 닫기 → 재열기 → 검색이 동작하고 파일 바이트가 보존된다. 아이콘과 4테마 대표 화면을 확인한다. 실제 사용자 키·원고·기존 AI DB는 건드리지 않는다.
 4. 불필요한 네트워크 요청 0(AI 버튼을 누르지 않은 동안 외부 연결 없음)과 기존 저장/충돌/창 닫기 관련 최소 E2E를 같은 방식(패키지 실행본 대상 또는 동일 빌드)으로 통과한다.
 5. 필요 없는 것: 인증서, 배포 계정, 유료 서비스, 자동 업데이트, 설치 프로그램. 미서명이므로 SmartScreen 등 OS 경고는 **확인하지 못한 상태**로 문서에 남긴다(실제 OS에서의 첫 실행 경험은 미확인).
 
 ## 9. 남은 결정과 후속 예상 범위
 
-- 결정 필요: (1) 권고 A를 받아들일지, (2) 산출물 폴더 이름·위치(저장소 밖 출력 권장, `out/`와 분리), (3) `package.json` `name`/`productName`을 바꿔 `userData`를 분리할지(데이터 경로가 바뀌는 결정이라 별도 승인 필요), (4) asar 사용 시점.
+- 결정 필요: (1) 권고 A를 받아들일지, (2) 산출물 폴더 이름·위치(저장소 밖 출력 권장, `out/`와 분리), (3) `package.json` `name`/`productName`을 바꿔 기본 `userData`(설정·키)를 분리할지(데이터 경로가 바뀌는 결정이라 별도 승인 필요; **프로젝트의 `.loreweave/index.db`·`ai.db`는 이 변경으로 분리되지 않는다**), (4) asar 사용 시점.
 - 후속 예상: ① A의 스크립트 PR(위 8절), ② exe 이름·아이콘·메타데이터가 필요하면 B 계획, ③ NSIS·서명·업데이트는 C와 함께 별도 계획(도구 지원 범위는 그때 공식 문서로 확인).
 
 ## 10. 이 문서가 확인하지 않은 것
