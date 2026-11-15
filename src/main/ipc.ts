@@ -517,7 +517,14 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.aiAnalyze, (event, files: string[], token: number) => runAi(event.sender, token, (o) => analyzeChapters(files, o)));
   ipcMain.handle(CHANNELS.aiPlanCheck, async (_e, file: string, token: number) => {
     const path = requireProject(token);
-    return planCheck(path, openAiStore(path, false), file, (await readSettings(userData())).aiModel);
+    // 계획을 기다리는 사이 다른 프로젝트(같은 폴더 다시 열기 포함)를 열면 이 저장소는 닫혔을 수 있다: 옛 계획이나 닫힌 저장소의 오류 대신 STALE_PROJECT로 끝낸다 (aiAnalysisStatus와 같다)
+    try {
+      const plan = await planCheck(path, openAiStore(path, false), file, (await readSettings(userData())).aiModel);
+      if (stillOpen(token)) return plan;
+    } catch (e) {
+      if (stillOpen(token)) throw e;
+    }
+    throw new Error(STALE_PROJECT);
   });
   ipcMain.handle(CHANNELS.aiRunCheck, (event, file: string, token: number) => runAi(event.sender, token, (o) => checkChapter(file, o)));
   ipcMain.handle(CHANNELS.aiCheckResult, (_e, file: string, token: number) => openAiStore(requireProject(token), false)?.check(file) ?? null);
