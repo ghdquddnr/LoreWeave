@@ -589,3 +589,87 @@ test('나눠 검사 중 변경: 원고를 다시 확인하는 동안(await) 취�
   assert.equal(outcome.stopped, '취소했습니다');
   assert.equal(store!.check('003.md'), null);
 });
+
+// ---- 앞 화 파일 집합이 달라지는 경우 (해시는 모두 같다)
+
+/** 5묶음 정상 검사를 저장해 둔다 (분석도 함께 남는다) */
+async function saveFiveCheck() {
+  const ok = deferredClient();
+  const run = checkChapter('003.md', { ...options(ok.client as unknown as AiClient), batchSize: 1 });
+  for (let i = 0; i < 5; i++) {
+    await until(() => ok.pending.length > i);
+    ok.pending[i]!.resolve({ findings: [ageFinding] });
+  }
+  assert.equal((await run).checked, true);
+  return store!.check('003.md')!;
+}
+const addFile = (name: string) => writeFile(join(root, 'chapters', name), '# 추가\n\n새 파일\n');
+const sets = [
+  ['000.md 새 앞 화 (미분석)', '000.md'],
+  ['001-copy.md 기존 앞 화와 같은 번호', '001-copy.md'],
+  ['003-b.md 대상과 같은 번호', '003-b.md'],
+] as const;
+
+for (const [name, added] of sets) {
+  test(`파일 집합(${name}): 준비 뒤 시작 전에 생기면 요청 0, CHANGED_BEFORE_SEND`, async () => {
+    const before = await saveFiveCheck();
+    const prepared = await prepareCheck('003.md', { root, store: store! });
+    assert.ok(typeof prepared !== 'string');
+    await addFile(added);
+    const client = fakeClient();
+    const r = await runPreparedCheck(prepared, options(client));
+    assert.equal(r.stopped, CHANGED_BEFORE_SEND);
+    assert.equal(client.calls.length, 0);
+    assert.deepEqual(store!.check('003.md'), before);
+  });
+
+  test(`파일 집합(${name}): 5묶음 중 처음 두 요청 대기 때 생기면 추가 묶음 0, CHANGED_DURING_CHECK, 저장 0, 늦은 응답은 기록`, { timeout: 20_000 }, async () => {
+    const before = await saveFiveCheck();
+    const callsBefore = checkCalls().length;
+    const { client, pending } = deferredClient();
+    const run = checkChapter('003.md', { ...options(client as unknown as AiClient), batchSize: 1 });
+    await until(() => pending.length === 2);
+    await addFile(added);
+    pending[0]!.resolve({ findings: [ageFinding] });
+    pending[1]!.resolve({ findings: [] });
+    await new Promise((r) => setTimeout(r, 50));
+    const sent = client.detects;
+    let released = 2;
+    const pump = setInterval(() => {
+      for (; released < pending.length; released++) pending[released]!.resolve({ findings: [] });
+    }, 2);
+    const outcome = await run.finally(() => clearInterval(pump));
+    assert.equal(sent, 2, '새 묶음을 보냈습니다');
+    assert.equal(outcome.checked, false);
+    assert.equal(outcome.stopped, CHANGED_DURING_CHECK);
+    assert.deepEqual(store!.check('003.md'), before);
+    assert.equal(checkCalls().length, callsBefore + 2);
+  });
+}
+
+test('파일 집합: 정상 검사 뒤 앞 화·같은 번호 파일이 생기면 그 화는 stale, 새 화는 none', async () => {
+  await saveFiveCheck();
+  assert.equal((await checkStates(root, store!))['003.md'], 'fresh');
+  await addFile('000.md');
+  const s = await checkStates(root, store!);
+  assert.equal(s['003.md'], 'stale');
+  assert.equal(s['000.md'], 'none');
+  await rm(join(root, 'chapters', '000.md'));
+  assert.equal((await checkStates(root, store!))['003.md'], 'fresh');
+  await addFile('003-b.md');
+  assert.equal((await checkStates(root, store!))['003.md'], 'stale');
+});
+
+test('파일 집합(양성 회귀): 번호 없는 md·뒤 화가 생겨도 fresh이고 검사도 중단되지 않는다', { timeout: 20_000 }, async () => {
+  await saveFiveCheck();
+  await addFile('notes.md');
+  await addFile('004.md');
+  assert.equal((await checkStates(root, store!))['003.md'], 'fresh');
+  const prepared = await prepareCheck('003.md', { root, store: store! });
+  assert.ok(typeof prepared !== 'string');
+  assert.equal(await changedFile(root, prepared), null);
+  const client = fakeClient(() => ({ findings: [] }));
+  const r = await runPreparedCheck(prepared, options(client));
+  assert.equal(r.checked, true);
+  assert.ok(client.calls.length >= 1);
+});
