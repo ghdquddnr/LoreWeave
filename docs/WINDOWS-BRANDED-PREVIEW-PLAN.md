@@ -17,7 +17,7 @@
 | 산출물의 실행파일은 `electron.exe`이고 임베디드 아이콘·메타데이터는 Electron 기본이다 (이름·ICO·메타데이터를 바꾸지 않는 것이 현 설계) | `scripts/package-win.ts` 머리말, README 한계 |
 | `resources/app-icon.ico`는 6프레임(16·32·48·64·128·256px, 모두 32bpp), 87,776바이트다 | 파일 헤더를 읽어 확인 |
 | DESIGN-SPEC은 원본 에셋(`LoreWeave-assets-v2.0`)을 "그대로 두고" `resources/`에 복사한 정적 파일만 쓴다고 하고, 설치 파일 아이콘은 "설치본을 만들 때 `app-icon.ico`를 배포 리소스에 연결해야 한다"고 적었다 | `docs/DESIGN-SPEC.md` §12.7 |
-| **원본 에셋의 위치는 저장소에 없다.** 현재 `app-icon.ico`가 제공 v2 원본과 같은 파일인지는 **미확인**이다 (후속에서 사용자/감독이 원본 경로를 지정하면 SHA-256으로 대조) | 저장소 검색 |
+| **원본 에셋 위치와 동일성(확인)**: 사용자가 지정한 제공 원본은 `D:/DEV/LoreWeave-assets-v2.0/`(저장소 밖 로컬 폴더, 하위 `brand/ icons/ placeholders/ splash/ welcome/`)이고, `icons/app-icon.ico`와 저장소의 `resources/app-icon.ico`는 **각각 87,776바이트, SHA-256이 모두 `2E26144D3C526223BCAA7941EB15DD6900FF6377DC772EA2D061EFDAB6B2666D`로 같다**. 두 파일을 읽기 전용으로 직접 확인했다 (원본은 바꾸지 않았다). 이 로컬 경로는 **추적 가능한 출처 설명일 뿐 런타임·빌드가 참조하는 경로가 아니다**(앱은 저장소에 복사된 `resources/app-icon.ico`만 쓴다) | 파일 직접 읽기(SHA-256·크기), DESIGN-SPEC §12.7 |
 | `package.json`에는 `name: "loreweave"`, `version`, `main`, `description`, `license`만 있고 `productName`·`author`·저작권이 없다. `scripts/package-win.ts`가 쓰는 산출물 `package.json`은 `name/version/main`뿐이다 | `package.json`, `scripts/package-win.ts` |
 | smoke 관측(`PACKAGED_FACTS`): 산출물 실행 시 `app.isPackaged === false`, 앱 경로는 `resources/app`, `execPath`는 산출물의 `electron.exe` | `tests/e2e/package-win-smoke.test.ts`가 남긴 로그 |
 | main은 `!app.isPackaged && process.env['ELECTRON_RENDERER_URL']`일 때만 `loadURL(devUrl)`, 아니면 `loadFile(renderer/index.html)`이다 | `src/main/index.ts` |
@@ -54,16 +54,19 @@
 | `name` | 생략하면 `productName`/`name`. 파일명에 못 쓰는 문자는 하이픈 | 확인(문서) |
 | `icon` | Windows는 `.ico` 로컬 경로 | 확인(문서) |
 | `appVersion`/`appCopyright` | 각각 `ProductVersion`/`LegalCopyright`로 매핑 | 확인(문서) |
-| `win32metadata` | 존재하나 필드별 설명은 이 페이지에 없음 | **미확인** |
+| `win32metadata` | 필드와 기본값은 링크된 [Win32MetadataOptions](https://electron.github.io/packager/main/interfaces/Win32MetadataOptions.html)에 있다: `CompanyName`(기본: `package.json`의 `author` 이름), `FileDescription`·`InternalName`·`ProductName`(기본: `productName` 또는 `name`), `OriginalFilename`(기본: 이름을 바꾼 `.exe`), `requested-execution-level`(`asInvoker`/`highestAvailable`/`requireAdministrator`, 기본 값은 문서에 없음), `application-manifest`(로컬 매니페스트 경로). v20.3.0 `src/types.ts`의 `win32metadata`/`Win32MetadataOptions` 설명과 일치 | 확인(공식 문서·소스 텍스트) |
 | `asar` | 기본 `false` | 확인(문서) |
 | `ignore` | 절대 경로에 대한 정규식(glob 아님) | 확인(문서) — 우리는 staging 입력만 쓰므로 의존을 줄인다 |
 | `prune` | 기본 `true`(devDependencies 제외) | 확인(문서). staging에는 `openai`뿐이라 의미는 작지만 동작을 관측해야 함 |
 | Electron 다운로드 | `@electron/get`으로 받는다. `electronZipDir`로 로컬 **zip**을 쓰면 다운로드를 끈다 | 확인(문서). 현재 로컬엔 압축 해제된 `node_modules/electron/dist`만 있고 zip은 없다 → **빌드 때 네트워크 다운로드 필요 여부는 미확인**(캐시 위치·zip 확보 방법 확인 필요) |
 | 직접 의존 | `resedit`(Windows 실행파일 리소스), `@electron/get`, `@electron/asar`, `@electron/notarize`, `@electron/osx-sign`, `@electron/universal`, `@electron/windows-sign` 등 | 확인(메타데이터). 서명·macOS 의존까지 끌려와 **전이 의존 트리가 크다**; 실제 설치 크기·보안 감사는 미확인 |
-| `resedit`로 아이콘을 넣는다는 구현 | 의존 이름에서 추정할 뿐 문서로 확인하지 못함 | **미확인** (추측하지 않는다) |
+| 공식 도구가 실행파일을 수정하는 경로 | **정확 태그 v20.3.0 공식 소스를 읽었다**([`src/win32.ts`](https://raw.githubusercontent.com/electron/packager/v20.3.0/src/win32.ts), [`src/resedit.ts`](https://raw.githubusercontent.com/electron/packager/v20.3.0/src/resedit.ts), [`src/types.ts`](https://raw.githubusercontent.com/electron/packager/v20.3.0/src/types.ts)). `win32.ts`: `generateReseditOptionsSansIcon()`가 `FileDescription`·`InternalName`·`ProductName`(=`opts.name`)과 `OriginalFilename`(=`newElectronName`)을 기본값으로 만들고 사용자 `win32metadata`를 마지막에 덮어쓰며, `productVersion`=`appVersion`, `fileVersion`=`buildVersion`(없으면 `appVersion`), `legalCopyright`=`appCopyright`로 매핑한다. `runResedit()`는 `needsResedit()`(icon/win32metadata/appCopyright/appVersion/buildVersion/name 중 하나라도 설정)일 때만 동작하고, `getIconPath()`(`.ico`로 정규화, 배열이면 오류)를 `iconPath`로 넘겨 `resedit(electronBinaryPath, …)`를 호출한다. 대상은 `electronBinaryPath = path.join(stagingPath, newElectronName)`, 즉 **packager가 만든 staging 안의 이름을 바꾼 exe**이고 `create()`가 `renameElectron()` 뒤에 `runResedit()`를 부른다. `resedit.ts`: `.ico`를 `Data.IconFile.from`으로 읽고 `Resource.IconGroupEntry.replaceIconsForResource`로 기존 아이콘 그룹(정확히 1개 필요)을 교체, `Resource.VersionInfo`(정확히 1개, 언어 1개)에 문자열(`CompanyName`/`FileDescription`/`InternalName`/`OriginalFilename`/`LegalCopyright`/`ProductName`/`FileVersion`/`ProductVersion`)을 쓰되 **빈 값은 지워 원래 문자열이 남는다**, `application-manifest`와 `requested-execution-level`을 함께 주면 오류, 마지막에 `res.outputResource(exe)`→`exe.generate()`→`writeFile(exePath)`로 **제자리 덮어쓴다(임시 파일·백업 없음)** | 확인(공식 소스 텍스트). 아래 "의미" 참고 |
 | Electron 44.9.3 지원 | 읽은 문서·메타데이터에 지원 범위 언급 없음 | **미확인** |
-| `rcedit` | 같은 계열 도구지만 저장소가 2026-04-06 보관(read-only)됐고 [README](https://github.com/electron/rcedit)는 CLI만 설명 | 직접 쓰지 않는다(바이너리 임의 패치 0) |
+| `rcedit` | 같은 계열 도구지만 저장소가 2026-04-06 보관(read-only)됐고 [README](https://github.com/electron/rcedit)는 CLI만 설명 | 직접 쓰지 않는다 |
 | 출력의 고지 보존 | packager가 Electron 배포본의 `LICENSE`, `LICENSES.chromium.html`을 유지하는지 | **미확인** (후속에서 산출물 파일 존재로 확인) |
+
+**공식 도구의 PE 수정과 "임의 패치 금지"의 구분.** 공식 도구도 내부적으로 PE 리소스를 수정한다(위 소스). 이 계획이 금지하는 것은 **우리가 직접 만든 임의의 PE/바이너리 패치 코드나 비공식 도구를 쓰는 것**이다. 허용하는 것은 **공식 도구의 문서화된 옵션**(`name`, `icon`, `appVersion`, `appCopyright`, `win32metadata`)을 쓰는 것이며, 그 수정은 packager가 만든 staging의 exe 복사본에만 일어나고 저장소의 `node_modules/electron/dist/electron.exe`는 바뀌지 않는다(소스상 대상 경로 기준). 설계 시사점: 소스상 빈 값은 원래 Electron 문자열을 남기므로, 구현 PR은 `CompanyName` 등 남기고 싶지 않은 문자열을 **명시 지정**해야 하고(`package.json`에 `author`가 없다 — 문서의 `CompanyName` 기본값은 `author` 이름이며, 읽은 `generateReseditOptionsSansIcon()` 기본값 목록에는 `CompanyName`이 보이지 않아 실제 동작은 **미확인**), 산출물의 문자열을 관측으로 확인해야 한다.
+**소스를 읽은 것은 Electron 44.9.3 호환이나 실행 결과의 검증이 아니다.** 아래 항목은 그대로 미확인이다.
 
 **권고: 경로 B(엄격 staging + `@electron/packager`, 정확 버전 고정)를 *조건부*로 권고한다.** 이유: 이름·ICO·메타데이터를 우리가 직접 PE 리소스로 패치하지 않고 공식 도구의 지원 옵션에 맡길 수 있고, 우리 허용 목록·사전 검사·실제 경로 보호는 그대로 입력 단계에 남는다. 조건(구현 전 확인 게이트, 설치·실행 없이 가능한 것부터):
 1. 패키지 [릴리스 노트/README](https://github.com/electron/packager)에서 Electron 44(또는 최신 stable) 지원 문구를 찾는다. 없으면 **미확인으로 두고 구현하지 않는다**.
@@ -92,6 +95,6 @@
 
 ## 7. 남은 결정과 미확인
 
-- 결정 필요: (1) 구현을 PR-1/PR-2로 나눌지와 순서, (2) 경로 B를 위한 새 devDependency·lockfile 변경·Electron zip 다운로드 승인, (3) 원본 `LoreWeave-assets-v2.0`의 위치 지정과 `app-icon.ico` 대조 여부, (4) production 가드 방식(§5 a/b/c), (5) `productName`/`name`/`userData`는 건드리지 않는다는 원칙의 확인.
-- 미확인: `@electron/packager` 20.3.0의 Electron 44.9.3 지원, `win32metadata` 필드, `resedit` 사용 방식, 고지 파일 보존, Electron zip 확보 방식, `app.isPackaged` 판정 방식과 이름 변경의 영향, 기본 `userData`의 실제 값, 제공 원본 ICO와의 동일성, OS 아이콘 표시·SmartScreen.
+- 결정 필요: (1) 구현을 PR-1/PR-2로 나눌지와 순서, (2) 경로 B를 위한 새 devDependency·lockfile 변경·Electron zip 다운로드 승인, (3) *(해소)* 원본 ICO 위치·동일성은 확인 완료(§2) — 구현 PR은 빌드 검증에서 `resources/app-icon.ico`의 SHA-256을 위 값과 재대조할지만 정하면 된다, (4) production 가드 방식(§5 a/b/c), (5) `productName`/`name`/`userData`는 건드리지 않는다는 원칙의 확인.
+- 미확인: `@electron/packager` 20.3.0의 Electron 44.9.3 지원과 실제 실행 결과(소스를 읽었을 뿐 호환·산출물 검증이 아니다), `CompanyName` 기본값의 실제 동작, 고지 파일 보존, Electron zip 확보 방식, `app.isPackaged` 판정 방식과 이름 변경의 영향, 기본 `userData`의 실제 값, OS 아이콘 표시·SmartScreen·다른 PC 실행. (해소: `win32metadata` 필드·기본값, `resedit`가 쓰이는 경로의 소스 근거, 제공 원본 ICO와의 동일성.)
 - 이 문서의 공식 문서·메타데이터 인용은 2026-11-15에 읽은 내용이며 구현 시점에 다시 확인해야 한다.
