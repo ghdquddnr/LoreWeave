@@ -9,6 +9,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
+    "package:win": "electron-vite build && tsx scripts/package-win.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"tests/core/**/*.test.ts\"",
     "perf": "electron-vite build && tsx scripts/perf.ts",

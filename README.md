@@ -43,7 +43,11 @@ Possible continuity error
 
 → [M1 결과](docs/M1-REPORT.md), [M2 결과](docs/M2-REPORT.md), [M3 결과](docs/M3-REPORT.md), [M4 결과](docs/M4-REPORT.md), 이후 [M5](docs/M5-REPORT.md)~[M10](docs/M10-REPORT.md) 결과
 
-개발 실행: `corepack pnpm install` → `corepack pnpm dev`. Windows 실행본(설치 파일 아님) 계획: [docs/WINDOWS-PREVIEW-PLAN.md](docs/WINDOWS-PREVIEW-PLAN.md) (계획만 있고 구현은 아직 없습니다). 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
+개발 실행: `corepack pnpm install` → `corepack pnpm dev`.
+
+**Windows x64 폴더형 실행본 만들기 (미서명, 설치 프로그램 아님):** `corepack pnpm package:win` — 빌드 뒤 이미 설치된 Electron 44 런타임을 복사해 **저장소 밖 임시 폴더**(`…\Temp\LoreWeave-win-x64-<고유값>`; `--out <새 폴더>`로 지정)에 실행 폴더를 만들고 위치를 출력합니다. 그 폴더째 복사해 `electron.exe`를 실행하면 개발 서버·pnpm 없이 뜹니다 (실행 때 인터넷 불필요, 빌드 준비 때는 `pnpm install`의 Electron 다운로드 필요). 기존에 비어 있지 않은 폴더나 저장소 안은 거절합니다.
+- 한계: 서명하지 않아 Windows SmartScreen 경고가 뜰 수 있고(직접 확인하지 못했습니다), exe 이름·실행 파일 아이콘은 `electron.exe` 그대로입니다(창 아이콘은 `resources/app-icon.ico`). asar를 쓰지 않습니다. 이 폴더는 Git·릴리스에 올리지 않습니다. 설계: [docs/WINDOWS-PREVIEW-PLAN.md](docs/WINDOWS-PREVIEW-PLAN.md).
+- **격리해서 시험하세요:** 실행본의 기본 설정·키 위치는 개발 때와 같을 수 있으므로 `electron.exe --user-data-dir=<빈 폴더>`로 실행하고, 원고는 **새로 만든 시험용 원고 폴더**만 여세요. 원고 색인·AI 결과(`.loreweave/index.db`, `.loreweave/ai.db`)는 userData가 아니라 **열어 본 원고 폴더 안**에 생기므로 실제 작품 폴더를 시험에 쓰지 마세요. 원고 폴더 안의 `chapters/001.md`, `002.md` … 를 화로 읽습니다.
 
 ## 원칙
 
