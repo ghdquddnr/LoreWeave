@@ -202,10 +202,12 @@ export const AnalysisBar = forwardRef<AnalysisBarHandle, Props>(function Analysi
 
   const analyze = (files: string[], modelId: string, owner: string | null, unsavedText: string) => {
     const mine = requestSeq.current;
+    const epoch = selectionEpoch.current; // 요청을 시작한 때의 화 선택
     return execute('analysis', async () => ({ kind: 'analysis', progress: await api.ai.analyze(files, projectToken, modelId) }), unsavedText, (e) => {
       // 승인한 모델과 지금 설정이 달라 main이 보내지 않았다: 같은 대상에 대해 새 계획·새 모델 표시의 확인을 다시 받는다 (자동으로 다시 보내지 않고 이전 승인도 쓰지 않는다).
       // 그 사이 프로젝트가 바뀌었으면(요청 번호) 새 프로젝트에 다시 시도를 만들지 않는다
-      if (mine !== requestSeq.current || !(e instanceof Error) || !e.message.includes(MODEL_CHANGED)) return;
+      // 현재 화 대상(owner)이면 화를 옮겼거나(돌아왔어도) 이전 선택의 다시 시도를 지금 화면에 만들지 않는다. 프로젝트 범위(owner=null, 남은 화 분석)는 화 이동과 무관하다
+      if (mine !== requestSeq.current || (owner !== null && epoch !== selectionEpoch.current) || !(e instanceof Error) || !e.message.includes(MODEL_CHANGED)) return;
       planOwner.current = owner;
       setRetry(() => () => startAnalysis(files, owner));
     });

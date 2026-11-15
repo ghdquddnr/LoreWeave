@@ -135,3 +135,65 @@ test('정상: 같은 모델이면 승인한 모델 A로 분석 요청이 나간�
     await cleanup(app, page);
   }
 });
+
+const nav = (page: Page, title: string) => page.getByRole('navigation', { name: '화 목록' }).getByRole('button', { name: title, exact: true });
+const body = (title: string) => (title === 'One' ? 'alpha one' : 'alpha two');
+
+for (const [name, path] of [
+  ['Two → One', ['One']],
+  ['Two → One → Two', ['One', 'Two']],
+] as const) {
+  test(`현재 화 분석 요청 대기 중 화 이동(${name}) 뒤 늦은 MODEL_CHANGED 거절은 이동한 화에 이전 화의 [다시 시도]·확인 창을 만들지 않고, 요청도 0이다`, { timeout: 120_000 }, async () => {
+    const { dir, app, page, B } = await setup();
+    try {
+      const before = await bytes(dir);
+      await nav(page, 'Two').click();
+      await page.locator('.ProseMirror').getByText(body('Two')).waitFor();
+      await holdAnalyze(app);
+      await page.getByRole('button', { name: '이 화 분석', exact: true }).click(); // Two의 분석
+      await dialog(page).locator('button.primary').click();
+      await until('실제 분석 handler가 붙잡히지 않았다', async () => (await gs(app)).held);
+      for (const title of path) {
+        await nav(page, title).click();
+        await page.locator('.ProseMirror').getByText(body(title)).waitFor();
+      }
+      await page.evaluate((m) => window.loreweave.ai.setModel(m), B);
+      await releaseHold(app);
+      await until('늦은 거절이 오지 않았다', async () => (await page.getByRole('alert').count()) > 0);
+      await page.waitForTimeout(300);
+      assert.equal(responses().length, 0, '요청이 없다');
+      assert.equal(await page.getByRole('button', { name: '다시 시도', exact: true }).count(), 0, '이전 선택의 [다시 시도]가 없다');
+      assert.equal(await dialog(page).count(), 0, '확인 창이 없다');
+      assert.deepEqual(await bytes(dir), before, '원고 바이트는 그대로다');
+    } finally {
+      await cleanup(app, page);
+    }
+  });
+}
+
+test('대조: 프로젝트 범위 [남은 화 분석]의 늦은 거절은 화를 옮겨도 [다시 시도]가 남고, 눌러도 확인 창만 열리며 요청은 0이다', { timeout: 120_000 }, async () => {
+  const { dir, app, page, B } = await setup();
+  try {
+    const before = await bytes(dir);
+    await holdAnalyze(app);
+    await page.getByRole('button', { name: /남은 화 분석/ }).click();
+    await dialog(page).locator('button.primary').click();
+    await until('실제 분석 handler가 붙잡히지 않았다', async () => (await gs(app)).held);
+    await nav(page, 'Two').click();
+    await page.locator('.ProseMirror').getByText(body('Two')).waitFor();
+    await page.evaluate((m) => window.loreweave.ai.setModel(m), B);
+    await releaseHold(app);
+    await until('늦은 거절이 오지 않았다', async () => (await page.getByRole('alert').count()) > 0);
+    await page.waitForTimeout(300);
+    assert.equal(responses().length, 0);
+    const retry = page.getByRole('button', { name: '다시 시도', exact: true });
+    assert.equal(await retry.count(), 1, '프로젝트 범위의 [다시 시도]는 화 이동과 무관하게 있다');
+    await retry.click();
+    await dialog(page).waitFor();
+    await page.waitForTimeout(300);
+    assert.equal(responses().length, 0, '확인 전에는 요청이 없다');
+    assert.deepEqual(await bytes(dir), before);
+  } finally {
+    await cleanup(app, page);
+  }
+});
