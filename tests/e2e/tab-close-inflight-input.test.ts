@@ -29,13 +29,15 @@ interface G {
   writes: number;
   creates: number;
   reissues: number;
+  /** AI 진입(ai:analyze·ai:check) 수 */
+  ais: number;
   release?: () => void;
 }
 const hook = (app: ElectronApplication, target: string) =>
   app.evaluate(
     ({ ipcMain }, target) => {
       const g = globalThis as unknown as G;
-      Object.assign(g, { armed: false, held: false, opens: 0, renames: 0, writes: 0, creates: 0, reissues: 0 });
+      Object.assign(g, { armed: false, held: false, opens: 0, renames: 0, writes: 0, creates: 0, reissues: 0, ais: 0 });
       // 이 함수는 앱 안에서 실행된다: 이름 붙은 도우미 함수를 두지 않는다
       const fsp = process.getBuiltinModule('fs/promises');
       const open = fsp.open;
@@ -62,6 +64,8 @@ const hook = (app: ElectronApplication, target: string) =>
         ['chapter:write', 'writes'],
         ['chapter:create', 'creates'],
         ['chapter:reissue-id', 'reissues'],
+        ['ai:analyze', 'ais'],
+        ['ai:check', 'ais'],
       ] as const) {
         const original = map.get(channel)!;
         map.set(channel, (...args: unknown[]) => {
@@ -75,7 +79,7 @@ const hook = (app: ElectronApplication, target: string) =>
 const state = (app: ElectronApplication) =>
   app.evaluate(() => {
     const g = globalThis as unknown as G;
-    return { held: g.held, opens: g.opens, renames: g.renames, writes: g.writes, creates: g.creates, reissues: g.reissues };
+    return { held: g.held, opens: g.opens, renames: g.renames, writes: g.writes, creates: g.creates, reissues: g.reissues, ais: g.ais };
   });
 const arm = (app: ElectronApplication) => app.evaluate(() => void ((globalThis as unknown as G).armed = true));
 const release = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as G).release?.());
@@ -139,7 +143,8 @@ test('닫기가 시작한 선행 저장을 붙잡은 동안 받아들인 입력 
     const editable = await editor(page).getAttribute('contenteditable');
     console.error('TAB_CLOSE_BARRIER', JSON.stringify({ ...held, contenteditable: editable, tabA: await closeButton(page, 'A첫째').count(), tabB: await closeButton(page, 'B둘째').count() }));
     assert.equal(held.opens, 1);
-    assert.equal(held.writes, 1, '닫기의 선행 flush chapter:write 1회');
+    // 이 쓰기의 주인이 닫기의 flush인지는 직접 관측하지 않는다 (편집 잠금이 없다). 근거는 코드 읽기+관측: 자동저장·창 blur(window)가 먼저 쓰기를 쥐고 있었다면 leave()가 그 저장에 합류해 XY를 다시 저장하고 묻지 않고 닫혔을 것이다(ChapterEditor.save). 아래 확인 창과 디스크 X가 그 반대를 보인다.
+    assert.equal(held.writes, 1, '붙잡힌 동안 chapter:write는 한 번');
     assert.equal(await closeButton(page, 'A첫째').count(), 1, '저장 중에는 탭이 그대로다');
     assert.deepEqual(await read('001.md'), Buffer.from(A1), '저장이 디스크에 닿기 전이다');
 
@@ -158,7 +163,7 @@ test('닫기가 시작한 선행 저장을 붙잡은 동안 받아들인 입력 
     await waitUntil('닫기 처리가 끝나지 않았다', async () => asked.length >= 1 || (await closeButton(page, 'A첫째').count()) === 0);
     const seenAtDecision = await page.evaluate(() => (window as unknown as { statusSeen: string[] }).statusSeen);
     const closedWithoutAsking = asked.length === 0;
-    console.error('TAB_CLOSE_DECISION', JSON.stringify({ asked, closedWithoutAsking }));
+    console.error('TAB_CLOSE_DECISION', JSON.stringify({ asked, closedWithoutAsking, ...(await state(app)) }));
     if (closedWithoutAsking) {
       // 앱이 최신 XY를 끝까지 저장하고 닫는 안전 정책이면 허용: 그 경우 디스크에 XY가 있어야 한다
       assert.match((await read('001.md')).toString('utf8'), /A첫째 본문 X Y\r\n$/, '묻지 않고 닫았다면 XY가 디스크에 있어야 한다');
@@ -202,7 +207,7 @@ test('닫기가 시작한 선행 저장을 붙잡은 동안 받아들인 입력 
     }
     assert.deepEqual(await readdir(join(dir, 'chapters')), Object.keys(files), '화 파일 수·이름 불변');
     const end = await state(app);
-    assert.equal(end.creates + end.reissues, 0, '불필요한 create/reissue 0');
+    assert.equal(end.creates + end.reissues + end.ais, 0, '불필요한 create/reissue/AI 진입 0');
     assert.deepEqual(unexpected, [], '예상하지 않은 확인 창이 없다');
   } catch (e) {
     phase = 'cleanup';
