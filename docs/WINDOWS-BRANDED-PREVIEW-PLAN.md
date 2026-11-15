@@ -1,6 +1,6 @@
 # Windows 실행파일 브랜드·아이콘·production 실행 경계 후속 계획
 
-상태: **PR-1(production 시작 경계)은 구현·검증됐다**(`process.defaultApp === true && !app.isPackaged && ELECTRON_RENDERER_URL`일 때만 개발 서버를 읽음; 폴더 실행본의 `process.defaultApp`은 undefined로 관측). **PR-2(실행파일 이름·ICO·메타데이터·packager)는 아직 구현되지 않았고 승인되지 않았다.** 아래는 계획 원문이다. 이 문서의 나머지는 **계획만 있다.** 이 문서는 아무것도 구현하지 않았다 (제품 코드·테스트·의존성·다운로드·빌드·패키징 실행 0). 감독의 검토·승인 전에는 구현을 시작하지 않는다.
+상태: **PR-1(production 시작 경계)은 구현·검증됐다**(`process.defaultApp === true && !app.isPackaged && ELECTRON_RENDERER_URL`일 때만 개발 서버를 읽음; 폴더 실행본의 `process.defaultApp`은 undefined로 관측). **PR-2(실행파일 이름·ICO·메타데이터·packager)는 아직 구현되지 않았고 승인되지 않았다.** 아래는 **작성 당시(PR-1 구현 전)의 계획 원문**이다. 본문의 "현재 상태"·"구현 0" 서술은 그 당시 기록이며, **PR-1은 그 뒤 구현됐고 PR-2(이름·ICO·메타데이터·packager)만 아직 계획이다**. 계획 원문은 작성 당시 제품 코드·테스트·의존성·다운로드·빌드·패키징 실행 0이었고, PR-2는 감독의 검토·승인 전에는 시작하지 않는다.
 앞선 계획 [WINDOWS-PREVIEW-PLAN.md](WINDOWS-PREVIEW-PLAN.md)의 A안(수동 폴더 배포)은 PR #219에서 **구현·검증됐다**(`corepack pnpm package:win`, 합성 Electron 자동 검증까지). 이 문서는 그 다음 단계다.
 근거는 저장소의 실제 파일과 공식 문서·레지스트리 메타데이터(읽기 전용 조회)뿐이며, 확인하지 못한 것은 "미확인"이다. 현재 실제 유출·원고 손상·환경변수 재현 결함은 관측하지 않았다.
 
