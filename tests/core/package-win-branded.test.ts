@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -252,4 +252,28 @@ test('브랜드 산출물 검증: 올바른 구조는 통과하고 electron.exe�
     mutate(app);
     assert.throws(() => verifyBrandedTree(app, info), (e: unknown) => e instanceof PackageError && pattern.test(e.message), label);
   }
+});
+
+test('최종 출력은 Electron zip 폴더(읽기 전용 입력/캐시) 안·같음·상위·junction 별칭 경유 동등 경로면 packager·독점 루트·최종 출력 생성 전에 거절하고 zip 폴더·zip 바이트는 그대로다', () => {
+  const f = fixture();
+  const opts = { tmpBase: f.tmpBase, zipDir: f.zipDir };
+  const zipBefore = createHash('sha256').update(readFileSync(join(f.zipDir, ZIP_NAME))).digest('hex');
+  const listingBefore = readdirSync(f.zipDir).join(',');
+  const outsideAlias = join(f.base, 'alias-to-zip');
+  symlinkSync(f.zipDir, outsideAlias, 'junction'); // 외부 junction이 zip 폴더를 가리킨다
+  const cases: [string, string, RegExp][] = [
+    ['zip 폴더의 자식 새 경로', join(f.zipDir, 'new-output'), /zip 폴더 안/],
+    ['zip 폴더와 같음', f.zipDir, /zip 폴더 안이거나 같다|비어 있지 않다/],
+    ['zip 폴더의 상위(= 테스트 base)', f.base, /상위 폴더|zip 폴더의 상위/],
+    ['외부 junction을 거친 동등 경로', join(outsideAlias, 'new-output'), /zip 폴더 안/],
+  ];
+  for (const [label, out, pattern] of cases) {
+    assert.throws(() => buildBranded(f.layout, out, opts), (e: unknown) => e instanceof PackageError && pattern.test(e.message), label);
+    assert.equal(existsSync(join(f.zipDir, 'new-output')), false, `${label}: zip 폴더에 아무것도 만들어지지 않았다`);
+  }
+  assert.deepEqual(readdirSync(f.tmpBase), [], '독점 임시 루트가 만들어지지 않았다');
+  assert.equal(readdirSync(f.zipDir).join(','), listingBefore, 'zip 폴더 내용 불변');
+  assert.equal(createHash('sha256').update(readFileSync(join(f.zipDir, ZIP_NAME))).digest('hex'), zipBefore, 'zip 바이트 불변');
+  // 정상 외부 새 출력은 유지된다 (검사 함수 수준; 실제 빌드는 하지 않는다)
+  assert.doesNotThrow(() => checkBrandedOutput(join(f.base, 'fresh-out'), f.layout, f.zipDir));
 });

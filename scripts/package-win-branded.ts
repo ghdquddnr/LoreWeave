@@ -18,7 +18,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertPlatform, checkInputs, checkOutput, FORBIDDEN, isInside, type Layout, lexists, PackageError, preflight, RULES, scanAllowed, stageApp } from './package-win.ts';
+import { assertPlatform, checkInputs, checkOutput, FORBIDDEN, isInside, type Layout, lexists, PackageError, preflight, realResolve, RULES, scanAllowed, stageApp } from './package-win.ts';
 
 const fail = (message: string): never => {
   throw new PackageError(message);
@@ -157,10 +157,21 @@ export function checkPackager({ root }: Layout): { entry: string } {
 }
 
 /** 최종 출력: package:win과 같은 검사(lexical+realpath, 상위·하위 보호, 링크, 폴더 아님) + 이미 존재하면 거절 (exclusive 생성) */
-export function checkBrandedOutput(out: string, layout: Layout): string {
+export function checkBrandedOutput(out: string, layout: Layout, zipDir?: string): string {
   const target = checkOutput(out, layout);
   if (lexists(target)) return fail(`최종 출력은 아직 없는 새 경로여야 한다 (이미 있다; 덮어쓰지 않는다): ${target}`);
+  if (zipDir) assertOutsideZipDir(target, zipDir);
   return target;
+}
+
+/** 최종 출력이 Electron zip 폴더(읽기 전용 입력/캐시) 안·같음·상위가 아니어야 한다: 문자열 경로와 실제 경로(상위 junction/symlink 별칭 포함) 모두 본다 */
+export function assertOutsideZipDir(target: string, zipDir: string): void {
+  const realZip = existsSync(zipDir) ? realpathSync.native(zipDir) : resolve(zipDir);
+  const realTarget = realResolve(target);
+  for (const [a, b, shown] of [[target, zipDir, '경로'], [realTarget, realZip, `실제 경로 ${realZip}`]] as const) {
+    if (isInside(a, b)) fail(`최종 출력이 Electron zip 폴더 안이거나 같다 (${shown}; zip 폴더는 읽기만 한다): ${a}`);
+    if (isInside(b, a)) fail(`최종 출력이 Electron zip 폴더의 상위 폴더다 (${shown}): ${a}`);
+  }
 }
 
 /** 독점 루트 안의 아홉 가지 경계 (호출 직전에 다시 실행한다) */
@@ -319,10 +330,10 @@ export interface BrandedResult {
 export function buildBranded(layout: Layout, out: string, options: BrandedOptions = {}): BrandedResult {
   const info = checkInputs(layout);
   const { entry } = checkPackager(layout);
-  const target = checkBrandedOutput(out, layout);
+  const zipDir = options.zipDir ? resolve(options.zipDir) : defaultZipDir(info.electronVersion);
+  const target = checkBrandedOutput(out, layout, zipDir); // zip 폴더(읽기 전용 입력/캐시)와 겹치는 출력은 거절한다
   preflight(layout); // 허용 목록 밖의 파일이 있으면 아무것도 만들지 않고 실패
   const checksumsPath = join(dirname(layout.electronDist), 'checksums.json');
-  const zipDir = options.zipDir ? resolve(options.zipDir) : defaultZipDir(info.electronVersion);
   const zip = verifyZip(zipDir, info.electronVersion, checksumsPath);
   const copyright = readFileSync(join(layout.root, 'LICENSE'), 'utf8').split(/\r?\n/).find((l) => /^Copyright /.test(l));
   if (!copyright) return fail('LICENSE에서 Copyright 줄을 찾지 못했다');
@@ -395,7 +406,7 @@ export function buildBranded(layout: Layout, out: string, options: BrandedOption
     log('packager-output-verified', { ...tree, strings: pe.strings });
 
     // 검증을 통과한 것만 새 최종 출력으로 복사한다 (exclusive 생성: 이미 있으면 실패)
-    const target2 = checkBrandedOutput(target, layout);
+    const target2 = checkBrandedOutput(target, layout, zipDir);
     try {
       mkdirSync(target2); // 상위 폴더는 만들지 않는다; 경합으로 생겼다면 EEXIST로 실패
     } catch (e) {
@@ -470,4 +481,3 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     throw e;
   }
 }
-
