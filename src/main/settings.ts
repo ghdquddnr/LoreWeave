@@ -18,13 +18,19 @@ const DEFAULTS: Settings = { lastProject: null, aiModel: DEFAULT_MODEL, aiSendCo
 
 export const settingsPath = (userData: string) => join(userData, 'settings.json');
 
-async function readRaw(userData: string): Promise<Settings> {
+/**
+ * strict(쓰기 경로): 파일이 없거나(ENOENT) 내용이 깨진 경우만 기본값으로 시작한다. 그 밖의 읽기 I/O 오류(EACCES·EPERM·EIO 등)는 유효한 설정을 읽지 못한 것이므로
+ * 기본값으로 오인해 덮어쓰지 않도록 오류를 그대로 던진다. 읽기용(strict=false)은 앱이 뜨도록 어떤 오류에도 기본값을 돌려준다
+ */
+async function readRaw(userData: string, strict = false): Promise<Settings> {
   let raw: Record<string, unknown> = {};
   try {
     const parsed: unknown = JSON.parse(await readFile(settingsPath(userData), 'utf8'));
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) raw = parsed as Record<string, unknown>;
-  } catch {
-    // 처음 실행이거나 깨진 파일이다
+  } catch (e) {
+    // 처음 실행(ENOENT)이거나 깨진 파일(JSON 오류)이다
+    const code = (e as NodeJS.ErrnoException).code;
+    if (strict && !(e instanceof SyntaxError) && code !== 'ENOENT') throw e;
   }
   return {
     lastProject: typeof raw['lastProject'] === 'string' ? raw['lastProject'] : DEFAULTS.lastProject,
@@ -71,7 +77,7 @@ async function replaceFile(from: string, to: string): Promise<void> {
 /** change를 현재 저장된 설정에 합쳐 쓴다. 함수를 주면 대기열 안에서 최신 설정을 받아 부분 변경을 계산한다 */
 export function updateSettings(userData: string, change: Partial<Settings> | ((current: Settings) => Partial<Settings>)): Promise<Settings> {
   return enqueue(userData, async () => {
-    const current = await readRaw(userData);
+    const current = await readRaw(userData, true); // 유효한 설정을 읽지 못했으면 기본값에 합쳐 덮어쓰지 않고 오류를 돌려준다
     const next: Settings = { ...current, ...(typeof change === 'function' ? change(current) : change) };
     // 임시 파일에 쓴 뒤 바꿔치기: 쓰는 도중 종료돼도 settings.json이 반쪽 내용이 되지 않는다
     const tmp = `${settingsPath(userData)}.tmp`;
