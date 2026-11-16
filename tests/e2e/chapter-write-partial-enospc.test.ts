@@ -3,7 +3,7 @@
 // 실제 renderer 편집·Ctrl+S → 실제 chapter:write handler → 실제 writeChapter/atomicWrite. handler는 호출 횟수 관찰만 하고 원래 handler를 그대로 부른다(성공·실패 대역 없음).
 // 실패 주입(합성): 앱 main 안에서 fs/promises.open을 "001.md + '.' + UUID + '.tmp'" 이고 wx인 호출에만 한정해 그 실제 FileHandle 인스턴스의 writeFile만 앞 절반을 실제로 기록한 뒤 합성 ENOSPC로 거절한다.
 // sync·close·tmp rm·rename은 원함수로 통과시키고 횟수만 센다. 원함수는 hook 전에 보존, prototype 전역 패치 없음. 감싼 함수는 이 테스트의 독점 앱 프로세스 안에만 있으며 finally에서 앱을 닫아 함께 사라진다. 실제 디스크 고갈·ACL 시험이 아니다.
-// 타이머: ChapterEditor의 1.5초 자동 저장·5초 자동 재시도는 그대로 두며 "해제만으로 영구 재시도 없음"을 요구하지 않는다. 주입이 켜진 동안의 자동·명시 재시도는 실제로 실패하고, 단언은 계수의 하한과 "정착된 상태(열린 handle 모두 닫힘·tmp 없음)"에서 한다.
+// 타이머: ChapterEditor의 1.5초 자동 저장·5초 자동 재시도 정책은 그대로이고 "해제만으로 영구 재시도 없음"을 요구하지 않는다. 대신 renderer 시계를 멈춰(Playwright clock) 모든 chapter:write를 명시 Ctrl+S 또는 시계를 돌려 일으킨 자동 저장으로 특정하고, 복구 단계는 해제 전후 계수 대조 뒤 실제 Ctrl+S의 새 chapter:write·sync·rename을 단언한다.
 // 격리: tests/e2e/isolated-launch.ts(hooks/main-isolated-userdata-entry.cjs): 매 실행 독점 새 빈 userData·main 전 증거 확인. 독점 합성 BOM/CRLF/frontmatter/한글 001·002와 sentinel만 쓴다. 합성 Electron 자동화이며 수동 GUI/실 IME가 아니다.
 
 import assert from 'node:assert/strict';
@@ -108,7 +108,13 @@ test('기존 001 저장의 tmp 부분 기록 ENOSPC가 화면에 실패로 보�
     const original = await readFile(path001);
     const orig002 = await readFile(join(dir, 'chapters', '002.md'));
 
-    // 1) 편집 + 명시 Ctrl+S → 실제 chapter:write → 부분 기록 ENOSPC
+    // 장벽: renderer의 시계를 멈춘다 (Playwright clock). 1.5초 자동 저장·5초 자동 재시도 타이머(제품 정책은 그대로)는 테스트가 시계를 돌릴 때만 만료한다.
+    // 그래서 아래의 모든 chapter:write는 (a) 명시 Ctrl+S 또는 (b) 테스트가 시계를 1.5초 돌려 일으킨 자동 저장 중 하나로 특정되고, 임의 대기로 순서를 추정하지 않는다.
+    const t0 = Date.now();
+    await page.clock.install({ time: t0 });
+    await page.clock.pauseAt(t0 + 1000);
+
+    // 1) 편집 + 명시 Ctrl+S → 실제 chapter:write → 부분 기록 ENOSPC (시계가 멈춰 있어 자동 저장은 끼어들 수 없다)
     await editor(page).getByText('Alpha text').click();
     await page.keyboard.press('End');
     await page.keyboard.type(' A');
@@ -116,15 +122,19 @@ test('기존 001 저장의 tmp 부분 기록 ENOSPC가 화면에 실패로 보�
     await bar(page).getByText('저장 실패', { exact: false }).waitFor({ timeout: 30_000 });
     await retryButton(page).waitFor();
     assert.ok(!/저장됨/.test(await bar(page).innerText()), '실패가 저장됨으로 오인 표시되지 않는다');
-    // 실패 중 추가 입력도 보존된다
+    await waitUntil(page, '첫 실패(명시 저장)가 정착한다', settledNow(app, dir));
+    assert.deepEqual({ calls: (await state(app)).writeCalls, enospc: (await state(app)).enospc }, { calls: 1, enospc: 1 }, '시계가 멈춘 동안 명시 저장 1건만 chapter:write에 이르렀다');
+    // 실패 중 추가 입력도 보존된다. 자동 저장 타이머는 시계를 돌릴 때만 만료한다: 1.5초를 돌려 자동 저장이 (주입이 켜진 채) 실제로 다시 실패하게 한다
     await page.keyboard.type(' B');
-    await bar(page).getByText('저장 실패', { exact: false }).waitFor({ timeout: 30_000 }); // 1.5초 자동 저장이 (주입이 켜진 채) 다시 실패해야 실패 안내가 돌아온다
+    assert.equal((await state(app)).writeCalls, 1, '입력만으로는(시계가 멈춰 있어) 저장 요청이 없다');
+    await page.clock.runFor(1500);
+    await waitUntil(page, '자동 저장이 chapter:write에 이르렀다', async () => (await state(app)).writeCalls === 2);
+    await bar(page).getByText('저장 실패', { exact: false }).waitFor({ timeout: 30_000 });
     await retryButton(page).waitFor();
     assert.equal(await editor(page).getByText('Alpha text A B', { exact: true }).count(), 1, '미저장 최신 입력(A, B)이 에디터에 그대로 있다');
-    await waitUntil(page, '진행 중인 재시도가 끝나 정착한다', settledNow(app, dir));
+    await waitUntil(page, '자동 저장의 실패가 정착한다', settledNow(app, dir));
     const failed = await state(app);
-    assert.ok(failed.enospc >= 2, `실제 부분 쓰기 실패가 최소 두 번(명시 저장 + 자동 재시도) 있었다: ${failed.enospc}`);
-    assert.equal(failed.writeCalls >= failed.enospc, true, '모든 실패는 실제 chapter:write를 거쳤다');
+    assert.deepEqual({ calls: failed.writeCalls, enospc: failed.enospc }, { calls: 2, enospc: 2 }, '명시 저장 1건 + 시계를 돌려 일으킨 자동 저장 1건, 둘 다 실제 부분 쓰기 실패 (시계가 멈춰 그 밖의 요청은 없다)');
     assert.deepEqual({ syncs: failed.syncs, renames: failed.renames }, { syncs: 0, renames: 0 }, '부분 기록이 실패하면 sync·rename에 이르지 않는다');
     assert.equal(failed.opens, failed.closes, '열린 tmp handle마다 실제 close가 있었다');
     assert.equal(failed.tmpRms, failed.enospc, '실패마다 tmp 정리 rm이 있었다');
@@ -144,17 +154,26 @@ test('기존 001 저장의 tmp 부분 기록 ENOSPC가 화면에 실패로 보�
     await editor(page).getByText('Alpha text A B C', { exact: true }).waitFor();
     assert.equal(await editor(page).getAttribute('contenteditable'), 'true');
 
-    // 2) 주입을 풀고 명시 저장(Ctrl+S): 최신 본문이 정확한 바이트로 저장된다 (자동 재시도가 먼저 성공해도 최종 상태는 같다)
+    // 2) 주입을 푼다. 시계가 멈춰 있으므로 자동 저장·자동 재시도 타이머는 복구를 선행할 수 없다: 해제 전후 계수·화면·디스크가 그대로임을 먼저 관측한다 (실제 시간 400ms는 시계와 무관한 유한 관측)
+    const s0 = await state(app);
     await setFail(app, false);
+    await page.waitForTimeout(400);
+    const s1 = await state(app);
+    assert.deepEqual({ calls: s1.writeCalls, opens: s1.opens, syncs: s1.syncs, renames: s1.renames, enospc: s1.enospc }, { calls: s0.writeCalls, opens: s0.opens, syncs: s0.syncs, renames: s0.renames, enospc: s0.enospc }, '해제만으로는 (자동 타이머가 멈춰 있어) 저장 요청·sync·rename이 늘지 않는다');
+    const barText = await bar(page).innerText();
+    assert.ok(!/저장됨/.test(barText), `해제 뒤에도 미저장 상태(저장됨 아님)다: ${barText}`);
+    assert.ok(/저장 대기|저장 안 됨|저장 실패/.test(barText), `미저장/실패 표시가 유지된다: ${barText}`);
+    assert.deepEqual(await readFile(path001), original, '해제 뒤에도 디스크는 원본 그대로다');
+    // 실제 명시 Ctrl+S → 새 chapter:write(정확히 1건) → 실제 sync·rename 성공 → 저장됨
     await page.keyboard.press('Control+S');
+    await waitUntil(page, '명시 Ctrl+S가 새 chapter:write를 일으켰다', async () => (await state(app)).writeCalls === s0.writeCalls + 1);
     await bar(page).getByText('저장됨', { exact: true }).waitFor({ timeout: 30_000 });
     await waitUntil(page, '정착한다', settledNow(app, dir));
+    const done = await state(app);
+    assert.deepEqual({ calls: done.writeCalls, opens: done.opens, syncs: done.syncs, renames: done.renames, enospc: done.enospc }, { calls: s0.writeCalls + 1, opens: s0.opens + 1, syncs: s0.syncs + 1, renames: s0.renames + 1, enospc: s0.enospc }, '명시 Ctrl+S가 새 chapter:write 1건과 실제 sync·rename 1회 성공으로 이어졌고 부분 쓰기 실패는 더 없다');
     const expected = withText('Alpha text A B C');
     assert.equal((await readFile(path001)).toString('utf8'), expected, '최신 본문이 BOM·CRLF·frontmatter와 함께 저장됐다');
     assert.equal(sha(await readFile(path001)), sha(Buffer.from(expected, 'utf8')), '저장된 hash = 기대 원문 hash');
-    const done = await state(app);
-    assert.ok(done.renames >= 1 && done.syncs >= 1, `실제 sync·rename 성공이 있었다 (sync ${done.syncs}, rename ${done.renames})`);
-    assert.equal(done.enospc, failed.enospc, '해제 뒤 부분 쓰기 실패는 더 없었다');
     assert.equal(await retryButton(page).count(), 0, '저장되면 [다시 저장]이 사라진다');
     assert.deepEqual(await tmpFiles(dir), [], 'tmp 잔류 0');
     assert.deepEqual(await readFile(join(dir, 'chapters', '002.md')), orig002, '002 불변');
