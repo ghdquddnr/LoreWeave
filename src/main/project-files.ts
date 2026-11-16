@@ -5,7 +5,7 @@
 //   - UTF-8이 아닌 파일은 열지 않는다 (잘못 읽은 채로 저장하면 원고가 깨진다)
 
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, open, readdir, readFile, rename, rm } from 'node:fs/promises';
+import { mkdir, open, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   CHAPTERS_DIR,
@@ -171,12 +171,30 @@ export async function createChapter(root: string): Promise<{ file: string } & Ch
   const number = Number(file.replace(/\.md$/, ''));
   const bytes = Buffer.from(newChapterText(randomUUID(), `${number}화`), 'utf8');
   // 'wx': 같은 이름이 이미 있으면 덮어쓰지 않고 실패한다
-  const handle = await open(chapterPath(root, file), 'wx');
+  const path = chapterPath(root, file);
+  const handle = await open(path, 'wx'); // 실패하면 이 호출이 만든 파일이 없으므로 정리할 것도 없다 (이미 있던 파일은 건드리지 않는다)
+  const mine = await handle.stat({ bigint: true }).catch(() => null); // 이번 open(wx)이 만든 파일의 신원
+  let failure: { error: unknown } | null = null;
   try {
     await handle.writeFile(bytes);
     await handle.sync();
-  } finally {
+  } catch (e) {
+    failure = { error: e };
+  }
+  try {
     await handle.close();
+  } catch (e) {
+    failure ??= { error: e };
+  }
+  if (failure) {
+    // 쓰기·sync·close가 실패했으면 불완전한 .md가 목록에 새 화로 나타나지 않게 지운다. 같은 파일(dev·ino)일 때만 지우고, 정리 오류는 원래 오류를 가리지 않는다
+    try {
+      const now = await stat(path, { bigint: true });
+      if (mine && now.dev === mine.dev && now.ino === mine.ino) await rm(path, { force: true });
+    } catch {
+      // 정리하지 못해도 원래 오류를 돌려준다
+    }
+    throw failure.error;
   }
   return { file, text: bytes.toString('utf8'), hash: hashOf(bytes) };
 }
