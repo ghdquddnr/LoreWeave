@@ -116,16 +116,19 @@ test('현재 화 분석: 실행 전 저장이 실패하면 AI 요청 0·저장 �
     await nav(page, 'Two').click();
     await page.locator('.ProseMirror').getByText('alpha two').waitFor();
     const diskBefore = await readFile(join(dir, 'chapters', '002.md'));
-    // 실제 입력으로 미저장 상태를 만든다 (자동 저장 전에 분석을 누른다: 저장 요청 수신 수가 그대로임으로 증명)
+    const otherBefore = await readFile(join(dir, 'chapters', '001.md'));
+    // 저장 거부를 입력보다 먼저 켠다: 느린 환경에서 자동 저장이 끼어도 성공 저장이 되지 않고, 끼어들면 수신 수가 늘어 아래에서 드러난다
+    await setFail(app, true); // 이 뒤의 저장은 합성으로 거부된다 (실제 handler를 부르지 않는다)
+    const baseline = (await ws(app)).received;
     await page.locator('.ProseMirror').getByText('alpha two').click();
     await page.keyboard.press('End');
     await page.keyboard.insertText('합성입력');
     assert.ok((await page.locator('.ProseMirror').innerText()).includes('합성입력'));
-    const received = (await ws(app)).received;
-    await setFail(app, true); // 이 뒤의 저장은 합성으로 거부된다 (실제 handler를 부르지 않는다)
+    // 분석을 누르기 직전까지 저장 요청이 handler에 한 번도 오지 않았다: 아래 거부된 저장은 자동 저장이 아니라 분석 전 저장(beforeAnalyze)이 낸 것이다
+    assert.equal((await ws(app)).received, baseline, '입력 뒤 클릭 직전까지 저장 요청이 없다');
     await page.getByRole('button', { name: '이 화 분석', exact: true }).click();
     await until('분석 전 저장 시도가 거부되지 않았다', async () => (await ws(app)).rejected >= 1);
-    assert.ok((await ws(app)).received > received, '분석 전 저장 요청이 handler에 수신됐다');
+    assert.ok((await ws(app)).received > baseline, '분석 전 저장 요청이 handler에 수신됐다');
     const alert = page.getByRole('alert').filter({ hasText: /저장하지 못해 분석을 시작하지 않았습니다/ });
     await alert.first().waitFor();
     await page.waitForTimeout(500);
@@ -156,6 +159,12 @@ test('현재 화 분석: 실행 전 저장이 실패하면 AI 요청 0·저장 �
     await until('요청이 나가지 않았다', async () => responses().length >= 1);
     assert.ok(responses().every((r) => modelOf(r) === A), JSON.stringify(responses().map(modelOf)));
     assert.match(await readFile(join(dir, 'chapters', '002.md'), 'utf8'), /합성입력/, '복구 뒤 새 저장 내용이 디스크에 있다');
+    // 실제로 보낸 요청의 원고 입력(user content)에 이 화(2화)의 원래 본문과 새로 입력한 글이 함께 들어 있다
+    const userOf = (r: { body: unknown }) => (r.body as { input?: { role: string; content: string }[] }).input?.find((m) => m.role === 'user')?.content ?? '';
+    const two = responses().map(userOf).filter((u) => u.includes('<chapter n="2">'));
+    assert.equal(two.length, 1, `2화 본문 요청이 한 번 나갔다: ${responses().length}건`);
+    assert.ok(two[0]!.includes('alpha two') && two[0]!.includes('합성입력'), `2화 요청 입력이 원래 본문과 새 입력을 함께 담는다: ${JSON.stringify(two[0])}`);
+    assert.deepEqual(await readFile(join(dir, 'chapters', '001.md')), otherBefore, '다른 화(001.md)의 바이트는 그대로다');
   } finally {
     await setFail(app, false).catch(() => {});
     await cleanup(app, page);
