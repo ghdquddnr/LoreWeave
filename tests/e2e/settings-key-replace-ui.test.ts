@@ -79,7 +79,17 @@ test('UI에서 키 교체 저장이 실제 파일 쓰기 실패로 끝나도 기
     const save = dialog(page).getByRole('button', { name: '저장', exact: true });
     await save.click();
     await until('교체 저장이 handler에 수신되고 제품이 쓰기 경계를 지나지 않았다', async () => (await state(app)).received === 1 && (await state(app)).writes >= 1);
-    await until('실패 안내가 보이지 않았다', async () => (await dialog(page).locator('.error-note').count()) > 0 || (await dialog(page).getByText(/저장|실패|오류/).count()) > 0);
+    // 실제 set-key 실패 결과 처리 완료: 실패 안내(p.error, 접힌 오류 상세 포함)가 보이고 사용자 요약이 비어 있지 않다 (상시 [저장] 버튼·저장됨 문구가 아니다)
+    const failure = dialog(page).locator('p.error[role="status"]');
+    await failure.waitFor({ state: 'visible' });
+    const summary = (await failure.locator('.error-note').first().innerText()).trim();
+    assert.ok(summary.length > 0, '실패 안내의 사용자 요약이 비어 있지 않다');
+    assert.equal(await failure.getByRole('button', { name: '기술 상세' }).count(), 1, '기술 상세 버튼이 있다');
+    assert.equal(await failure.locator('.tech-detail').count(), 0, '오류 기술 상세는 접혀 있다');
+    // 실패 완료 시점의 수신·쓰기 횟수를 한 번 스냅샷한다 (이후 비교의 기준)
+    const failed = await state(app);
+    assert.equal(failed.received, 1, '실패한 교체 저장 요청은 한 번 수신됐다');
+    assert.equal(failed.writes, 1, '제품이 임시 파일 쓰기를 한 번 시도했다');
     await page.waitForTimeout(500);
     const text = await dialog(page).innerText();
     assert.ok(!text.includes(KEY_A) && !text.includes(KEY_B), '화면 글에 키 값이 없다');
@@ -91,18 +101,20 @@ test('UI에서 키 교체 저장이 실제 파일 쓰기 실패로 끝나도 기
     assert.equal(await decryptsTo(app, keyFile, KEY_A), true, '기존 키 A가 복호화된다');
     assert.equal((await page.evaluate(() => window.loreweave.ai.status())).hasKey, true);
     assert.deepEqual((await readdir(userData)).filter((n) => n.startsWith('openai-key') && n !== 'openai-key.bin'), [], '독점 임시 파일이 남지 않았다');
-    // 오류 해제만으로는 쓰기·재전송이 없다
+    // 오류 해제만으로는 쓰기·재전송이 없다: 해제 직후와 관찰 구간 뒤를 실패 시점 스냅샷과 각각 독립적으로 비교한다
     await setFail(app, false);
+    assert.equal((await state(app)).received, failed.received, '해제 직후 수신 증가 0');
+    assert.equal((await state(app)).writes, failed.writes, '해제 직후 쓰기 증가 0');
     await page.waitForTimeout(700);
-    assert.deepEqual({ received: (await state(app)).received, writes: (await state(app)).writes }, { received: 1, writes: (await state(app)).writes }, '자동 재전송·중복 저장이 없다');
-    const writesAfterFail = (await state(app)).writes;
+    assert.equal((await state(app)).received, failed.received, '관찰 구간 뒤 자동 재전송·중복 저장 0');
+    assert.equal((await state(app)).writes, failed.writes, '관찰 구간 뒤 쓰기 증가 0');
     assert.equal(sha(await readFile(keyFile)), hashA, '해제만으로 키 파일이 바뀌지 않았다');
     assert.equal(await input.inputValue(), KEY_B);
     // 사용자가 새로 [저장]을 눌러야 B로 교체된다
     await save.click();
     await dialog(page).getByText('키를 저장했습니다').waitFor();
-    assert.equal((await state(app)).received, 2);
-    assert.ok((await state(app)).writes > writesAfterFail);
+    assert.equal((await state(app)).received, failed.received + 1, '새 명시 [저장]으로 수신이 한 번 늘었다');
+    assert.ok((await state(app)).writes > failed.writes, '교체 쓰기가 늘었다');
     assert.equal(await decryptsTo(app, keyFile, KEY_B), true, 'B로 교체되어 복호화된다');
     assert.notEqual(sha(await readFile(keyFile)), hashA);
     assert.equal(await input.inputValue(), '', '같은 제출 초안이 비워진다');
