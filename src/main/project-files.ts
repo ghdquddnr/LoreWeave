@@ -127,12 +127,20 @@ async function atomicWrite(path: string, bytes: Uint8Array, expectedHash: string
   const temp = `${path}.${randomUUID()}.tmp`;
   try {
     const handle = await open(temp, 'wx');
+    // close 오류가 write/sync의 최초 오류를 가리지 않게 한다. 앞선 오류가 없을 때의 close 오류는 그대로 전달한다
+    let failure: { error: unknown } | null = null;
     try {
       await handle.writeFile(bytes);
       await handle.sync();
-    } finally {
-      await handle.close();
+    } catch (e) {
+      failure = { error: e };
     }
+    try {
+      await handle.close();
+    } catch (e) {
+      failure ??= { error: e };
+    }
+    if (failure) throw failure.error;
     for (let attempt = 0; ; attempt++) {
       const diskHash = await diskHashOf(path);
       if (diskHash !== expectedHash) {
