@@ -16,17 +16,20 @@ const fsp = process.getBuiltinModule('fs/promises');
 // hook 설치 전에 보존한 원래 함수
 const realOpen = fsp.open;
 const realReadFile = fsp.readFile;
+const realStat = fsp.stat;
+const realRename = fsp.rename;
+const realRm = fsp.rm;
 const readDisk = (p: string) => (realReadFile as (p: string) => Promise<Buffer>)(p);
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const yieldTasks = async (n = 5) => {
   for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r));
 };
 
-type Mode = 'partial-enospc' | 'preexisting-eexist' | 'off';
-type Hook = { mode: Mode; opens: number; writes: number; syncs: number; closes: number; partial: Buffer | null; intendedBytes: number; restore: () => void };
+type Mode = 'partial-enospc' | 'swap-then-enospc' | 'preexisting-eexist' | 'off';
+type Hook = { mode: Mode; opens: number; writes: number; syncs: number; closes: number; targetRms: number; partial: Buffer | null; intendedBytes: number; restore: () => void };
 
 function hook(target: string): Hook {
-  const h: Hook = { mode: 'partial-enospc', opens: 0, writes: 0, syncs: 0, closes: 0, partial: null, intendedBytes: 0, restore: () => undefined };
+  const h: Hook = { mode: 'partial-enospc', opens: 0, writes: 0, syncs: 0, closes: 0, targetRms: 0, partial: null, intendedBytes: 0, restore: () => undefined };
   (fsp as { open: unknown }).open = async (p: unknown, flags?: unknown, ...rest: unknown[]) => {
     if (String(p) !== target || flags !== 'wx') return (realOpen as (...a: unknown[]) => Promise<unknown>)(p, flags, ...rest); // 정확 대상의 wx만
     h.opens++;
@@ -37,8 +40,18 @@ function hook(target: string): Hook {
     const origClose = handle.close;
     (handle as unknown as { writeFile: unknown }).writeFile = async (data: unknown, ...a: unknown[]) => {
       h.writes++;
-      if (h.mode !== 'partial-enospc') return (origWrite as (...x: unknown[]) => Promise<void>).call(handle, data, ...a);
+      if (h.mode !== 'partial-enospc' && h.mode !== 'swap-then-enospc') return (origWrite as (...x: unknown[]) => Promise<void>).call(handle, data, ...a);
       const full = Buffer.from(data as Uint8Array);
+      if (h.mode === 'swap-then-enospc') {
+        // 일부 바이트를 실제로 기록하고 이 handle을 실제로 닫은 뒤(Windows는 열린 파일을 옮길 수 없다), 자기 파일을 별도 합성 경로로 옮기고 정확 원경로에 다른 실제 외부 파일을 독점 생성한 다음 ENOSPC를 던진다
+        await (origWrite as (...x: unknown[]) => Promise<void>).call(handle, full.subarray(0, Math.floor(full.length / 2)), ...a);
+        h.intendedBytes = full.length;
+        h.partial = await readDisk(target);
+        await origClose.call(handle); // 실제 close (래퍼 계수 밖): 제품의 close 호출은 이미 닫힌 handle에 대한 두 번째 호출이 된다
+        await (realRename as (...x: unknown[]) => Promise<void>)(target, MOVED(target));
+        await writeFile(target, EXTERNAL2, { flag: 'wx' }); // 실제 외부 합성 파일 (원래 파일과 다른 inode)
+        throw Object.assign(new Error('합성 ENOSPC (writeFile, 교체 뒤)'), { code: 'ENOSPC' });
+      }
       await (origWrite as (...x: unknown[]) => Promise<void>).call(handle, full.subarray(0, Math.floor(full.length / 2)), ...a); // 일부 바이트를 실제로 기록한다
       h.intendedBytes = full.length;
       h.partial = await readDisk(target);
@@ -54,10 +67,19 @@ function hook(target: string): Hook {
     };
     return handle;
   };
-  h.restore = () => void ((fsp as { open: unknown }).open = realOpen);
+  (fsp as { rm: unknown }).rm = async (p: unknown, ...rest: unknown[]) => {
+    if (String(p) === target) h.targetRms++;
+    return (realRm as (...a: unknown[]) => Promise<void>)(p, ...rest);
+  };
+  h.restore = () => {
+    (fsp as { open: unknown }).open = realOpen;
+    (fsp as { rm: unknown }).rm = realRm;
+  };
   return h;
 }
 
+const EXTERNAL2 = Buffer.from('정리 직전 외부 프로그램이 새로 만든 합성 파일\r\n', 'utf8');
+const MOVED = (target: string) => `${target}.moved-by-test`;
 const EXTERNAL = Buffer.from('외부 프로그램이 만든 합성 파일\r\n', 'utf8');
 const ORIGINAL = Buffer.from('﻿---\r\nid: syn-1\r\n---\r\n처음 본문입니다.\r\n한글 둘째 줄\r\n', 'utf8');
 
@@ -118,6 +140,30 @@ test('대조: 정확 대상 open(wx)가 EEXIST를 내면 그 경로의 외부 �
     assert.equal(h.opens, 1);
     assert.deepEqual({ writes: h.writes, syncs: h.syncs, closes: h.closes }, { writes: 0, syncs: 0, closes: 0 }, 'handle을 얻지 못해 write·sync·close 0');
     assert.deepEqual(await readDisk(s.target), EXTERNAL, '외부 합성 파일 Buffer 불변 (삭제·덮어쓰기 0)');
+    assert.deepEqual(await readDisk(join(s.chapters, '001.md')), ORIGINAL);
+    assert.deepEqual(await readDisk(s.sentinel), s.sentinelBytes);
+  } finally {
+    h.restore();
+  }
+});
+
+test('정리 직전 정확 원경로가 다른 외부 파일로 바뀌어 있으면(실제 dev/ino 불일치) 그 외부 파일은 Buffer/hash 불변·삭제 0이고, ENOSPC는 그대로 전달되며, 옮겨 둔 자기 부분 파일·기존 원고·sentinel도 보존된다', { timeout: 30_000 }, async () => {
+  const s = await setup();
+  const h = hook(s.target);
+  try {
+    h.mode = 'swap-then-enospc';
+    await assert.rejects(createChapter(s.root), (e: NodeJS.ErrnoException) => e.code === 'ENOSPC');
+    assert.deepEqual({ opens: h.opens, writes: h.writes, syncs: h.syncs, closes: h.closes }, { opens: 1, writes: 1, syncs: 0, closes: 1 }, '제품의 close 호출 1회(실제 close는 주입 중 래퍼 밖에서 먼저 1회 있었으므로 이는 이미 닫힌 handle에 대한 두 번째 close다)');
+    // 실제 다른 파일임을 신원으로 증명: 외부 파일(원경로)과 옮긴 자기 파일의 dev/ino가 다르다
+    const external = await (realStat as (p: string, o: object) => Promise<{ dev: bigint; ino: bigint }>)(s.target, { bigint: true });
+    const moved = await (realStat as (p: string, o: object) => Promise<{ dev: bigint; ino: bigint }>)(MOVED(s.target), { bigint: true });
+    assert.ok(external.dev !== moved.dev || external.ino !== moved.ino, `실제 dev/ino 불일치: 외부 ${external.dev}/${external.ino} vs 자기 ${moved.dev}/${moved.ino}`);
+    // 외부 대체 파일 보존·삭제 0
+    assert.equal(h.targetRms, 0, '정확 대상 경로에 대한 rm 호출 0');
+    assert.deepEqual(await readDisk(s.target), EXTERNAL2, '외부 대체 파일 Buffer 불변');
+    assert.equal(sha(await readDisk(s.target)), sha(EXTERNAL2), '외부 대체 파일 hash 불변');
+    // 옮긴 자기 부분 파일·기존 원고·sentinel 보존
+    assert.deepEqual(await readDisk(MOVED(s.target)), h.partial, '옮긴 자기 부분 파일 보존');
     assert.deepEqual(await readDisk(join(s.chapters, '001.md')), ORIGINAL);
     assert.deepEqual(await readDisk(s.sentinel), s.sentinelBytes);
   } finally {

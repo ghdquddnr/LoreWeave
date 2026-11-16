@@ -187,7 +187,7 @@ export async function createChapter(root: string): Promise<{ file: string } & Ch
     failure ??= { error: e };
   }
   if (failure) {
-    // 쓰기·sync·close가 실패했으면 불완전한 .md가 목록에 새 화로 나타나지 않게 지운다. 같은 파일(dev·ino)일 때만 지우고, 정리 오류는 원래 오류를 가리지 않는다
+    // 쓰기·sync·close가 실패했으면 불완전한 .md가 목록에 새 화로 나타나지 않게 지운다. 관측한 신원(dev·ino)이 같을 때만 지우는 best effort다(stat과 rm 사이의 교체 경쟁까지 막지는 못하며, 신원 조회·정리가 실패하면 잔류할 수 있다). 정리 오류는 원래 오류를 가리지 않는다
     try {
       const now = await stat(path, { bigint: true });
       if (mine && now.dev === mine.dev && now.ino === mine.ino) await rm(path, { force: true });
