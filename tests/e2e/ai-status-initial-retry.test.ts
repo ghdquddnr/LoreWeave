@@ -6,7 +6,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+import { launchIsolated } from './isolated-launch.ts';
+import { closeWindow, stubFolderDialog, tempDir } from './launch.ts';
 
 const FAIL = '합성 최초 상태 조회 실패';
 
@@ -73,7 +74,7 @@ async function reread(page: Page) {
 for (const failures of [1, 2]) {
   test(`최초 AI 상태 조회가 ${failures}번 실패해도 원고는 열려 편집되고, 폴더를 다시 열지 않고 다시 읽기로 복구한다 (성공 응답 전에는 분석 없음·비용 0으로 확정하지 않는다)`, { timeout: 90_000 }, async () => {
     const dir = await project();
-    const { app, page } = await launch(await tempDir('ai-status-initial-ud'));
+    const { app, page } = await launchIsolated('ai-status-initial-ud');
     try {
       await script(app, failures);
       await stubFolderDialog(app, dir);
@@ -111,7 +112,7 @@ for (const failures of [1, 2]) {
 
 test('확인된 비용 0은 $0.0000으로, 프로젝트를 열지 않은 설정은 미확인과 구별해 안내한다', { timeout: 90_000 }, async () => {
   const dir = await project();
-  const { app, page } = await launch(await tempDir('ai-status-initial-zero-ud'));
+  const { app, page } = await launchIsolated('ai-status-initial-zero-ud');
   try {
     assert.equal(await settingsCost(page), '이 프로젝트에서 AI에 쓴 비용: 원고 폴더를 열면 볼 수 있습니다');
     await stubFolderDialog(app, dir);
@@ -128,7 +129,7 @@ test('확인된 비용 0은 $0.0000으로, 프로젝트를 열지 않은 설정�
 // 무료 대역(ai:analysis-status 거절, 합성 비용)만 쓴다. OpenAI·Costs·유료 호출 없음. 합성 Electron 검사이며 수동 GUI가 아니다.
 test('AI 상태 조회 실패(EACCES): 읽기 실패로 안내하고 원문은 접힌 상세에만 있으며, 상세 조작은 조회·쓰기가 없고, 다시 읽기로 복구된다', { timeout: 90_000 }, async () => {
   const dir = await project();
-  const { app, page } = await launch(await tempDir('ai-status-read-error-ud'));
+  const { app, page } = await launchIsolated('ai-status-read-error-ud');
   try {
     await script(app, 1, "EACCES: permission denied, open 'C:/Users/synthetic/ai/ai.db'");
     await app.evaluate(({ ipcMain }) => {

@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { closeWindow, launch, tempDir } from './launch.ts';
+import { launchIsolated } from './isolated-launch.ts';
+import { closeWindow } from './launch.ts';
 
 interface Hooks {
   auto: 'ok' | 'fail' | 'hold';
@@ -58,7 +59,7 @@ const open = (page: Page) => page.getByRole('button', { name: '환경설정', ex
 const closeButton = (page: Page) => dialog(page).getByRole('button', { name: '닫기', exact: true });
 
 async function start(prefix: string) {
-  const { app, page } = await launch(await tempDir(prefix));
+  const { app, page } = await launchIsolated(prefix);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).waitFor();
