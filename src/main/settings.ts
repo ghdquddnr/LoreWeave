@@ -59,6 +59,11 @@ export function readSettings(userData: string): Promise<Settings> {
   return enqueue(userData, () => readRaw(userData));
 }
 
+/** 유효한 설정을 읽지 못한 읽기 I/O 오류(EACCES·EPERM·EIO 등)는 기본값으로 바꾸지 않고 오류로 돌려준다 (ENOENT·깨진 파일은 readSettings와 같이 기본값). 설정을 보여 주는 조회가 기본값을 실제 값처럼 보이지 않게 쓴다 */
+export function readSettingsStrict(userData: string): Promise<Settings> {
+  return enqueue(userData, () => readRaw(userData, true));
+}
+
 const RETRYABLE = new Set(['EPERM', 'EBUSY', 'EACCES']);
 
 /** 바꿔치기: 백신·색인기 등 바깥 프로세스가 잠깐 잡고 있으면 짧게 몇 번 다시 시도한다 */
