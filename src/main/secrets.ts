@@ -36,6 +36,26 @@ export async function loadApiKey(userData: string): Promise<string | null> {
   }
 }
 
+/**
+ * 저장된 키가 있는가 (환경설정의 상태 조회용). 파일이 없으면(ENOENT) 진짜 '없음'이다. 파일은 있는데 읽다가 I/O 오류(EIO·EACCES·EPERM 등)가 나면 '없음'으로 오인하지 않도록 오류를 던진다.
+ * 읽었지만 복호화할 수 없는 손상·다른 계정의 키는 loadApiKey와 같이 없는 것으로 본다 (기존 정책)
+ */
+export async function hasStoredApiKey(userData: string): Promise<boolean> {
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(keyPath(userData));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw e;
+  }
+  try {
+    safeStorage.decryptString(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function deleteApiKey(userData: string): Promise<void> {
   await rm(keyPath(userData), { force: true });
 }
