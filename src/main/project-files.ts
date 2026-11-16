@@ -148,7 +148,8 @@ async function atomicWrite(path: string, bytes: Uint8Array, expectedHash: string
       }
     }
   } catch (e) {
-    await rm(temp, { force: true });
+    // 정리는 best effort다: rm이 실패해도 최초 저장 오류 e를 가리지 않는다 (이때 실패한 임시 파일은 남을 수 있다)
+    await rm(temp, { force: true }).catch(() => undefined);
     throw e;
   }
 }
