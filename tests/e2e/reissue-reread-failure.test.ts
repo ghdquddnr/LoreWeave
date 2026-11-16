@@ -1,14 +1,16 @@
 // 새 id 발급이 디스크에 성공한 직후, 열린 화를 다시 여는 chapter:read가 실패하는 경계: 새 id와 본문이 디스크에 남고,
 // 읽기 대기·실패 중에는 옛 envelope로 쓰지 않으며, 에디터의 명시적 [다시 시도]로만 읽기를 다시 해 복구한 뒤 계속 저장된다.
 // 장벽은 main의 chapter:read 안이다: reissue 처리기는 그대로 실행(실제 안전 쓰기)시키고, 그 뒤 002.md의 첫 후속 읽기만 붙잡았다가 거절한다.
-// (처리기 전체를 사전 거절하는 것은 이 경계가 아니다. 목록 조회는 정상 — reissue-list-failure와 다른 경계.) 합성 중복 id 원고·격리 userData. 유료·외부 호출 없음.
+// (처리기 전체를 사전 거절하는 것은 이 경계가 아니다. 목록 조회는 정상 — reissue-list-failure와 다른 경계.) 합성 중복 id 원고. 유료·외부 호출 없음.
+// 격리: tests/e2e/isolated-launch.ts(hooks/main-isolated-userdata-entry.cjs)로 시작한다: 매 실행 독점 새 빈 userData·제품 main 전 격리 증거 확인. 합성 Electron 자동화이며 수동 GUI/실 IME가 아니다.
 
 import assert from 'node:assert/strict';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { ElectronApplication, Page } from 'playwright';
-import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+import { launchIsolated } from './isolated-launch.ts';
+import { closeWindow, stubFolderDialog, tempDir } from './launch.ts';
 
 const BOM = '﻿';
 const dup = (title: string) => `${BOM}---\r\nid: same-id\r\ntitle: ${title}\r\n---\r\n${title} 본문\r\n`;
@@ -119,7 +121,7 @@ test('발급 성공 직후 열린 화의 읽기가 실패해도: 새 id·본문�
   await mkdir(join(dir, 'chapters'));
   await writeFile(join(dir, 'chapters', '001.md'), ONE);
   await writeFile(join(dir, 'chapters', '002.md'), TWO);
-  const { app, page } = await launch(await tempDir('rrf-ud'));
+  const { app, page } = await launchIsolated('rrf-ud'); // 격리 시작: 매 실행 독점 새 빈 userData, 제품 main 진입 전 증거(stage=before-product-main, entriesBefore=[], getPath/realpath)를 검증하고 틀리면 앱을 정리하고 던진다
   const read = (f: string) => readFile(join(dir, 'chapters', f), 'utf8');
   try {
     await stubFolderDialog(app, dir);
