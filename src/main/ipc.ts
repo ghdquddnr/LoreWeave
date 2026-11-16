@@ -24,7 +24,7 @@ import {
   writeChapter,
 } from './project-files.ts';
 import { canEncrypt, deleteApiKey, loadApiKey, saveApiKey } from './secrets.ts';
-import { readSettings, updateSettings } from './settings.ts';
+import { readSettings, readSettingsStrict, updateSettings } from './settings.ts';
 import { watchChapters } from './watch.ts';
 
 let root: string | null = null;
@@ -151,8 +151,12 @@ function startWatching(path: string): void {
 
 const userData = () => app.getPath('userData');
 
-async function aiStatus(): Promise<AiStatus> {
-  const settings = await readSettings(userData());
+/**
+ * strict: 환경설정의 상태 조회(ai:status)만 true. 설정 파일을 읽다 I/O 오류가 나면 기본 모델을 실제 값처럼 돌려주지 않고 오류를 전달한다.
+ * 키 저장·삭제·모델 변경의 응답은 저장이 이미 성공했으므로 기존처럼 관대하게 읽는다 (저장 성공 뒤 조회 실패를 저장 실패로 보이지 않게)
+ */
+async function aiStatus(strict = false): Promise<AiStatus> {
+  const settings = await (strict ? readSettingsStrict : readSettings)(userData());
   return {
     hasKey: (await loadApiKey(userData())) !== null,
     canEncrypt: canEncrypt(),
@@ -406,7 +410,7 @@ export function registerIpc(): void {
       return { list: null, listError: e instanceof Error ? e.message : String(e) };
     }
   });
-  ipcMain.handle(CHANNELS.aiStatus, () => aiStatus());
+  ipcMain.handle(CHANNELS.aiStatus, () => aiStatus(true));
   ipcMain.handle(CHANNELS.aiSetKey, async (_e, key: string) => {
     await saveApiKey(userData(), key);
     return aiStatus();
