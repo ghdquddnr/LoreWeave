@@ -1,0 +1,93 @@
+# Windows 시험자용 시작 안내 (폴더 실행본)
+
+전달받은 LoreWeave **Windows x64 폴더 실행본**을 처음 시험하는 사람을 위한 안내입니다. 미서명 폴더 실행본이며 **설치 프로그램도, 공개 배포본도 아닙니다.** 출시 준비가 끝났다는 뜻이 아니고, 아래 [검증 현황](#검증-현황)에 적은 범위만 확인했습니다.
+
+시험자는 `pnpm`, 개발 서버, 소스 저장소가 필요하지 않습니다. 실행본을 만드는 일은 개발자의 준비 단계입니다([개발자 참고](#개발자-참고)).
+
+## 1. 받은 폴더
+
+- 폴더 **전체**를 그대로 두고 실행하세요. 실행 파일 하나만 다른 곳으로 옮기면 동작하지 않습니다.
+- 실행 파일 이름은 빌드에 따라 둘 중 하나입니다.
+
+  | 폴더 | 실행 파일 | 비고 |
+  | --- | --- | --- |
+  | 기본 빌드 | `electron.exe` | 이름·아이콘이 Electron 그대로입니다. 이 안내의 검증은 이 빌드만 대상으로 합니다 |
+  | 선택형 브랜드 빌드 | `LoreWeave.exe` | 이름·아이콘·정보만 바뀐 빌드. 아래 검증 현황에 포함되지 않습니다 |
+
+- Windows가 미서명 실행 파일에 경고를 보일 수 있습니다(SmartScreen 동작은 확인하지 못했습니다). 출처를 아는 폴더만 실행하세요.
+
+## 2. 시작 전 지킬 것
+
+- **실제 작품 폴더를 열지 마세요.** 이 안내의 시험은 새로 만든 합성 원고로만 합니다.
+- **항상 `--user-data-dir=<새 빈 폴더>`로 실행하세요.** 이 인자 없이(예: exe를 더블클릭하거나 바로가기로) 실행하면 앱의 설정·키가 Electron 기본 위치로 잡혀 이미 있는 설정이나 키에 닿을 수 있습니다. 기본 위치에 실제로 무엇이 있는지는 이 안내를 만들며 열어 보지 않았습니다.
+- 실제 원고로 쓰려면 먼저 **직접 복사해 백업**하세요. LoreWeave에는 자동 백업 기능이 없습니다.
+- AI 기능(OpenAI API 키 입력, 분석·검사)은 이 흐름에 필요하지 않으니 시험 중 키를 넣지 마세요.
+
+## 3. 새 격리 폴더로 시작하기 (PowerShell 예시)
+
+`$app`에는 전달받은 폴더 경로를, `$root`에는 **아직 없는 새 경로**를 넣습니다(상위 폴더는 미리 있어야 합니다). 이미 있는 경로면 아무것도 쓰기 전에 중단합니다. 이 예시는 형식만 소스와 대조했고, 이 문서를 쓰며 그대로 실행하지는 않았습니다.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$app  = '<전달받은 폴더 경로>'     # 예: 압축을 푼 폴더. electron.exe(또는 LoreWeave.exe)가 든 폴더
+$exe  = 'electron.exe'            # 브랜드 빌드면 'LoreWeave.exe'
+$root = '<새 시험 폴더 경로>'      # 실제 작품·실제 프로필과 무관한 새 경로
+if (-not (Test-Path -LiteralPath "$app\$exe")) { throw "실행 파일이 없습니다: $app\$exe" }
+if (Test-Path -LiteralPath $root) { throw "이미 있는 경로입니다. 다른 새 경로를 쓰세요: $root" }
+
+# 새 userData와 합성 원고 폴더 (원고는 novel\chapters\001.md, 002.md … 형식)
+New-Item -ItemType Directory -Path $root | Out-Null
+New-Item -ItemType Directory -Path "$root\userdata", "$root\novel\chapters" | Out-Null
+Set-Content -LiteralPath "$root\novel\chapters\001.md" -Value '첫 줄입니다.' -Encoding utf8
+Set-Content -LiteralPath "$root\novel\chapters\002.md" -Value '이웃 본문입니다.' -Encoding utf8
+
+& "$app\$exe" --user-data-dir="$root\userdata"
+```
+
+## 4. AI 없이 따라가는 짧은 흐름
+
+1. 환영 화면에서 **[원고 폴더 열기]** → 위에서 만든 `novel` 폴더를 고릅니다. `chapters\001.md`, `002.md`가 화로 보입니다.
+2. 첫째 화를 열어 한글을 입력합니다. 잠시 뒤 자동 저장되고 Ctrl+S로 바로 저장할 수도 있습니다. 상태줄이 "저장됨"으로 바뀌는지 봅니다.
+3. 검색창에 `이웃`을 입력하고 Enter → 결과를 눌러 그 화로 이동하고, **[목록으로]**로 화 목록에 돌아옵니다.
+4. 창을 닫고, 같은 `--user-data-dir`로 다시 실행합니다. 마지막으로 연 폴더가 다시 열리고 입력한 본문이 남아 있어야 합니다.
+5. (선택) `001.md`를 메모장이나 VS Code로 열어 입력한 글이 파일에 들어갔는지 봅니다. 앱이 열린 동안 같은 파일을 다른 프로그램에서 바꾸면 충돌 안내가 나올 수 있고, 안내가 나온 동안 앱은 디스크의 변경본을 덮어쓰지 않습니다. 이 동작은 자동 검사로만 확인했습니다(아래 표).
+
+## 5. 데이터가 놓이는 곳
+
+| 위치 | 내용 | 근거 |
+| --- | --- | --- |
+| `--user-data-dir`로 준 폴더(userData) | `settings.json`(마지막으로 연 폴더·테마·글꼴·AI 설정), `openai-key.bin`(키를 저장했을 때만, Electron `safeStorage`로 암호화), Electron/Chromium 자체 캐시 | 소스(`src/main/settings.ts`, `secrets.ts`)가 `app.getPath('userData')` 아래에만 둡니다. 관측: Windows 한 환경에서 새 빈 userData로 실행했을 때 제품 코드가 시작되기 전 이미 그 폴더가 userData였고, 실행 뒤 `settings.json`이 생겼습니다. 키 저장은 시험하지 않았습니다 |
+| **원고 폴더** `novel\` | `chapters\*.md`가 원고 원본입니다. 앱이 `.loreweave\index.db`(검색용 색인, 다시 만들 수 있는 파생 정보)를 원고 폴더 안에 만들고, AI 분석을 처음 실행할 때 `.loreweave\ai.db`(분석 결과)를 만듭니다 | 소스(`src/main/index-db.ts`, `ipc.ts`) |
+
+- `.loreweave`는 userData가 **아니라 원고 폴더 안**에 있습니다. `--user-data-dir`로 원고 폴더까지 격리되지는 않으므로, 실제 작품 폴더를 열면 그 안에 `.loreweave`가 생깁니다.
+- 앱은 AI 기능을 쓸 때 네트워크로 OpenAI에 접속합니다. 완전한 격리, portable 동작, 전체 네트워크 차단은 보장하지 않습니다.
+
+## 검증 현황
+
+대상: 기본 `package:win` 빌드(Electron 44.9.3), main `726a456`, 2026-11-22, **Windows 한 환경**. 이 증거는 브랜드 빌드·설치기·출시 전체의 통과가 아닙니다.
+
+| 확인한 것 | 증거 방식과 한계 |
+| --- | --- |
+| 빈 userData 격리 | 제품 main을 읽기 전에 멈춘 프로세스에서 userData가 지정 폴더이고 비어 있음을 관측 |
+| 환영 화면 → 합성 3화 폴더 열기 → 한글 입력 → 저장 → 검색·이동 → 재실행 후 본문 보존 | 자동 Electron 검사(Playwright). **폴더 선택은 대화상자를 대역으로 대신했고, 한글 입력은 합성 입력이라 실제 IME가 아닙니다.** 저장 파일의 BOM·CRLF·frontmatter·한글 바이트가 기대와 일치함을 확인 |
+| 같은 흐름을 실제 창으로 | 개발 쪽 수동 GUI 관측: 실제 OS 폴더 선택 대화상자 → 첫째 화 → 한글 입력 → 자동 저장 → 화 이동 → 검색 → 종료·같은 프로필 재실행 후 본문 보존, 저장 파일 바이트 일치. **입력은 접근성 API의 값 설정이며 실제 IME 입력이 아닙니다** |
+| 외부 수정 충돌 | 자동 검사: 미저장 입력 + 외부 수정 → 충돌 안내, 디스크 변경본 유지·화면 입력 유지, 충돌 중 Ctrl+S 차단, 덮어쓰기 확인 취소 시 디스크 유지. **이 검사는 1.5초 자동 저장 타이머를 억제한 합성 검사이며, 기본 타이밍의 수동 충돌 시험이 아닙니다** |
+| 네트워크·AI | 자동 검사에서 계측을 건 뒤의 외부 요청 0건·AI 호출 0건. 계측 이전의 시작 구간이나 OS 수준 트래픽은 관측하지 못했습니다 |
+
+### 아직 확인하지 못한 것 (시험자가 "확인됨"으로 가정하지 마세요)
+
+- [ ] 실제 Windows IME로 한글을 조합하는 중의 입력·저장·검색
+- [ ] 다른 PC에서의 실행
+- [ ] SmartScreen 경고 동작
+- [ ] OS가 보여 주는 exe 아이콘
+- [ ] 기본 타이밍에서의 수동 외부 수정 충돌
+- [ ] 브랜드 빌드(`LoreWeave.exe`)와 설치기(도입 유보)의 이번 점검 범위 밖 동작
+
+## AI 기능의 한계
+
+위 흐름은 AI를 쓰지 않습니다. 연속성 검사를 시험하려면 OpenAI 사용료가 따로 들고, 성능이 보장되지 않습니다. 실제 장편 기준 측정과 한계는 [README의 현재 성능](../README.md#연속성-검사의-현재-성능-실제-장편에서는-보장되지-않음), [M8 결과](M8-REPORT.md), [M10 결과](M10-REPORT.md)를 보세요. 놓치는 오류도 틀린 지적(오탐)도 있으니 근거 원문을 직접 확인해야 합니다.
+
+## 개발자 참고
+
+- 실행본 만들기(개발자 준비 단계): `corepack pnpm package:win --out <새 폴더>`(기본) 또는 `package:win:branded`(선택, 공식 Electron zip 필요). 출력 위치 검사와 입력 허용 목록 등은 [README](../README.md)와 [WINDOWS-PREVIEW-PLAN](WINDOWS-PREVIEW-PLAN.md), [WINDOWS-BRANDED-PREVIEW-PLAN](WINDOWS-BRANDED-PREVIEW-PLAN.md), 설치기 유보는 [WINDOWS-INSTALLER-PREVIEW-PLAN](WINDOWS-INSTALLER-PREVIEW-PLAN.md)을 보세요.
+- 이 안내의 검증 현황은 위 날짜·SHA의 기록입니다. 이후 변경에는 자동으로 적용되지 않습니다.
