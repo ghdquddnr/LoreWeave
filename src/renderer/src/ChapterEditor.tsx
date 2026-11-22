@@ -55,6 +55,11 @@ interface Props {
   projectToken: number;
   onStatus(status: SaveStatus, changesOnReopen: number | null): void;
   onSaved(text: string): void;
+  /**
+   * 이름이 바뀌거나 지워진 화를 [내 것으로 다시 만들기]로 명시적으로 저장해 성공했다. 이동된 원본 등 목록에 없던 화가 보이도록 부모가 목록만 다시 읽는다.
+   * 이 호출의 문제는 이미 성공한 저장을 실패로 바꾸지 않는다 (호출은 오류를 삼킨다)
+   */
+  onRecreated?(file: string, projectToken: number): void;
   /** 이 화를 디스크에서 읽는 데 성공했다 (처음 열기·[디스크 내용 불러오기]·외부 변경 재읽기·[다시 시도]). 읽은 파일 내용으로 표시 제목을 맞추는 데 쓴다. 실패·취소된 읽기는 부르지 않는다 */
   onLoaded?(file: string, projectToken: number, text: string): void;
   /** 이 화의 읽기 상태 (표시 전용: 저장 제어와 무관하다). reading: 처음 열기·[다시 시도]의 읽기 대기, failed: 읽기 실패, ready: 읽어서 편집기가 열렸다. 상태줄이 읽기 전·실패 중에 "저장됨"으로 보이지 않게 한다 */
@@ -199,9 +204,11 @@ function focusEditorUnlessTyping(target: Editor, keepFocus?: { current: HTMLElem
 let editorInstances = 0;
 
 const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>(function LoadedEditor(
-  { file, projectToken, loaded, onStatus, onSaved, onReload, jump, onQuoteMissing, onMatchMissing, locked = false, marks, onReady, keepFocus },
+  { file, projectToken, loaded, onStatus, onSaved, onRecreated, onReload, jump, onQuoteMissing, onMatchMissing, locked = false, marks, onReady, keepFocus },
   ref,
 ) {
+  const onRecreatedRef = useRef(onRecreated);
+  onRecreatedRef.current = onRecreated;
   const editorRef = useRef<Editor | null>(null);
   const hash = useRef<string | null>(loaded.hash);
   const version = useRef(0);
@@ -284,6 +291,14 @@ const LoadedEditor = forwardRef<ChapterEditorHandle, Props & { loaded: Loaded }>
           const clean = version.current === target;
           report(clean ? { kind: 'saved' } : { kind: 'unsaved' }, result.changesOnReopen);
           if (!clean) schedule(AUTOSAVE_DELAY_MS);
+          // expected === null은 이름이 바뀌거나 지워진 화를 [내 것으로 다시 만들기]로 저장한 경우뿐이다 (자동 저장·덮어쓰기는 undefined·해시)
+          if (expected === null) {
+            try {
+              onRecreatedRef.current?.(file, projectToken);
+            } catch {
+              // 목록 갱신 호출의 문제로 이미 성공한 저장을 실패로 바꾸지 않는다
+            }
+          }
           return clean;
         } catch (e) {
           if (conflictSeq.current !== seq) return false;

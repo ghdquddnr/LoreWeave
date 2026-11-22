@@ -36,6 +36,8 @@ interface AiState {
 const MARK_TITLE: Record<AnalysisState, string> = { none: '', fresh: 'AI 분석됨', stale: 'AI 분석 뒤 바뀜' };
 
 const api = window.loreweave;
+/** [내 것으로 다시 만들기]는 저장됐지만 뒤따르는 화 목록 조회가 실패했다 (저장 실패가 아니다) */
+const RECREATED_LIST_FAILED = '이 화는 다시 만들어 저장했지만 화 목록을 다시 읽지 못했습니다. 저장한 원고는 그대로입니다. ';
 
 /** 저장 상태는 색만으로 구분하지 않는다: 글자 앞에 기호를 함께 둔다 (스크린리더에는 글자만 읽힌다) */
 const STATUS_SYMBOL: Record<SaveStatus['kind'], string> = { saved: '✓', unsaved: '●', saving: '…', error: '✕', conflict: '⚠' };
@@ -81,6 +83,15 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    */
   const [projectGen, setProjectGen] = useState(0);
   const projectGenRef = useRef(0);
+  /**
+   * 화 목록 조회(새 화·id 재발급·목록 다시 읽기·복구 뒤 목록 갱신)를 보낼 때마다 1씩 느는 발급 번호.
+   * appliedListSeqRef는 그 가운데 실제로 화면에 반영된 가장 큰 번호다. 복구 뒤 목록 응답·오류는 더 나중에 보낸 조회의 결과가 이미 반영됐을 때만 낡은 것으로 버린다:
+   * 더 늦게 시작했어도 실패했거나 아직 오지 않은 조작은 이 응답을 무효로 만들지 않는다 (프로젝트 전환은 gen·token이 따로 막는다)
+   */
+  const listSeqRef = useRef(0);
+  const appliedListSeqRef = useRef(0);
+  /** 목록 조회 실패 안내를 낸 조회 가운데 가장 큰 발급 번호. 더 먼저 보낸 조회의 늦은 실패가 이미 표시된 더 새 조작의 실패 안내·재시도 대상을 덮지 않게 한다 */
+  const failedListSeqRef = useRef(0);
   /** 지금 화면의 프로젝트 token (AI 상태 읽기에 함께 보낸다) */
   const projectTokenRef = useRef(0);
   /**
@@ -517,13 +528,17 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const reissueId = (target: string) =>
     lockedAction(async (gen) => {
       if (!project || !(await leave()) || !isCurrent(gen)) return false;
+      const ticket = ++listSeqRef.current; // 이 호출의 목록 조회(처리기 안)의 발급 번호
       const issued = await api.chapters.reissueId(target, project.token);
       // 다른 프로젝트가 열렸으면 그 화면의 에디터가 대신한다 (잠금이 풀리면 열린다)
       if (!(await settled(gen))) return true;
-      if (issued.list) setProject((p) => p && { ...p, list: issued.list });
-      else {
+      if (issued.list) {
+        setProject((p) => p && { ...p, list: issued.list });
+        markListApplied(ticket);
+      } else {
         // 발급은 성공했고 목록 조회만 실패했다: 발급 실패와 구별해 알리고, 목록만 다시 읽을 수 있게 한다 (다시 발급하지 않는다)
         failRead(issued.listError, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
         setUnlisted({ file: null, seq: errorSeqRef.current });
       }
       // 열린 화가 대상이면 새 id가 든 디스크 내용으로 다시 연다 (옛 envelope가 새 id를 되돌리지 않게)
@@ -536,21 +551,38 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    * 화 만들기는 성공했지만 화 목록을 다시 읽지 못한 경우: 만들어진 파일 이름. 목록만 다시 읽어 복구한다 (생성은 다시 실행하지 않는다).
    * 프로젝트가 바뀌면 지운다
    */
-  const [unlisted, setUnlisted] = useState<{ file: string | null; seq: number } | null>(null);
+  const [unlisted, setUnlisted] = useState<{ file: string | null; seq: number; reason?: 'recreated' } | null>(null);
+  /**
+   * 복구 뒤 목록 조회 실패 안내의 소유 정보: 그 안내를 만든 상태줄 오류 번호(errorSeq)와 실패한 조회의 발급 번호(ticket).
+   * 이 안내는 그 조회보다 **나중에 보낸** 조회가 성공해 반영될 때만 거둔다. 더 앞선 조회의 목록은 정보만 반영하고 안내·재시도 대상은 보존한다
+   */
+  const recreatedNotice = useRef<{ errorSeq: number; ticket: number } | null>(null);
+  /** 번호 ticket의 목록이 화면에 반영됐다: 반영된 가장 큰 번호를 올리고, 그 목록이 복구 뒤 목록 실패 안내보다 나중 조회의 것일 때만 그 안내를 거둔다 */
+  const markListApplied = (ticket: number) => {
+    appliedListSeqRef.current = Math.max(appliedListSeqRef.current, ticket);
+    const notice = recreatedNotice.current;
+    if (!notice || ticket <= notice.ticket) return;
+    recreatedNotice.current = null;
+    if (notice.errorSeq === errorSeqRef.current) setError(null);
+    setUnlisted((u) => (u && u.reason === 'recreated' ? null : u));
+  };
 
   /** 만들어진 화를 목록에 반영하고 연다. 목록을 읽지 못하면 "만들어졌다"고 알리고 [목록 다시 읽기]를 남긴다 (false: 에디터를 그대로 둔다) */
   const showCreated = async (gen: number, token: number, file: string, recovering = false, unlistedSeq = -1): Promise<boolean> => {
     let list;
+    const ticket = ++listSeqRef.current;
     try {
       list = await api.chapters.list(token);
     } catch (e) {
       if (!isCurrent(gen)) return false;
       failRead(e, `새 화(${file})는 만들어졌지만 화 목록을 다시 읽지 못했습니다. 만든 화는 지워지지 않았습니다. `);
+      failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
       setUnlisted({ file, seq: errorSeqRef.current }); // 이 안내를 만든 순간의 번호
       return false;
     }
     if (!isCurrent(gen)) return false;
     setProject((p) => p && { ...p, list });
+    markListApplied(ticket);
     // 복구했으면 이 일이 만든 안내만 지운다: 그 사이 다른 조작이 상태줄 오류를 바꿨다면(번호가 다르면) 그 오류와 기술 상세는 그대로 둔다
     if (recovering && unlistedSeq === errorSeqRef.current) setError(null);
     setUnlisted(null);
@@ -574,20 +606,54 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       if (target.file) return showCreated(gen, project.token, target.file, true, target.seq);
       // id 발급 뒤의 복구: 목록만 다시 읽는다 (화는 이미 새 id로 열려 있다)
       let list;
+      const ticket = ++listSeqRef.current;
       try {
         list = await api.chapters.list(project.token);
       } catch (e) {
         if (!isCurrent(gen)) return false;
-        failRead(e, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
-        setUnlisted({ file: null, seq: errorSeqRef.current });
+        failRead(e, target.reason === 'recreated' ? RECREATED_LIST_FAILED : `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
+        setUnlisted({ file: null, seq: errorSeqRef.current, reason: target.reason });
+        // 복구 뒤 안내의 [목록 다시 읽기]가 다시 실패해도 같은 안내의 소유 정보를 이어 간다 (새 오류 번호·새 조회 번호)
+        if (target.reason === 'recreated') recreatedNotice.current = { errorSeq: errorSeqRef.current, ticket };
         return false;
       }
       if (!isCurrent(gen)) return false;
       setProject((p) => p && { ...p, list });
+      markListApplied(ticket);
       if (target.seq === errorSeqRef.current) setError(null);
       setUnlisted(null);
       return false;
     });
+
+  /**
+   * [내 것으로 다시 만들기]로 저장에 성공한 뒤: 목록에 없던 화(이름이 바뀐 원본)가 보이고 중복 id 경고가 뜨도록 화 목록만 다시 읽는다.
+   * 성공한 저장은 되돌리거나 실패로 바꾸지 않는다: 목록 조회가 실패하면 읽기 실패로 알리고 [목록 다시 읽기]를 남긴다.
+   * 프로젝트 전환과 겹치면 전환이 끝나기를 기다렸다가, 그 사이 다른 프로젝트가 열렸으면 이전 프로젝트의 목록·오류를 지금 화면에 반영하지 않는다
+   */
+  const onRecreated = (_file: string, token: number) => {
+    const gen = projectGenRef.current;
+    const ticket = ++listSeqRef.current;
+    // 더 나중에 보낸 목록 조회의 결과가 이미 반영됐다면 이 결과·오류는 낡았다. 나중 조작이 실패했거나 아직 안 끝났다면 이 응답이 가장 새 정보다
+    const stale = () => !isCurrent(gen) || projectTokenRef.current !== token || ticket < appliedListSeqRef.current;
+    // 오류는 더 나중에 보낸 조회의 실패 안내가 이미 표시됐을 때도 낡았다: 더 새 조작의 안내·재시도 대상(예: 방금 만든 화)을 덮지 않는다
+    const staleError = () => stale() || ticket < failedListSeqRef.current;
+    void (async () => {
+      try {
+        if (!(await settled(gen)) || stale()) return;
+        const list = await api.chapters.list(token);
+        if (stale()) return;
+        setProject((p) => p && p.token === token ? { ...p, list } : p);
+        markListApplied(ticket);
+      } catch (e) {
+        if (staleError()) return;
+        failRead(e, RECREATED_LIST_FAILED);
+        failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
+        setUnlisted({ file: null, seq: errorSeqRef.current, reason: 'recreated' });
+        recreatedNotice.current = { errorSeq: errorSeqRef.current, ticket };
+      }
+    })();
+  };
 
   const chooseFolder = () =>
     run(async () => {
@@ -880,6 +946,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 locked={editorLocked}
                 onStatus={onStatus}
                 onSaved={onSaved}
+                onRecreated={onRecreated}
                 onLoaded={onLoaded}
                 onReadState={(state) => setRead({ key: editorKey, state })}
                 onReload={onReload}
