@@ -90,6 +90,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    */
   const listSeqRef = useRef(0);
   const appliedListSeqRef = useRef(0);
+  /** 목록 조회 실패 안내를 낸 조회 가운데 가장 큰 발급 번호. 더 먼저 보낸 조회의 늦은 실패가 이미 표시된 더 새 조작의 실패 안내·재시도 대상을 덮지 않게 한다 */
+  const failedListSeqRef = useRef(0);
   /** 지금 화면의 프로젝트 token (AI 상태 읽기에 함께 보낸다) */
   const projectTokenRef = useRef(0);
   /**
@@ -536,6 +538,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       } else {
         // 발급은 성공했고 목록 조회만 실패했다: 발급 실패와 구별해 알리고, 목록만 다시 읽을 수 있게 한다 (다시 발급하지 않는다)
         failRead(issued.listError, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
         setUnlisted({ file: null, seq: errorSeqRef.current });
       }
       // 열린 화가 대상이면 새 id가 든 디스크 내용으로 다시 연다 (옛 envelope가 새 id를 되돌리지 않게)
@@ -570,6 +573,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     } catch (e) {
       if (!isCurrent(gen)) return false;
       failRead(e, `새 화(${file})는 만들어졌지만 화 목록을 다시 읽지 못했습니다. 만든 화는 지워지지 않았습니다. `);
+      failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
       setUnlisted({ file, seq: errorSeqRef.current }); // 이 안내를 만든 순간의 번호
       return false;
     }
@@ -605,6 +609,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       } catch (e) {
         if (!isCurrent(gen)) return false;
         failRead(e, target.reason === 'recreated' ? RECREATED_LIST_FAILED : `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
         setUnlisted({ file: null, seq: errorSeqRef.current, reason: target.reason });
         return false;
       }
@@ -626,6 +631,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
     const ticket = ++listSeqRef.current;
     // 더 나중에 보낸 목록 조회의 결과가 이미 반영됐다면 이 결과·오류는 낡았다. 나중 조작이 실패했거나 아직 안 끝났다면 이 응답이 가장 새 정보다
     const stale = () => !isCurrent(gen) || projectTokenRef.current !== token || ticket < appliedListSeqRef.current;
+    // 오류는 더 나중에 보낸 조회의 실패 안내가 이미 표시됐을 때도 낡았다: 더 새 조작의 안내·재시도 대상(예: 방금 만든 화)을 덮지 않는다
+    const staleError = () => stale() || ticket < failedListSeqRef.current;
     void (async () => {
       try {
         if (!(await settled(gen)) || stale()) return;
@@ -634,8 +641,9 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         setProject((p) => p && p.token === token ? { ...p, list } : p);
         markListApplied(ticket);
       } catch (e) {
-        if (stale()) return;
+        if (staleError()) return;
         failRead(e, RECREATED_LIST_FAILED);
+        failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
         setUnlisted({ file: null, seq: errorSeqRef.current, reason: 'recreated' });
         recreatedNoticeSeq.current = errorSeqRef.current;
       }

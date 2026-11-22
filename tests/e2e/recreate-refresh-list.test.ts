@@ -337,3 +337,65 @@ test('복구 뒤 목록 응답이 늦는 사이 [+ 새 화]는 만들어졌지�
     await closeWindow(app);
   }
 });
+
+test('복구 조회와 새 화 뒤 조회가 모두 실패할 때(새 조작이 먼저 실패): 늦게 거절된 이전 복구 오류가 새 화 안내와 재시도 대상을 덮지 않고, 다시 읽기 성공 시 새 화가 열린다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-dual-fail-new-first');
+  try {
+    await setHooks(app, { hold: 'before', failHeld: true });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await until(app, '복구 뒤 목록 조회가 붙잡힘', (h) => h.held === 1);
+    await setHooks(app, { failList: 1 }); // 새 화 뒤의 조회도 거절한다
+    await newChapter(page).click();
+    await footerError(page).waitFor({ timeout: 10_000 });
+    const note = await footerError(page).innerText();
+    assert.ok(note.includes('새 화(004.md)는 만들어졌지만'), '새 화 생성 성공·목록 조회 실패 안내: ' + note);
+    assert.ok(await exists(f('004.md')), '004.md는 디스크에 있다');
+    await release(app); // 붙잡았던 이전 복구 조회가 이제 늦게 거절된다
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(await footerError(page).innerText(), note, '이전 복구 오류가 더 새 조작의 안내를 덮지 않았다');
+    assert.equal(await reread(page).count(), 1, '재시도 단추는 새 화의 것 하나뿐이다');
+    await reread(page).first().click();
+    await list(page).getByRole('button', { name: '4화' }).waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator('.file-path').innerText(), 'chapters/004.md', '다시 읽기가 성공하면 새 화가 열린다 (001이 계속 열려 있지 않다)');
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE', '4화']);
+    await dupAlert(page).waitFor();
+    assert.equal(await footerError(page).count(), 0, '안내가 정리된다');
+    assert.equal(await reread(page).count(), 0, '재시도 단추도 정리된다');
+    assert.equal((await hooks(app)).writes, 1, '복구 쓰기는 한 번뿐이다');
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED));
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE));
+    assert.deepEqual(await readFile(f('002.md')), Buffer.from(TWO));
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('복구 조회와 새 화 뒤 조회가 모두 실패할 때(복구 오류가 먼저): 나중 새 화 실패 안내가 복구 안내를 대체하고, 다시 읽기 성공 시 새 화가 열리며 안내가 정리된다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-dual-fail-recreate-first');
+  try {
+    await setHooks(app, { hold: 'before', failHeld: true });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await until(app, '복구 뒤 목록 조회가 붙잡힘', (h) => h.held === 1);
+    await release(app); // 복구 조회가 먼저 거절된다
+    await footerError(page).waitFor({ timeout: 10_000 });
+    assert.ok((await footerError(page).innerText()).includes('이 화는 다시 만들어 저장했지만'), '복구 목록 조회 실패 안내');
+    assert.equal(await reread(page).count(), 1);
+    await setHooks(app, { failList: 1 });
+    await newChapter(page).click();
+    await page.locator('footer .error', { hasText: '새 화(004.md)' }).waitFor({ timeout: 10_000 });
+    assert.equal(await reread(page).count(), 1, '재시도 단추는 하나뿐이다');
+    await reread(page).first().click();
+    await list(page).getByRole('button', { name: '4화' }).waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator('.file-path').innerText(), 'chapters/004.md', '다시 읽기가 성공하면 새 화가 열린다');
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE', '4화']);
+    await dupAlert(page).waitFor();
+    assert.equal(await footerError(page).count(), 0, '안내가 정리된다');
+    assert.equal((await hooks(app)).writes, 1);
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED));
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE));
+  } finally {
+    await closeWindow(app);
+  }
+});
