@@ -85,7 +85,7 @@ export function newChapterText(id: string, title: string): string {
   return `---\nid: ${id}\ntitle: ${title}\n---\n\n`;
 }
 
-/** 같은 id를 쓰는 파일 묶음 (파일 복사로 생긴 중복). M1은 경고만 한다 */
+/** 같은 id를 쓰는 파일 묶음 (파일 복사·이름이 바뀐 파일의 복구 등으로 생긴 중복). 경고만 하고 파일은 바꾸지 않는다 */
 export function findDuplicateIds(chapters: { file: string; id: string | null }[]): string[][] {
   const byId = new Map<string, string[]>();
   for (const { file, id } of chapters) if (id) byId.set(id, [...(byId.get(id) ?? []), file]);

@@ -873,14 +873,14 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
           />
           {project.list.duplicateIds.length > 0 && (
             <div className="warning duplicates" role="alert">
-              같은 id를 쓰는 화가 있습니다 (파일 복사로 생김). 하나만 남기고 새 id를 주세요.
+              같은 id를 쓰는 화가 있습니다. 파일 복사나 이름이 바뀐 파일의 복구 등으로 생길 수 있습니다. 이 안내는 파일을 바꾸거나 지우지 않으며, 아래 파일은 모두 그대로 열 수 있습니다. [새 id 발급]은 선택한 파일 머리말의 id 한 줄만 새 값으로 바꿔 저장합니다(그 파일의 본문과 다른 파일은 그대로). 열려 있는 화에 저장하지 않은 편집이 있으면 먼저 저장합니다. 각 묶음의 첫 파일에는 이 단추가 없습니다.
               {project.list.duplicateIds.map((files) => (
                 <ul key={files[0]}>
                   {files.map((f, i) => (
                     <li key={f}>
                       {f}{' '}
                       {i > 0 && (
-                        <button type="button" className="link" onClick={() => reissueId(f)}>
+                        <button type="button" className="link" title="이 파일의 id 한 줄만 새 값으로 바꿔 저장합니다 (이 파일의 본문과 다른 파일은 그대로). 열려 있는 화에 저장하지 않은 편집이 있으면 먼저 저장합니다" onClick={() => reissueId(f)}>
                           새 id 발급
                         </button>
                       )}
