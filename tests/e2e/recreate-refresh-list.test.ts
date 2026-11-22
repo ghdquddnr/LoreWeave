@@ -22,8 +22,10 @@ interface Hooks {
   writes: number;
   /** 남은 거절 횟수 (chapters:list) */
   failList: number;
-  /** true면 다음 chapters:list 한 번을 release()까지 붙잡는다 */
-  hold: boolean;
+  /** 다음 chapters:list 한 번을 release()까지 붙잡는다: 'before'는 읽기 전, 'after'는 디스크를 읽어 스냅숏을 만든 뒤(그 뒤의 변경은 이 응답에 없다) */
+  hold: false | 'before' | 'after';
+  /** 붙잡았던 'before' 호출을 풀 때 거절한다 (늦은 실패 응답) */
+  failHeld: boolean;
   held: number;
   release?: () => void;
 }
@@ -31,7 +33,7 @@ const hook = (app: ElectronApplication) =>
   app.evaluate(({ ipcMain }) => {
     // 이 함수는 앱 안에서 실행된다: 이름 붙은 도우미 함수를 두지 않는다 (테스트 변환기가 붙이는 이름 도우미가 앱에는 없다)
     const g = globalThis as unknown as { hooks: Hooks };
-    g.hooks = { listCalls: 0, writes: 0, failList: 0, hold: false, held: 0 };
+    g.hooks = { listCalls: 0, writes: 0, failList: 0, hold: false, failHeld: false, held: 0 };
     const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
     const list = handlers.get('chapters:list')!;
     handlers.set('chapters:list', async (...args: unknown[]) => {
@@ -41,10 +43,21 @@ const hook = (app: ElectronApplication) =>
         h.failList -= 1;
         throw Object.assign(new Error("EACCES: permission denied, scandir 'chapters' (synthetic)"), { code: 'EACCES' });
       }
-      if (h.hold) {
+      if (h.hold === 'before') {
         h.hold = false;
         h.held += 1;
         await new Promise<void>((resolve) => (h.release = resolve));
+        if (h.failHeld) {
+          h.failHeld = false;
+          throw Object.assign(new Error("EACCES: permission denied, scandir 'chapters' (synthetic)"), { code: 'EACCES' });
+        }
+      }
+      if (h.hold === 'after') {
+        h.hold = false;
+        const snapshot = await list(...args);
+        h.held += 1;
+        await new Promise<void>((resolve) => (h.release = resolve));
+        return snapshot;
       }
       return list(...args);
     });
@@ -54,7 +67,7 @@ const hook = (app: ElectronApplication) =>
       return write(...args);
     });
   });
-const setHooks = (app: ElectronApplication, patch: Partial<Pick<Hooks, 'failList' | 'hold'>>) =>
+const setHooks = (app: ElectronApplication, patch: Partial<Pick<Hooks, 'failList' | 'hold' | 'failHeld'>>) =>
   app.evaluate((_e, p) => void Object.assign((globalThis as unknown as { hooks: Hooks }).hooks, p), patch);
 const hooks = (app: ElectronApplication) => app.evaluate(() => ({ ...(globalThis as unknown as { hooks: Hooks }).hooks, release: undefined }));
 const release = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { hooks: Hooks }).hooks.release?.());
@@ -74,6 +87,7 @@ const names = (page: Page) => list(page).getByRole('button').evaluateAll((els) =
 const recreateButton = (page: Page) => page.getByRole('button', { name: '내 것으로 다시 만들기' });
 const dupAlert = (page: Page) => page.getByRole('alert').filter({ hasText: '같은 id를 쓰는 화가 있습니다' });
 const footerError = (page: Page) => page.locator('footer .error');
+const newChapter = (page: Page) => page.getByRole('button', { name: '+ 새 화', exact: true });
 const reread = (page: Page) => page.locator('footer').getByRole('button', { name: '목록 다시 읽기' });
 const exists = (path: string) => access(path).then(() => true, () => false);
 
@@ -177,7 +191,7 @@ test('복구 뒤 목록 조회가 끝나기 전에 다른 프로젝트를 열면
   await mkdir(join(other, 'chapters'));
   await writeFile(join(other, 'chapters', '001.md'), BEE);
   try {
-    await setHooks(app, { hold: true });
+    await setHooks(app, { hold: 'before' });
     await recreateButton(page).click();
     await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
     await until(app, '복구 뒤 목록 조회가 붙잡힘', (h) => h.held === 1);
@@ -194,6 +208,59 @@ test('복구 뒤 목록 조회가 끝나기 전에 다른 프로젝트를 열면
     assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED), '이전 프로젝트의 복구본 보존');
     assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE), '이전 프로젝트의 003.md 보존');
     assert.deepEqual(await readFile(join(other, 'chapters', '001.md')), Buffer.from(BEE), '새 프로젝트 원고 불변');
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('복구 뒤 목록 응답이 늦는 사이 [+ 새 화]를 만들면, 늦게 도착한 이전 목록이 새 화를 목록에서 지우지 않는다 (디스크에는 남아 있고 목록도 유지)', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-race-new');
+  try {
+    await setHooks(app, { hold: 'after' }); // 001/002/003 스냅숏을 만든 뒤 응답을 붙잡는다
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await until(app, '스냅숏 뒤 응답이 붙잡힘', (h) => h.held === 1);
+    // 사용자가 새 화를 만든다: 최신 목록에 4화가 보인다
+    await newChapter(page).click();
+    await list(page).getByRole('button', { name: '4화' }).waitFor({ timeout: 10_000 });
+    assert.ok(await exists(f('004.md')), '004.md가 디스크에 있다');
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE', '4화']);
+    // 이전 스냅숏 응답 도착: 새 화가 목록에서 사라지지 않는다
+    await release(app);
+    await new Promise((r) => setTimeout(r, 500));
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE', '4화'], '늦은 이전 목록이 최신 목록을 덮지 않았다');
+    assert.ok(await exists(f('004.md')), '004.md는 디스크에 그대로다');
+    await dupAlert(page).waitFor();
+    assert.equal(await footerError(page).count(), 0, '안내 오류 없음');
+    const h = await hooks(app);
+    assert.equal(h.writes, 1, '복구 쓰기는 한 번뿐이다');
+    assert.equal(h.listCalls, 2, '복구 뒤 조회 한 번 + 새 화 뒤 조회 한 번');
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED), '복구본 보존');
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE), '003.md 불변');
+    assert.deepEqual(await readFile(f('002.md')), Buffer.from(TWO), '002.md 불변');
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('복구 뒤 목록 조회가 늦게 실패해도, 그 사이 새 화로 갱신된 최신 목록과 안내를 이전 오류가 덮지 않는다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-race-error');
+  try {
+    await setHooks(app, { hold: 'before', failHeld: true });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await until(app, '복구 뒤 목록 조회가 붙잡힘', (h) => h.held === 1);
+    await newChapter(page).click();
+    await list(page).getByRole('button', { name: '4화' }).waitFor({ timeout: 10_000 });
+    const before = await names(page);
+    await release(app); // 붙잡았던 이전 조회가 이제 거절된다
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(await footerError(page).count(), 0, '늦게 온 이전 오류가 새 상태에 나타나지 않는다');
+    assert.equal(await reread(page).count(), 0, '이전 오류의 [목록 다시 읽기]가 남지 않는다');
+    assert.deepEqual(await names(page), before, '최신 목록이 그대로다');
+    assert.ok(await exists(f('004.md')));
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED));
+    assert.equal((await hooks(app)).writes, 1);
   } finally {
     await closeWindow(app);
   }

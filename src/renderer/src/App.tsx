@@ -83,6 +83,11 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    */
   const [projectGen, setProjectGen] = useState(0);
   const projectGenRef = useRef(0);
+  /**
+   * 화 목록을 읽거나 바꾸는 조작(새 화·id 재발급·목록 다시 읽기·복구 뒤 목록 갱신)이 시작될 때마다 1씩 는다. 같은 프로젝트에서 조작이 겹칠 때,
+   * 더 늦게 시작된 조작이 있으면 먼저 시작한 조작의 늦은 목록·오류는 최신 목록과 새 안내를 덮지 않게 버린다 (프로젝트 전환은 gen·token이 따로 막는다)
+   */
+  const listSeqRef = useRef(0);
   /** 지금 화면의 프로젝트 token (AI 상태 읽기에 함께 보낸다) */
   const projectTokenRef = useRef(0);
   /**
@@ -122,6 +127,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const lockedAction = (task: (gen: number) => Promise<boolean>) =>
     run(async (gen) => {
       if (switchingRef.current || actingRef.current) return;
+      listSeqRef.current += 1; // 이 조작이 시작된 뒤에는 먼저 시작한 복구 뒤 목록 갱신의 늦은 결과·오류를 버린다
       actingRef.current = true;
       setActing(true);
       lockEditor();
@@ -519,6 +525,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   const reissueId = (target: string) =>
     lockedAction(async (gen) => {
       if (!project || !(await leave()) || !isCurrent(gen)) return false;
+      listSeqRef.current += 1; // 이 호출의 목록 조회(처리기 안)가 먼저 시작한 복구 뒤 목록 갱신보다 새롭다
       const issued = await api.chapters.reissueId(target, project.token);
       // 다른 프로젝트가 열렸으면 그 화면의 에디터가 대신한다 (잠금이 풀리면 열린다)
       if (!(await settled(gen))) return true;
@@ -543,6 +550,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
   /** 만들어진 화를 목록에 반영하고 연다. 목록을 읽지 못하면 "만들어졌다"고 알리고 [목록 다시 읽기]를 남긴다 (false: 에디터를 그대로 둔다) */
   const showCreated = async (gen: number, token: number, file: string, recovering = false, unlistedSeq = -1): Promise<boolean> => {
     let list;
+    listSeqRef.current += 1;
     try {
       list = await api.chapters.list(token);
     } catch (e) {
@@ -576,6 +584,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       if (target.file) return showCreated(gen, project.token, target.file, true, target.seq);
       // id 발급 뒤의 복구: 목록만 다시 읽는다 (화는 이미 새 id로 열려 있다)
       let list;
+      listSeqRef.current += 1;
       try {
         list = await api.chapters.list(project.token);
       } catch (e) {
@@ -598,14 +607,17 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    */
   const onRecreated = (_file: string, token: number) => {
     const gen = projectGenRef.current;
+    const seq = ++listSeqRef.current;
+    // 같은 프로젝트에서 더 늦게 시작된 목록 조작(새 화·id 재발급·목록 다시 읽기·다시 복구)이 있으면 이 결과·오류는 낡았다
+    const stale = () => !isCurrent(gen) || projectTokenRef.current !== token || listSeqRef.current !== seq;
     void (async () => {
       try {
-        if (!(await settled(gen)) || projectTokenRef.current !== token) return;
+        if (!(await settled(gen)) || stale()) return;
         const list = await api.chapters.list(token);
-        if (!isCurrent(gen) || projectTokenRef.current !== token) return;
+        if (stale()) return;
         setProject((p) => p && p.token === token ? { ...p, list } : p);
       } catch (e) {
-        if (!isCurrent(gen) || projectTokenRef.current !== token) return;
+        if (stale()) return;
         failRead(e, RECREATED_LIST_FAILED);
         setUnlisted({ file: null, seq: errorSeqRef.current, reason: 'recreated' });
       }
