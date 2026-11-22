@@ -26,6 +26,8 @@ interface Hooks {
   hold: false | 'before' | 'after';
   /** 붙잡았던 'before' 호출을 풀 때 거절한다 (늦은 실패 응답) */
   failHeld: boolean;
+  /** true면 다음 chapter:create를 디스크를 바꾸기 전에 거절한다 */
+  failCreate: boolean;
   held: number;
   release?: () => void;
 }
@@ -33,7 +35,7 @@ const hook = (app: ElectronApplication) =>
   app.evaluate(({ ipcMain }) => {
     // 이 함수는 앱 안에서 실행된다: 이름 붙은 도우미 함수를 두지 않는다 (테스트 변환기가 붙이는 이름 도우미가 앱에는 없다)
     const g = globalThis as unknown as { hooks: Hooks };
-    g.hooks = { listCalls: 0, writes: 0, failList: 0, hold: false, failHeld: false, held: 0 };
+    g.hooks = { listCalls: 0, writes: 0, failList: 0, hold: false, failHeld: false, failCreate: false, held: 0 };
     const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
     const list = handlers.get('chapters:list')!;
     handlers.set('chapters:list', async (...args: unknown[]) => {
@@ -61,13 +63,21 @@ const hook = (app: ElectronApplication) =>
       }
       return list(...args);
     });
+    const create = handlers.get('chapter:create')!;
+    handlers.set('chapter:create', async (...args: unknown[]) => {
+      if (g.hooks.failCreate) {
+        g.hooks.failCreate = false;
+        throw Object.assign(new Error("EACCES: permission denied, open '004.md' (synthetic)"), { code: 'EACCES' });
+      }
+      return create(...args);
+    });
     const write = handlers.get('chapter:write')!;
     handlers.set('chapter:write', async (...args: unknown[]) => {
       g.hooks.writes += 1;
       return write(...args);
     });
   });
-const setHooks = (app: ElectronApplication, patch: Partial<Pick<Hooks, 'failList' | 'hold' | 'failHeld'>>) =>
+const setHooks = (app: ElectronApplication, patch: Partial<Pick<Hooks, 'failList' | 'hold' | 'failHeld' | 'failCreate'>>) =>
   app.evaluate((_e, p) => void Object.assign((globalThis as unknown as { hooks: Hooks }).hooks, p), patch);
 const hooks = (app: ElectronApplication) => app.evaluate(() => ({ ...(globalThis as unknown as { hooks: Hooks }).hooks, release: undefined }));
 const release = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { hooks: Hooks }).hooks.release?.());
@@ -261,6 +271,68 @@ test('복구 뒤 목록 조회가 늦게 실패해도, 그 사이 새 화로 갱
     assert.ok(await exists(f('004.md')));
     assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED));
     assert.equal((await hooks(app)).writes, 1);
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('복구 뒤 목록 응답이 늦는 사이 [+ 새 화]가 디스크를 바꾸기 전에 거절돼도, 복구의 유효한 목록(003·중복 경고)은 반영되고 생성 오류는 그대로 남는다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-race-create-rejected');
+  try {
+    await setHooks(app, { hold: 'after' });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await until(app, '스냅숏 뒤 응답이 붙잡힘', (h) => h.held === 1);
+    await setHooks(app, { failCreate: true });
+    await newChapter(page).click();
+    await footerError(page).waitFor({ timeout: 10_000 });
+    const createError = await footerError(page).innerText();
+    assert.equal(await exists(f('004.md')), false, '거절된 생성은 디스크를 바꾸지 않았다');
+    assert.deepEqual(await names(page), ['ONE', 'TWO'], '복구 응답이 오기 전 목록은 아직 옛 상태다');
+    await release(app);
+    // 실패한 목록 조작은 복구 결과를 무효로 만들지 않는다: 003과 중복 경고가 나타난다
+    await list(page).getByRole('button', { name: 'ONE' }).nth(1).waitFor({ timeout: 10_000 });
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE'], '001/002/003 세 화');
+    await dupAlert(page).waitFor();
+    assert.equal(await footerError(page).innerText(), createError, '생성 오류는 보존된다');
+    assert.equal(await reread(page).count(), 0, '생성 오류에는 [목록 다시 읽기]가 없다');
+    assert.equal(await exists(f('004.md')), false, '004.md 없음');
+    const h = await hooks(app);
+    assert.equal(h.writes, 1, '복구 쓰기는 한 번뿐이다');
+    assert.equal(h.listCalls, 1, '목록 조회는 복구 뒤 한 번뿐이다 (생성이 거절돼 다른 조회 없음)');
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED), '복구본 보존');
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE), '003.md 불변');
+    assert.deepEqual(await readFile(f('002.md')), Buffer.from(TWO), '002.md 불변');
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('복구 뒤 목록 응답이 늦는 사이 [+ 새 화]는 만들어졌지만 그 목록 조회가 실패하면, 반영되지 않은 새 조작이 복구 결과를 무효로 만들지 않고 [목록 다시 읽기]로 최신 목록이 된다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-race-new-list-fails');
+  try {
+    await setHooks(app, { hold: 'after' });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await until(app, '스냅숏 뒤 응답이 붙잡힘', (h) => h.held === 1);
+    await setHooks(app, { failList: 1 }); // 새 화 뒤의 목록 조회만 거절한다 (붙잡힌 조회는 이미 지나갔다)
+    await newChapter(page).click();
+    await footerError(page).waitFor({ timeout: 10_000 });
+    const createdNote = await footerError(page).innerText();
+    assert.match(createdNote, /새 화\(004\.md\)는 만들어졌지만/, '생성 성공과 목록 조회 실패를 구별해 알린다');
+    assert.ok(await exists(f('004.md')), '004.md는 디스크에 있다');
+    await release(app);
+    await list(page).getByRole('button', { name: 'ONE' }).nth(1).waitFor({ timeout: 10_000 });
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE'], '새 조작이 실패했으므로 복구 목록이 가장 새 정보다 (004는 아직 목록에 없다)');
+    await dupAlert(page).waitFor();
+    assert.equal(await footerError(page).innerText(), createdNote, '새 화 안내는 그대로 남는다');
+    await reread(page).first().click();
+    await list(page).getByRole('button', { name: '4화' }).waitFor({ timeout: 10_000 });
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE', '4화']);
+    assert.equal(await footerError(page).count(), 0, '다시 읽으면 안내가 사라진다');
+    assert.equal((await hooks(app)).writes, 1, '복구 쓰기는 한 번뿐이다');
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED));
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE));
   } finally {
     await closeWindow(app);
   }
