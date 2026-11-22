@@ -552,15 +552,18 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    * 프로젝트가 바뀌면 지운다
    */
   const [unlisted, setUnlisted] = useState<{ file: string | null; seq: number; reason?: 'recreated' } | null>(null);
-  /** 복구 뒤 목록 조회 실패 안내를 만든 상태줄 오류 번호. 이후 다른 조작이 목록을 반영하면 그 낡은 안내를 거둔다 */
-  const recreatedNoticeSeq = useRef<number | null>(null);
-  /** 번호 ticket의 목록이 화면에 반영됐다: 반영된 가장 큰 번호를 올리고, 이미 낡아진 복구 뒤 목록 실패 안내가 남아 있으면 거둔다 */
+  /**
+   * 복구 뒤 목록 조회 실패 안내의 소유 정보: 그 안내를 만든 상태줄 오류 번호(errorSeq)와 실패한 조회의 발급 번호(ticket).
+   * 이 안내는 그 조회보다 **나중에 보낸** 조회가 성공해 반영될 때만 거둔다. 더 앞선 조회의 목록은 정보만 반영하고 안내·재시도 대상은 보존한다
+   */
+  const recreatedNotice = useRef<{ errorSeq: number; ticket: number } | null>(null);
+  /** 번호 ticket의 목록이 화면에 반영됐다: 반영된 가장 큰 번호를 올리고, 그 목록이 복구 뒤 목록 실패 안내보다 나중 조회의 것일 때만 그 안내를 거둔다 */
   const markListApplied = (ticket: number) => {
     appliedListSeqRef.current = Math.max(appliedListSeqRef.current, ticket);
-    const mine = recreatedNoticeSeq.current;
-    if (mine === null) return;
-    recreatedNoticeSeq.current = null;
-    if (mine === errorSeqRef.current) setError(null);
+    const notice = recreatedNotice.current;
+    if (!notice || ticket <= notice.ticket) return;
+    recreatedNotice.current = null;
+    if (notice.errorSeq === errorSeqRef.current) setError(null);
     setUnlisted((u) => (u && u.reason === 'recreated' ? null : u));
   };
 
@@ -611,6 +614,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         failRead(e, target.reason === 'recreated' ? RECREATED_LIST_FAILED : `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
         failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
         setUnlisted({ file: null, seq: errorSeqRef.current, reason: target.reason });
+        // 복구 뒤 안내의 [목록 다시 읽기]가 다시 실패해도 같은 안내의 소유 정보를 이어 간다 (새 오류 번호·새 조회 번호)
+        if (target.reason === 'recreated') recreatedNotice.current = { errorSeq: errorSeqRef.current, ticket };
         return false;
       }
       if (!isCurrent(gen)) return false;
@@ -645,7 +650,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         failRead(e, RECREATED_LIST_FAILED);
         failedListSeqRef.current = Math.max(failedListSeqRef.current, ticket);
         setUnlisted({ file: null, seq: errorSeqRef.current, reason: 'recreated' });
-        recreatedNoticeSeq.current = errorSeqRef.current;
+        recreatedNotice.current = { errorSeq: errorSeqRef.current, ticket };
       }
     })();
   };

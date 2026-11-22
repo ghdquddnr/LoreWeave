@@ -399,3 +399,80 @@ test('복구 조회와 새 화 뒤 조회가 모두 실패할 때(복구 오류�
     await closeWindow(app);
   }
 });
+
+test('같은 프로젝트에서 두 화를 연달아 복구하고 첫 목록 스냅숏이 늦게 도착해도, 둘째 복구의 목록 실패 안내와 재시도 대상이 남고 재시도 성공으로 004와 두 중복 쌍이 나타나며 안내가 정리된다', { timeout: 150_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-two-recoveries');
+  try {
+    await setHooks(app, { hold: 'after' }); // 첫 복구의 001/002/003 스냅숏을 만든 뒤 응답을 붙잡는다
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await until(app, '첫 스냅숏 뒤 응답이 붙잡힘', (h) => h.held === 1);
+    // 둘째 화(002)를 열어 미저장 입력 뒤 외부에서 002를 004로 옮기고 복구한다. 이 복구의 목록 조회는 거절한다
+    await list(page).getByRole('button', { name: 'TWO' }).click();
+    await editor(page).getByText('KEEP_A', { exact: true }).waitFor();
+    await editor(page).getByText('KEEP_A', { exact: true }).click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' MINE2');
+    await rename(f('002.md'), f('004.md'));
+    await recreateButton(page).waitFor({ timeout: 15_000 });
+    await setHooks(app, { failList: 1 });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await footerError(page).waitFor({ timeout: 10_000 });
+    const notice = await footerError(page).innerText();
+    assert.ok(notice.includes('이 화는 다시 만들어 저장했지만'), '둘째 복구의 목록 조회 실패 안내: ' + notice);
+    assert.equal(await reread(page).count(), 1);
+    // 첫 스냅숏(004가 없다)이 이제 도착한다: 목록 정보는 반영하되 이후 실패의 안내·재시도 대상은 지우지 않는다
+    await release(app);
+    await new Promise((r) => setTimeout(r, 500));
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE'], '앞선 스냅숏의 목록은 반영된다 (004는 아직 없다)');
+    assert.equal(await footerError(page).innerText(), notice, '이후 실패의 안내가 보존된다');
+    assert.equal(await reread(page).count(), 1, '[목록 다시 읽기]가 남아 있다');
+    // 재시도 성공: 004와 두 중복 쌍이 나타나고 안내가 정리된다
+    await reread(page).first().click();
+    await list(page).getByRole('button', { name: 'TWO' }).nth(1).waitFor({ timeout: 10_000 });
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE', 'TWO'], '001/002/003/004');
+    await dupAlert(page).waitFor();
+    assert.equal(await dupAlert(page).locator('ul').count(), 2, '두 중복 쌍(001·003, 002·004)');
+    assert.equal(await footerError(page).count(), 0, '안내 정리');
+    assert.equal(await reread(page).count(), 0, '재시도 단추 정리');
+    await list(page).getByRole('button', { name: 'TWO' }).nth(1).click();
+    assert.equal(await page.locator('.file-path').innerText(), 'chapters/004.md');
+    await editor(page).getByText('KEEP_A', { exact: true }).waitFor();
+    assert.equal((await hooks(app)).writes, 2, '복구 쓰기는 두 번(화마다 한 번)');
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED));
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE));
+    assert.deepEqual(await readFile(f('002.md')), Buffer.from(envelope('two', 'TWO') + lines('KEEP_A MINE2')));
+    assert.deepEqual(await readFile(f('004.md')), Buffer.from(TWO));
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('복구 뒤 목록 다시 읽기가 또 실패해도 같은 안내의 소유가 이어져, 이후 더 나중에 보낸 조회(새 화)가 성공할 때 거두어진다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-reread-fails');
+  try {
+    await setHooks(app, { failList: 1 });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await footerError(page).waitFor({ timeout: 10_000 });
+    await setHooks(app, { failList: 1 }); // [목록 다시 읽기]도 한 번 더 실패한다
+    await reread(page).first().click();
+    await until(app, '다시 읽기 조회가 거절됨', (h) => h.listCalls >= 2 && h.failList === 0);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.ok((await footerError(page).innerText()).includes('이 화는 다시 만들어 저장했지만'), '다시 읽기 실패 뒤에도 복구 뒤 목록 실패 안내');
+    assert.equal(await reread(page).count(), 1);
+    assert.deepEqual(await names(page), ['ONE', 'TWO'], '목록은 아직 갱신되지 않았다');
+    // 더 나중에 보낸 조회(새 화 뒤 목록)가 성공하면 안내와 재시도 단추가 거두어진다
+    await newChapter(page).click();
+    await list(page).getByRole('button', { name: '4화' }).waitFor({ timeout: 10_000 });
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE', '4화']);
+    assert.equal(await footerError(page).count(), 0, '낡은 안내가 남지 않는다');
+    assert.equal(await reread(page).count(), 0);
+    await dupAlert(page).waitFor();
+    assert.equal((await hooks(app)).writes, 1);
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED));
+  } finally {
+    await closeWindow(app);
+  }
+});
