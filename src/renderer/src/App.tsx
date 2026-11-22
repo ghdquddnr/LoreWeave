@@ -36,6 +36,8 @@ interface AiState {
 const MARK_TITLE: Record<AnalysisState, string> = { none: '', fresh: 'AI 분석됨', stale: 'AI 분석 뒤 바뀜' };
 
 const api = window.loreweave;
+/** [내 것으로 다시 만들기]는 저장됐지만 뒤따르는 화 목록 조회가 실패했다 (저장 실패가 아니다) */
+const RECREATED_LIST_FAILED = '이 화는 다시 만들어 저장했지만 화 목록을 다시 읽지 못했습니다. 저장한 원고는 그대로입니다. ';
 
 /** 저장 상태는 색만으로 구분하지 않는다: 글자 앞에 기호를 함께 둔다 (스크린리더에는 글자만 읽힌다) */
 const STATUS_SYMBOL: Record<SaveStatus['kind'], string> = { saved: '✓', unsaved: '●', saving: '…', error: '✕', conflict: '⚠' };
@@ -536,7 +538,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
    * 화 만들기는 성공했지만 화 목록을 다시 읽지 못한 경우: 만들어진 파일 이름. 목록만 다시 읽어 복구한다 (생성은 다시 실행하지 않는다).
    * 프로젝트가 바뀌면 지운다
    */
-  const [unlisted, setUnlisted] = useState<{ file: string | null; seq: number } | null>(null);
+  const [unlisted, setUnlisted] = useState<{ file: string | null; seq: number; reason?: 'recreated' } | null>(null);
 
   /** 만들어진 화를 목록에 반영하고 연다. 목록을 읽지 못하면 "만들어졌다"고 알리고 [목록 다시 읽기]를 남긴다 (false: 에디터를 그대로 둔다) */
   const showCreated = async (gen: number, token: number, file: string, recovering = false, unlistedSeq = -1): Promise<boolean> => {
@@ -578,8 +580,8 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
         list = await api.chapters.list(project.token);
       } catch (e) {
         if (!isCurrent(gen)) return false;
-        failRead(e, `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
-        setUnlisted({ file: null, seq: errorSeqRef.current });
+        failRead(e, target.reason === 'recreated' ? RECREATED_LIST_FAILED : `새 id는 발급했지만 화 목록을 다시 읽지 못했습니다. 원고는 새 id로 바뀌었습니다. `);
+        setUnlisted({ file: null, seq: errorSeqRef.current, reason: target.reason });
         return false;
       }
       if (!isCurrent(gen)) return false;
@@ -588,6 +590,27 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
       setUnlisted(null);
       return false;
     });
+
+  /**
+   * [내 것으로 다시 만들기]로 저장에 성공한 뒤: 목록에 없던 화(이름이 바뀐 원본)가 보이고 중복 id 경고가 뜨도록 화 목록만 다시 읽는다.
+   * 성공한 저장은 되돌리거나 실패로 바꾸지 않는다: 목록 조회가 실패하면 읽기 실패로 알리고 [목록 다시 읽기]를 남긴다.
+   * 프로젝트 전환과 겹치면 전환이 끝나기를 기다렸다가, 그 사이 다른 프로젝트가 열렸으면 이전 프로젝트의 목록·오류를 지금 화면에 반영하지 않는다
+   */
+  const onRecreated = (_file: string, token: number) => {
+    const gen = projectGenRef.current;
+    void (async () => {
+      try {
+        if (!(await settled(gen)) || projectTokenRef.current !== token) return;
+        const list = await api.chapters.list(token);
+        if (!isCurrent(gen) || projectTokenRef.current !== token) return;
+        setProject((p) => p && p.token === token ? { ...p, list } : p);
+      } catch (e) {
+        if (!isCurrent(gen) || projectTokenRef.current !== token) return;
+        failRead(e, RECREATED_LIST_FAILED);
+        setUnlisted({ file: null, seq: errorSeqRef.current, reason: 'recreated' });
+      }
+    })();
+  };
 
   const chooseFolder = () =>
     run(async () => {
@@ -880,6 +903,7 @@ export function App({ boot, systemDark }: { boot: AppearanceBootstrap; systemDar
                 locked={editorLocked}
                 onStatus={onStatus}
                 onSaved={onSaved}
+                onRecreated={onRecreated}
                 onLoaded={onLoaded}
                 onReadState={(state) => setRead({ key: editorKey, state })}
                 onReload={onReload}

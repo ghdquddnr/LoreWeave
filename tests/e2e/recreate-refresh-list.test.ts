@@ -1,0 +1,200 @@
+// 외부에서 이름이 바뀐 화의 [내 것으로 다시 만들기]가 성공하면, 프로젝트를 다시 열지 않아도 화 목록(이동된 원본 포함)과 중복 id 경고가 바로 갱신되어야 한다.
+// 실제 앱(Electron + Playwright), 합성 원고(BOM + CRLF + frontmatter)·별도 userData. 외부 이름 변경은 테스트가 파일을 직접 옮긴다(다른 프로그램 흉내).
+// 이 검사 안에서만 renderer의 1500ms 자동 저장 타이머를 가로채 미저장 입력이 이름 변경 전에 저장되는 경합을 없앤다 (제품 코드·주기는 바꾸지 않는다).
+// main의 chapters:list·chapter:write 처리기는 호출 수·거절·보류를 위한 무료 대역으로 감싼다 (원래 처리기로 그대로 넘긴다). 실제 파일 탐색기·실제 IME·수동 GUI 확인이 아니다. 유료·외부 호출 없음.
+
+import assert from 'node:assert/strict';
+import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import type { ElectronApplication, Page } from 'playwright';
+import { closeWindow, launch, stubFolderDialog, tempDir } from './launch.ts';
+
+const envelope = (id: string, title: string) => `﻿---\r\nid: ${id}\r\ntitle: ${title}\r\n---\r\n`;
+const lines = (...l: string[]) => `${l.join('\r\n')}\r\n`;
+const ONE = `${envelope('one', 'ONE')}${lines('ONLY_LINE')}`;
+const TWO = `${envelope('two', 'TWO')}${lines('KEEP_A')}`;
+const BEE = `${envelope('bee', 'BEE')}${lines('BEE_LINE')}`;
+const RECOVERED = `${envelope('one', 'ONE')}${lines('ONLY_LINE MINE')}`;
+
+interface Hooks {
+  listCalls: number;
+  writes: number;
+  /** 남은 거절 횟수 (chapters:list) */
+  failList: number;
+  /** true면 다음 chapters:list 한 번을 release()까지 붙잡는다 */
+  hold: boolean;
+  held: number;
+  release?: () => void;
+}
+const hook = (app: ElectronApplication) =>
+  app.evaluate(({ ipcMain }) => {
+    // 이 함수는 앱 안에서 실행된다: 이름 붙은 도우미 함수를 두지 않는다 (테스트 변환기가 붙이는 이름 도우미가 앱에는 없다)
+    const g = globalThis as unknown as { hooks: Hooks };
+    g.hooks = { listCalls: 0, writes: 0, failList: 0, hold: false, held: 0 };
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => Promise<unknown>> })._invokeHandlers;
+    const list = handlers.get('chapters:list')!;
+    handlers.set('chapters:list', async (...args: unknown[]) => {
+      const h = g.hooks;
+      h.listCalls += 1;
+      if (h.failList > 0) {
+        h.failList -= 1;
+        throw Object.assign(new Error("EACCES: permission denied, scandir 'chapters' (synthetic)"), { code: 'EACCES' });
+      }
+      if (h.hold) {
+        h.hold = false;
+        h.held += 1;
+        await new Promise<void>((resolve) => (h.release = resolve));
+      }
+      return list(...args);
+    });
+    const write = handlers.get('chapter:write')!;
+    handlers.set('chapter:write', async (...args: unknown[]) => {
+      g.hooks.writes += 1;
+      return write(...args);
+    });
+  });
+const setHooks = (app: ElectronApplication, patch: Partial<Pick<Hooks, 'failList' | 'hold'>>) =>
+  app.evaluate((_e, p) => void Object.assign((globalThis as unknown as { hooks: Hooks }).hooks, p), patch);
+const hooks = (app: ElectronApplication) => app.evaluate(() => ({ ...(globalThis as unknown as { hooks: Hooks }).hooks, release: undefined }));
+const release = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { hooks: Hooks }).hooks.release?.());
+async function until(app: ElectronApplication, what: string, ok: (h: Hooks) => boolean) {
+  const deadline = Date.now() + 15_000;
+  for (;;) {
+    const h = await hooks(app);
+    if (ok(h)) return h;
+    if (Date.now() > deadline) throw new Error(`장벽 대기 시간 초과: ${what} ${JSON.stringify(h)}`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+const editor = (page: Page) => page.locator('.ProseMirror');
+const list = (page: Page) => page.getByRole('navigation', { name: '화 목록' });
+const names = (page: Page) => list(page).getByRole('button').evaluateAll((els) => els.map((e) => e.textContent?.trim() ?? ''));
+const recreateButton = (page: Page) => page.getByRole('button', { name: '내 것으로 다시 만들기' });
+const dupAlert = (page: Page) => page.getByRole('alert').filter({ hasText: '같은 id를 쓰는 화가 있습니다' });
+const footerError = (page: Page) => page.locator('footer .error');
+const reread = (page: Page) => page.locator('footer').getByRole('button', { name: '목록 다시 읽기' });
+const exists = (path: string) => access(path).then(() => true, () => false);
+
+async function prepare(prefix: string) {
+  const dir = await tempDir(prefix);
+  await mkdir(join(dir, 'chapters'));
+  const f = (n: string) => join(dir, 'chapters', n);
+  await writeFile(f('001.md'), ONE);
+  await writeFile(f('002.md'), TWO);
+  const { app, page } = await launch(await tempDir(`${prefix}-ud`));
+  await stubFolderDialog(app, dir);
+  await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+  await list(page).getByRole('button', { name: 'ONE' }).click();
+  await editor(page).getByText('ONLY_LINE', { exact: true }).waitFor();
+  await page.evaluate(`(() => {
+    const real = window.setTimeout.bind(window);
+    window.setTimeout = (fn, delay, ...rest) => (delay === 1500 ? 0 : real(fn, delay, ...rest));
+  })()`);
+  await hook(app);
+  // 미저장 입력 뒤 외부에서 001.md를 003.md로 옮긴다: 이름 변경/삭제 충돌 안내가 나온다
+  await editor(page).getByText('ONLY_LINE', { exact: true }).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' MINE');
+  await rename(f('001.md'), f('003.md'));
+  await recreateButton(page).waitFor({ timeout: 15_000 });
+  return { app, page, dir, f };
+}
+
+test('이름이 바뀐 화를 [내 것으로 다시 만들기]로 저장하면 다시 열지 않아도 목록에 이동된 원본이 보이고 중복 id 경고가 뜨며, 두 파일의 바이트가 보존된다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list');
+  try {
+    // 클릭 전: 목록은 아직 옛 두 화이고 옛 이름은 디스크에 없으며 아직 아무것도 쓰지 않았다
+    assert.deepEqual(await names(page), ['ONE', 'TWO'], '이름 변경 직후 목록은 아직 옛 상태다');
+    assert.equal(await exists(f('001.md')), false, '옛 이름은 자동으로 되살아나지 않는다');
+    assert.equal((await hooks(app)).writes, 0, '클릭 전 저장 요청 0');
+    assert.equal(await dupAlert(page).count(), 0, '클릭 전 중복 id 경고 없음');
+
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    // 다시 열지 않아도: 세 화(이동된 원본 포함)와 중복 id 경고가 바로 보인다
+    await list(page).getByRole('button', { name: 'ONE' }).nth(1).waitFor({ timeout: 10_000 });
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE'], '001/002/003 세 화가 목록에 있다');
+    await dupAlert(page).waitFor();
+    const items = await dupAlert(page).locator('li').allInnerTexts();
+    assert.ok(items.some((t) => t.includes('001.md')) && items.some((t) => t.includes('003.md')), `중복 경고가 두 파일을 가리킨다: ${items.join(' | ')}`);
+    const after = await hooks(app);
+    assert.equal(after.writes, 1, '복구는 기존 저장 경로로 정확히 한 번 썼다');
+    assert.equal(after.listCalls, 1, '복구 성공 뒤 목록 조회는 한 번이다');
+
+    // 바이트: 옛 경로는 미저장 글이 든 복구본(BOM·CRLF·frontmatter 보존), 이동된 원본과 이웃 화는 그대로
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED), '복구된 001.md');
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE), '이동된 원본 003.md 불변');
+    assert.deepEqual(await readFile(f('002.md')), Buffer.from(TWO), '이웃 002.md 불변');
+
+    // 두 파일을 모두 열 수 있다 (같은 제목이어도 목록 순서로 구분): 003은 원본, 001은 복구본
+    await list(page).getByRole('button', { name: 'ONE' }).nth(1).click();
+    await editor(page).getByText('ONLY_LINE', { exact: true }).waitFor();
+    assert.equal(await page.locator('.file-path').innerText(), 'chapters/003.md');
+    await list(page).getByRole('button', { name: 'ONE' }).nth(0).click();
+    await editor(page).getByText('ONLY_LINE MINE', { exact: true }).waitFor();
+    assert.equal(await page.locator('.file-path').innerText(), 'chapters/001.md');
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE), '화를 오간 뒤에도 003.md 불변');
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('복구 저장은 성공했는데 뒤따르는 목록 조회가 실패하면 저장 실패로 처리하지 않고, 읽기 실패로 알리며 [목록 다시 읽기]로 복구한다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-fail');
+  try {
+    await setHooks(app, { failList: 1 });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await footerError(page).waitFor({ timeout: 10_000 });
+    const text = await footerError(page).innerText();
+    assert.match(text, /다시 만들어 저장했지만 화 목록을 다시 읽지 못했습니다/, '저장 성공과 목록 조회 실패를 구별해 알린다');
+    assert.match(text, /읽을 수 없습니다/, '읽기 실패로 안내한다');
+    for (const wrong of ['저장 실패', '저장하지 못']) assert.ok(!text.includes(wrong), `성공한 저장을 실패(${wrong})로 안내하지 않는다: ${text}`);
+    assert.equal(await page.getByRole('status').getByText('저장됨', { exact: true }).count(), 1, '저장 상태는 저장됨 그대로');
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED), '복구본은 디스크에 그대로');
+    assert.deepEqual(await names(page), ['ONE', 'TWO'], '목록은 갱신되지 않았다');
+
+    await reread(page).click();
+    await list(page).getByRole('button', { name: 'ONE' }).nth(1).waitFor({ timeout: 10_000 });
+    assert.deepEqual(await names(page), ['ONE', 'TWO', 'ONE']);
+    await dupAlert(page).waitFor();
+    assert.equal(await footerError(page).count(), 0, '복구하면 안내가 사라진다');
+    const h = await hooks(app);
+    assert.equal(h.writes, 1, '복구 뒤에도 쓰기는 한 번뿐이다 (다시 읽기가 다시 쓰지 않는다)');
+    assert.equal(h.listCalls, 2, '실패 한 번 + 다시 읽기 한 번');
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE), '003.md 불변');
+    assert.deepEqual(await readFile(f('002.md')), Buffer.from(TWO), '002.md 불변');
+  } finally {
+    await closeWindow(app);
+  }
+});
+
+test('복구 뒤 목록 조회가 끝나기 전에 다른 프로젝트를 열면, 이전 프로젝트의 목록·오류·중복 경고가 새 프로젝트 화면에 반영되지 않는다', { timeout: 120_000 }, async () => {
+  const { app, page, f } = await prepare('recreate-list-switch');
+  const other = await tempDir('recreate-list-switch-b');
+  await mkdir(join(other, 'chapters'));
+  await writeFile(join(other, 'chapters', '001.md'), BEE);
+  try {
+    await setHooks(app, { hold: true });
+    await recreateButton(page).click();
+    await page.getByRole('status').getByText('저장됨', { exact: true }).waitFor({ timeout: 10_000 });
+    await until(app, '복구 뒤 목록 조회가 붙잡힘', (h) => h.held === 1);
+    // 붙잡힌 사이에 다른 프로젝트로 바꾼다
+    await stubFolderDialog(app, other);
+    await page.getByRole('button', { name: '열기', exact: true }).click();
+    await list(page).getByRole('button', { name: 'BEE' }).waitFor({ timeout: 10_000 });
+    await release(app);
+    await new Promise((r) => setTimeout(r, 500));
+    assert.deepEqual(await names(page), ['BEE'], '새 프로젝트의 목록만 보인다');
+    assert.equal(await dupAlert(page).count(), 0, '이전 프로젝트의 중복 id 경고가 남지 않는다');
+    assert.equal(await footerError(page).count(), 0, '이전 프로젝트의 늦은 응답·거절이 오류로 나타나지 않는다');
+    // 이전 프로젝트에 이미 성공한 복구는 그 폴더에 그대로 남는다
+    assert.deepEqual(await readFile(f('001.md')), Buffer.from(RECOVERED), '이전 프로젝트의 복구본 보존');
+    assert.deepEqual(await readFile(f('003.md')), Buffer.from(ONE), '이전 프로젝트의 003.md 보존');
+    assert.deepEqual(await readFile(join(other, 'chapters', '001.md')), Buffer.from(BEE), '새 프로젝트 원고 불변');
+  } finally {
+    await closeWindow(app);
+  }
+});
