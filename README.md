@@ -52,30 +52,9 @@ Possible continuity error
 | `corepack pnpm package:win` | `electron.exe` | 기본. 이미 설치된 Electron 런타임을 복사. 이름·exe 아이콘은 Electron 그대로 |
 | `corepack pnpm package:win:branded` | `LoreWeave.exe` | 선택형. 이름·아이콘·정보를 `LoreWeave`로 바꾼 빌드 |
 
-설치 프로그램, 코드 서명, 자동 업데이트, 공개 배포는 제공하지 않고 검증하지도 않았습니다. 설치기는 도입을 유보했습니다([설치기 계획](docs/WINDOWS-INSTALLER-PREVIEW-PLAN.md)). SmartScreen 경고, OS의 exe 아이콘 표시, 다른 PC에서의 실행은 확인하지 못했습니다.
+설치 프로그램, 코드 서명, 자동 업데이트, 공개 배포는 제공하지 않고 검증하지도 않았습니다. 설치기는 도입을 유보했습니다([설치기 계획](docs/WINDOWS-INSTALLER-PREVIEW-PLAN.md)). SmartScreen 경고, OS의 exe 아이콘 표시, 다른 PC에서의 실행은 확인하지 못했습니다. 기본 빌드는 2026-11-22 main `726a456`에서 Windows 한 환경의 합성 원고로 점검했고(자동 검사와 수동 GUI 관측), **실제 IME 입력은 확인하지 못했습니다.** 범위와 한계는 시험자 안내의 [검증 현황](docs/WINDOWS-BETA-GUIDE.md#검증-현황)에 있습니다.
 
-**처음 시험하기 (PowerShell 예시, 형식만 소스로 확인했고 이 문서를 쓰며 실행하지는 않았습니다).** `C:\lw-test`는 저장소·실제 작품 폴더·실제 프로필 밖에 **새로 만들** 시험 루트의 예입니다. 이미 있는 경로면 아무것도 쓰기 전에 중단하고, 앱 출력 폴더(`app`)는 빌더가 만들며, `userdata`와 `novel\chapters`는 루트 안에 따로 만듭니다. 빌드 명령은 저장소 폴더에서 실행하고, 빌드(A 또는 B)와 실행 파일은 **하나만** 고르세요.
-
-```powershell
-$ErrorActionPreference = 'Stop'
-$root = 'C:\lw-test'                      # 새 경로로 바꿔도 됩니다. 상위 폴더는 미리 있어야 합니다
-if (Test-Path -LiteralPath $root) { throw "이미 있는 경로입니다. 다른 새 경로를 쓰세요: $root" }
-New-Item -ItemType Directory -Path $root | Out-Null
-
-# 1) 빌드: 둘 중 하나만. --out 폴더(app)는 빌더가 만들며, 비어 있지 않거나 저장소 안이면 거절합니다
-corepack pnpm package:win --out "$root\app";          $exe = 'electron.exe'
-# corepack pnpm package:win:branded --out "$root\app"; $exe = 'LoreWeave.exe'   # B: 정확한 Electron zip이 미리 있어야 함(아래)
-if ($LASTEXITCODE -ne 0) { throw "빌드가 실패했습니다 (종료 코드 $LASTEXITCODE)" }
-
-# 2) 루트 안에 빈 userData와 합성 원고 폴더를 따로 만든다 (실제 원고를 쓰지 마세요)
-New-Item -ItemType Directory -Path "$root\userdata", "$root\novel\chapters" | Out-Null
-Set-Content -LiteralPath "$root\novel\chapters\001.md" -Value '첫 줄입니다.' -Encoding utf8
-
-# 3) 실행: 빌드가 만든 app 폴더 전체를 그대로 두고 실행합니다
-& "$root\app\$exe" --user-data-dir="$root\userdata"
-```
-
-앱에서 `C:\lw-test\novel` 폴더를 열면 `chapters\001.md`, `002.md` … 를 화로 읽습니다. 빌드가 끝나면 만든 위치와 실행 명령이 출력됩니다.
+**시험자라면 [Windows 시험자용 시작 안내](docs/WINDOWS-BETA-GUIDE.md)부터 읽으세요.** 전달받은 폴더 실행본을 새 격리 userData와 합성 원고로 시작하는 방법, 데이터 위치, 검증된 범위와 아직 확인하지 못한 항목(실제 IME·다른 PC 등)을 한곳에 정리했습니다. 아래 빌드 명령은 개발자 준비 단계이며, 실행본 시험자는 pnpm이나 개발 서버가 필요하지 않습니다.
 
 - **격리의 범위:** `--user-data-dir`는 앱 설정 위치만 옮깁니다. 원고 색인·AI 결과(`.loreweave/index.db`, `.loreweave/ai.db`)는 userData가 아니라 **연 원고 폴더 안**에 생기므로 실제 작품 폴더를 열지 마세요. API 키·일부 설정은 기본 위치를 공유할 수 있어 완전한 격리나 portable 동작은 보장하지 않습니다. 이 앱은 실행 중 네트워크를 쓰는 AI 기능이 있으므로 전체 네트워크 차단도 보장하지 않습니다.
 - **네트워크:** 빌드 준비에는 `pnpm install`(Electron 다운로드 포함)이 필요하고, 만들어진 실행본은 실행 자체에 개발 서버·pnpm·인터넷이 필요하지 않습니다(AI 기능만 사용자가 설정한 OpenAI 연결을 씁니다). 환경에 `ELECTRON_RENDERER_URL`이 있어도 실행본은 빌드된 화면을 엽니다.
