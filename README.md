@@ -52,9 +52,9 @@ Possible continuity error
 | `corepack pnpm package:win` | `electron.exe` | 기본. 이미 설치된 Electron 런타임을 복사. 이름·exe 아이콘은 Electron 그대로 |
 | `corepack pnpm package:win:branded` | `LoreWeave.exe` | 선택형. 이름·아이콘·정보를 `LoreWeave`로 바꾼 빌드 |
 
-설치 프로그램, 코드 서명, 자동 업데이트, 공개 배포는 제공하지 않고 검증하지도 않았습니다. 설치기는 도입을 유보했습니다([설치기 계획](docs/WINDOWS-INSTALLER-PREVIEW-PLAN.md)). SmartScreen 경고, OS의 exe 아이콘 표시, 다른 PC에서의 실행은 확인하지 못했습니다. 기본 빌드는 2026-11-22 main `726a456`에서 Windows 한 환경의 합성 원고로 점검했고(자동 검사와 수동 GUI 관측), **실제 IME 입력은 확인하지 못했습니다.** 범위와 한계는 시험자 안내의 [검증 현황](docs/WINDOWS-BETA-GUIDE.md#검증-현황)에 있습니다.
+설치 프로그램, 코드 서명, 자동 업데이트, 공개 배포는 제공하지 않고 검증하지도 않았습니다. 설치기는 도입을 유보했습니다([설치기 계획](docs/WINDOWS-INSTALLER-PREVIEW-PLAN.md)). SmartScreen 경고, OS의 exe 아이콘 표시, 다른 PC에서의 실행은 확인하지 못했습니다. 기본 빌드는 2026-11-22 main `726a456`(이후 `9b84426`까지 제품 소스 동일)에서 Windows 한 환경의 합성 원고로 점검했고(자동 검사와 수동 GUI 관측), **한국어 IME는 물리 키보드로 편집·저장·바이트 보존을 한 번 관측했고(글자 유실 없음), 검색창에서 숫자패드 Enter가 조합 확정과 함께 의도하지 않은 검색을 한 번 실행하는 결함을 재현했습니다.** 수정 PR #271은 아직 병합되지 않았고 수정본의 실제 키 재확인은 하지 않았습니다. 메인 키보드 Enter는 확인하지 못했습니다. 범위와 한계는 시험자 안내의 [검증 현황](docs/WINDOWS-BETA-GUIDE.md#검증-현황)에 있습니다.
 
-**시험자라면 [Windows 시험자용 시작 안내](docs/WINDOWS-BETA-GUIDE.md)부터 읽으세요.** 전달받은 폴더 실행본을 새 격리 userData와 합성 원고로 시작하는 방법, 데이터 위치, 검증된 범위와 아직 확인하지 못한 항목(실제 IME·다른 PC 등)을 한곳에 정리했습니다. 아래 빌드 명령은 개발자 준비 단계이며, 실행본 시험자는 pnpm이나 개발 서버가 필요하지 않습니다.
+**시험자라면 [Windows 시험자용 시작 안내](docs/WINDOWS-BETA-GUIDE.md)부터 읽으세요.** 전달받은 폴더 실행본을 새 격리 userData와 합성 원고로 시작하는 방법, 데이터 위치, 검증된 범위와 아직 확인하지 못한 항목(검색창 숫자패드 Enter 수정본의 실제 키 재확인, 메인 Enter, 조합 중 저장의 선후, 다른 PC 등)을 한곳에 정리했습니다. 아래 빌드 명령은 개발자 준비 단계이며, 실행본 시험자는 pnpm이나 개발 서버가 필요하지 않습니다.
 
 - **격리의 범위:** `--user-data-dir`는 앱 설정 위치만 옮깁니다. 원고 색인·AI 결과(`.loreweave/index.db`, `.loreweave/ai.db`)는 userData가 아니라 **연 원고 폴더 안**에 생기므로 실제 작품 폴더를 열지 마세요. API 키·일부 설정은 기본 위치를 공유할 수 있어 완전한 격리나 portable 동작은 보장하지 않습니다. 이 앱은 실행 중 네트워크를 쓰는 AI 기능이 있으므로 전체 네트워크 차단도 보장하지 않습니다.
 - **네트워크:** 빌드 준비에는 `pnpm install`(Electron 다운로드 포함)이 필요하고, 만들어진 실행본은 실행 자체에 개발 서버·pnpm·인터넷이 필요하지 않습니다(AI 기능만 사용자가 설정한 OpenAI 연결을 씁니다). 환경에 `ELECTRON_RENDERER_URL`이 있어도 실행본은 빌드된 화면을 엽니다.
