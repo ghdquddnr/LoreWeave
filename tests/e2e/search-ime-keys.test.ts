@@ -195,3 +195,59 @@ test('조합 상태에서 form submit이 오면 저장 전 flush·검색 IPC를 
     await closeWindow(app);
   }
 });
+
+// 실제 Windows 한국어 IME의 숫자패드 Enter 한 번(감독 관측): key=Process/keyCode 229/isComposing=true → compositionend → 같은 누름에서 key=Enter/keyCode 13/isComposing=false → form submit.
+// 마지막 일반 Enter keydown이 직전 조합 키 상태를 덮으면 조합 확정 한 번이 검색으로 이어진다. 한 물리 키 누름(keyUp 전)의 조합 확정+일반 Enter+submit은 검색이 아니고, 키를 뗀 뒤의 새 Enter는 한 번 검색한다.
+// 메인 키보드 Enter는 관측하지 않았다 (같은 순서를 보낼 뿐 메인 Enter의 실제 동작을 확인한 것이 아니다). CDP로 같은 이벤트 순서를 보낸 합성 검사이며 실제 OS IME 확인이 아니다.
+test('한 번의 물리 Enter가 조합 확정(229)·일반 Enter(13)·submit을 연달아 만들어도 검색하지 않고, 키를 뗀 뒤 새 Enter는 한 번 검색한다', { timeout: 90_000 }, async () => {
+  const dir = await tempDir('search-ime-numpad');
+  await mkdir(join(dir, 'chapters'));
+  await writeFile(join(dir, 'chapters', '001.md'), ONE);
+  await writeFile(join(dir, 'chapters', '002.md'), TWO);
+  const originals = await Promise.all(['001.md', '002.md'].map((f) => readFile(join(dir, 'chapters', f))));
+  const { app, page } = await launch(await tempDir('search-ime-numpad-ud'));
+  try {
+    await stubFolderDialog(app, dir);
+    await hook(app);
+    await page.getByRole('button', { name: '원고 폴더 열기', exact: true }).click();
+    await chapterButton(page, 'ONE').waitFor();
+    const cdp = await page.context().newCDPSession(page);
+    const key = (type: 'rawKeyDown' | 'keyDown' | 'keyUp', k: string, vk: number, text?: string) => cdp.send('Input.dispatchKeyEvent', { type, key: k, code: 'NumpadEnter', windowsVirtualKeyCode: vk, ...(text ? { text } : {}) });
+    const pressCount = async (n: number) => {
+      await settled(page);
+      assert.equal((await barrier(app)).arrived.length, n);
+    };
+
+    // 한 물리 누름: 조합 키(229) → 조합 확정 → 같은 누름의 일반 Enter(13, submit) → 뗌
+    await box(page).fill('알');
+    await box(page).focus();
+    await cdp.send('Input.imeSetComposition', { text: '파', selectionStart: 1, selectionEnd: 1 });
+    await key('rawKeyDown', 'Process', 229);
+    await page.keyboard.insertText('파'); // 조합 확정 (compositionend)
+    await key('keyDown', 'Enter', 13, '\r'); // 같은 물리 누름이 만든 일반 Enter: form submit
+    await key('keyUp', 'Enter', 13);
+    await pressCount(0);
+    assert.equal(await box(page).inputValue(), '알파', '조합이 확정되어 검색어가 남았다');
+    assert.equal((await barrier(app)).writes, 0);
+    assert.equal(await resultsList(page).count(), 0, '조합 확정 한 번은 결과를 만들지 않는다');
+
+    // 키를 뗀 뒤 바로 다시 누른 일반 Enter(조합 없음): 한 번 검색한다
+    await key('keyDown', 'Enter', 13, '\r');
+    await key('keyUp', 'Enter', 13);
+    await until(app, '새 Enter 검색 응답', (b) => b.answered.length === 1);
+    await resultsList(page).waitFor();
+    assert.deepEqual((await barrier(app)).arrived, ['알파'], '새 일반 Enter는 정확히 한 번 검색한다');
+
+    // 조합 확정 누름의 keyUp 이후 일반 Enter가 영구 차단되지 않음을 한 번 더 본다 (다른 검색어)
+    await box(page).fill('감마');
+    await key('keyDown', 'Enter', 13, '\r');
+    await key('keyUp', 'Enter', 13);
+    await until(app, '다음 검색 응답', (b) => b.answered.length === 2);
+    assert.deepEqual((await barrier(app)).arrived, ['알파', '감마']);
+
+    const after = await Promise.all(['001.md', '002.md'].map((f) => readFile(join(dir, 'chapters', f))));
+    assert.ok(after.every((b, i) => Buffer.compare(b, originals[i]!) === 0), '원고 원본 바이트 불변');
+  } finally {
+    await closeWindow(app);
+  }
+});
