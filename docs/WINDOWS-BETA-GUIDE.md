@@ -163,4 +163,11 @@ Set-Content -LiteralPath "$root\novel\chapters\002.md" -Value '이웃 본문입�
 ## 개발자 참고
 
 - 실행본 만들기(개발자 준비 단계): `corepack pnpm package:win --out <새 폴더>`(기본) 또는 `package:win:branded`(선택, 공식 Electron zip 필요). 출력 위치 검사와 입력 허용 목록 등은 [README](../README.md)와 [WINDOWS-PREVIEW-PLAN](WINDOWS-PREVIEW-PLAN.md), [WINDOWS-BRANDED-PREVIEW-PLAN](WINDOWS-BRANDED-PREVIEW-PLAN.md), 설치기 유보는 [WINDOWS-INSTALLER-PREVIEW-PLAN](WINDOWS-INSTALLER-PREVIEW-PLAN.md)을 보세요.
+- 전달 메모(배포자용): 실행본 폴더에는 소스 커밋 정보가 들어 있지 않으므로, 전달할 때 아래를 **전달 메모에 적어** 두세요. 이 메모는 출처 기록이며 출시 승인이 아닙니다. 시험자에게는 메모 전체가 아니라 [§6](#6-문제를-알릴-때)의 "받은 빌드"에 적을 값만 알려 주세요. 곧 **패키지 출처의 전체 소스 SHA**(필요하면 패키지 날짜와 빌드 종류)입니다. ZIP으로 받은 시험자는 **자기가 받은 ZIP의 실제 SHA-256**을 §6대로 직접 계산해 따로 적고, 메모의 해시는 그 값과 대조하는 데만 쓰게 하세요. 메모와 제보 어디에도 내부 근거 경로(로컬 빌드·증거 폴더 경로 등)나 민감정보를 넣지 마세요.
+  - **소스 SHA 전체:** 빌드에 실제 사용한 소스 체크아웃에서 **빌드 시점에** 기록하세요(`git -C <그 체크아웃> rev-parse HEAD`). git이 없는 소스 사본이나 재사용한 빌드라면 당시에 남긴 기록(빌드 때 적어 둔 SHA 등)과 소스가 그 SHA와 일치한다는 근거(파일 단위 대조 등)를 쓰고, **나중에 현재 HEAD로 대체하지 마세요.** 그 SHA의 트리로 빌드했다는 근거와 독립 재빌드로 확인했는지도 적으세요.
+  - **비교한 main:** 비교 대상 main의 **커밋 SHA 전체**와, 소스 SHA와 그 main 사이 제품·패키징 입력(`src`, `package.json`, `pnpm-lock.yaml`, `electron.vite.config.ts`, `resources`, `scripts`, 고지 파일)의 차이를 적어 비교를 다시 재현할 수 있게 하세요(없으면 "없음, 차이는 문서뿐" 등 확인한 범위).
+  - 빌드 종류(`electron.exe` 또는 `LoreWeave.exe`), Electron 버전, 미서명.
+  - 패키지 날짜는 확인되는 값만(예: 패키징 때 만들어진 파일의 파일 시스템 시각이며 서명된 날짜가 아님을 밝힘). 확인되지 않으면 추정하지 말고 비우세요.
+  - 전달하는 ZIP의 이름, 크기, SHA-256. 해시는 **전달 직전에 다시 계산**해 적고, 폴더 안 파일과의 일치와 ZIP 안 `version`·`resources\app\package.json` 값도 대조하세요.
+  - ZIP이 패키지 폴더 하나만 담는지, 원고·프로필(`settings.json` 등)·API 키·DB·로컬 경로가 섞이지 않았는지 만들기 전에 확인하고, 출처가 불명확하거나 의심스러우면 전달하지 마세요. 파일 이름에도 개인·작품 정보를 넣지 마세요.
 - 이 안내의 검증 현황은 위 날짜·SHA의 기록입니다. 이후 변경에는 자동으로 적용되지 않습니다.
