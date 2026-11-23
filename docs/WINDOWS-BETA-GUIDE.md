@@ -163,4 +163,11 @@ Set-Content -LiteralPath "$root\novel\chapters\002.md" -Value '이웃 본문입�
 ## 개발자 참고
 
 - 실행본 만들기(개발자 준비 단계): `corepack pnpm package:win --out <새 폴더>`(기본) 또는 `package:win:branded`(선택, 공식 Electron zip 필요). 출력 위치 검사와 입력 허용 목록 등은 [README](../README.md)와 [WINDOWS-PREVIEW-PLAN](WINDOWS-PREVIEW-PLAN.md), [WINDOWS-BRANDED-PREVIEW-PLAN](WINDOWS-BRANDED-PREVIEW-PLAN.md), 설치기 유보는 [WINDOWS-INSTALLER-PREVIEW-PLAN](WINDOWS-INSTALLER-PREVIEW-PLAN.md)을 보세요.
+- 전달 메모(배포자용): 실행본 폴더에는 소스 커밋 정보가 들어 있지 않으므로, 전달할 때 아래를 **메모에 적어** 시험자가 [§6](#6-문제를-알릴-때)에서 그대로 알려 줄 수 있게 하세요. 이 메모는 출처 기록이며 출시 승인이 아닙니다.
+  - 소스 SHA 전체(`git rev-parse HEAD`)와, 그 SHA의 트리로 빌드했다는 근거(빌드에 쓴 소스 폴더와의 파일 단위 일치 등). 독립 재빌드로 확인하지 않았다면 그렇게 적으세요.
+  - 비교한 최신 main과 그 사이 제품·패키징 입력의 차이(없으면 "없음, 차이는 문서뿐" 등 확인한 범위).
+  - 빌드 종류(`electron.exe` 또는 `LoreWeave.exe`), Electron 버전, 미서명.
+  - 패키지 날짜는 확인되는 값만(예: 패키징 때 만들어진 파일의 파일 시스템 시각이며 서명된 날짜가 아님을 밝힘). 확인되지 않으면 추정하지 말고 비우세요.
+  - 전달하는 ZIP의 이름, 크기, SHA-256. 해시는 **전달 직전에 다시 계산**해 적고, 폴더 안 파일과의 일치와 ZIP 안 `version`·`resources\app\package.json` 값도 대조하세요.
+  - ZIP이 패키지 폴더 하나만 담는지, 원고·프로필(`settings.json` 등)·API 키·DB·로컬 경로가 섞이지 않았는지 만들기 전에 확인하고, 출처가 불명확하거나 의심스러우면 전달하지 마세요. 파일 이름에도 개인·작품 정보를 넣지 마세요.
 - 이 안내의 검증 현황은 위 날짜·SHA의 기록입니다. 이후 변경에는 자동으로 적용되지 않습니다.
