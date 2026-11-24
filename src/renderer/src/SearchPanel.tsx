@@ -38,6 +38,8 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
   const composing = useRef(false);
   /** 마지막 keydown이 조합에 속했다 (isComposing, 또는 IME가 처리한 키 keyCode 229). 그 키가 일으킨 form submit을 걸러 낸다 */
   const composingKey = useRef(false);
+  /** 조합 키(isComposing 또는 keyCode 229)로 시작한 물리 키 누름의 code. keyup 전까지 같은 code의 일반 keydown은 같은 누름의 이어짐이다 (Windows IME는 한 번의 Enter에서 Process(229) → compositionend → Enter(13) keydown을 연달아 낸다) */
+  const composingPress = useRef<string | null>(null);
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<(SearchResult & { query: string }) | null>(null);
   const [busy, setBusy] = useState(false);
@@ -182,8 +184,15 @@ export const SearchPanel = forwardRef<SearchPanelHandle, Props>(function SearchP
           onChange={(e) => setQuery(e.target.value)}
           onCompositionStart={() => (composing.current = true)}
           onCompositionEnd={() => (composing.current = false)}
+          onKeyUp={(e) => {
+            if (composingPress.current === e.code) composingPress.current = null;
+          }}
+          onBlur={() => (composingPress.current = null)}
           onKeyDown={(e) => {
-            composingKey.current = e.nativeEvent.isComposing || e.keyCode === 229;
+            const imeKey = e.nativeEvent.isComposing || e.keyCode === 229;
+            if (imeKey) composingPress.current = e.code;
+            // 같은 물리 누름(keyup 전)이 조합 확정 뒤 일반 keydown으로 이어지면 그 keydown이 만드는 submit도 조합 확정에 속한다. 키를 뗀 뒤의 새 누름은 이 이력이 없어 정상 검색한다
+            composingKey.current = imeKey || (composingPress.current !== null && composingPress.current === e.code);
             // 조합 중의 Escape는 IME의 조합 취소다: 검색어·결과·진행 요청을 지우지 않는다 (기본 동작도 막지 않는다)
             if (e.key === 'Escape' && !composing.current && !composingKey.current) clear();
           }}
